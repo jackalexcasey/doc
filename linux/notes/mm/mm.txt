@@ -1,0 +1,154 @@
+On NUMA systems, the global mem map is treated as a virtual array starting at
+PAGE OFFSET. The type mem map t is a typedef for struct page, so it can be easily referred
+to within the mem map array.
+
+Every physical page frame in the system has an associated struct page that is
+used to keep track of its status.
+
+There is a requirement for Linux to have a fast method of mapping virtual addresses
+to physical addresses and for mapping struct pages to their physical address.
+Linux achieves this by knowing where, in both virtual and physical memory, the
+global mem map array is because the global array has pointers to all struct pages
+representing physical memory in the system
+
+Physical addresses are translated to struct pages by treating them as an index
+into the mem map array. Shifting physical address PAGE SHIFT bits to the right will
+treat them as a Page Frame Number (PFN) from physical address 0, which is also
+an index within the mem map array. This is exactly what the macro virt to page()
+
+
+Cache control
+~~~~~~~~~~~~~~
+Just as some architectures do not automatically manage their TLBs, some do
+not automatically manage their CPU caches. The hooks are placed in locations
+where the virtual to physical mapping changes, such as during a page table update.
+The CPU cache flushes should always take place first because some CPUs require a
+virtual to physical mapping to exist when the virtual address is being flushed from
+the cache.
+	void flush cache all(void)
+	This flushes the entire CPU cache system, which makes it the most severe
+	flush operation to use. It is used when changes to the kernel page tables, which
+	are global in nature, are to be performed.
+
+
+Page Table Management
+~~~~~~~~~~~~~~~~~~~~~
+On the x86, the process page table is loaded by copying mm struct→pgd into
+the cr3 register, which has the side effect of flushing the TLB. 
+In fact, this is how the function flush tlb() is implemented in the
+architecture-dependent code.
+
+PTE
+	PRESENT
+	PROTNONE
+	RW
+	USER
+	DIRTY
+	ACCESSED
+
+Page tables, as stated, are physical pages containing an array of entries, and the allocation
+and freeing of physical pages is a relatively expensive operation, Hence the pages used 
+for the page tables are cached in a number of different lists called quicklists.
+The allocation functions are pgd alloc(), pmd alloc() and pte alloc()
+
+
+Recap
+~~~~~~~
+struct pages represent physical memory; 1 struct pages  - 1 memory address
+
+PTE define VMA; PTE can overlap i.e. Multiple PTE can point to 1 memory address
+
+Rmap grants the ability to locate all PTEs that map a particular page given just the struct page.
+
+The reverse mapping required for each page can have very expensive space requirements.
+To compound the problem, many of the reverse mapped pages in a VMA will be 
+essentially identical. One way of addressing this is to reverse map based on the VMAs rather than individual pages.
+
+
+
+FORK()
+~~~~~~~
+Creates a new process with a new address space. All the pages
+are marked Copy-On-Write (COW) and are shared between the
+two processes until a page fault occurs. Once a write-fault oc-
+curs, a copy is made of the COW page for the faulting process.
+This is sometimes referred to as breaking a COW page.
+
+
+CLOSE()
+~~~~~~~~
+clone() allows a new process to be created that shares parts of
+its context with its parent and is how threading is implemented
+in Linux. clone() without the CLONE VM set will create a new
+address space, which is essentially the same as fork().
+
+Page Frame reclaim
+~~~~~~~~~~~~~~~~~~
+page cache. All data that is read from disk is stored in the page cache to 
+reduce the amount of disk I/O that must be performed
+
+With the exception of the slab allocator, all pages in use by the system are stored on LRU lists and linked
+together by page→lru so that they can be easily scanned for replacement. The
+slab pages are not stored on the LRU lists because it is considerably more difficult
+to age a page based on the objects used by the slab.
+
+
+how process-mapped pagesare removed. 
+Process-mapped pages are not easily swappable because there is no
+way to map struct pages to PTEs except to search every page table, which is far
+too expensive. If the page cache has a large number of process-mapped pages in it,
+process page tables will be walked, and pages will be swapped out by swap out()
+until enough pages have been freed, but swap out() will still have trouble with
+shared pages. If a page is shared, a swap entry is allocated, the PTE filled with
+the necessary information to find the page in swap again and the reference count is
+decremented. Only when the count reaches zero will the page be freed. Pages like
+this are considered to be in the swap cache.
+
+The objective is for the active list to
+contain the working set [Den70] of all processes and the inactive list to contain
+reclaim candidates.
+
+The page cache is a set of data structures that contain pages that are backed by
+regular files, block devices or swap
+The principal reason for the existence of this cache is to eliminate unnecessary
+disk reads.
+
+
+RECLAIM:
+The function shrink cache() is the part of the replacement algorithm that takes
+pages from the inactive list and decides how they should be swapped out.
+
+LRU, broadly speaking, store the hot and cold pages respectively, or, 
+in other words, the active list contains all the working sets in the system, 
+and inactive list contains reclaim candidates.
+
+The two starting parameters that determine how much work will be performed are
+nr pages and priority. nr pages starts out as SWAP CLUSTER MAX, currently de-
+fined as 32 in mm/vmscan.c. The variable priority starts as DEF PRIORITY, cur-
+rently defined as 6 in mm/vmscan.c.
+
+Available memory;
+~~~~~~~~~~~~~~~~~~
+To determine how many pages are potentially available, Linux sums up
+the following bits of data:
+
+Total page cache because page cache is easily reclaimed.
+Total free pages because they are already available.
+Total pages used by the dentry cache because they are easily reclaimed.
+Total pages used by the inode cache because they are easily reclaimed.
+
+If the total number of pages added here is sufficient for the request,
+vm enough memory() returns true to the caller. If false is returned, the caller knows
+that the memory is not available and usually decides to return -ENOMEM to userspace.
+
+Before it reach that point:
+When the machine is low on memory, old page frames will be reclaimed
+
+Unfortunately, it is possible that the system is not out of memory and simply
+needs to wait for I/O to complete or for pages to be swapped to backing storage.
+This is unfortunate, not because the system has memory, but because the function is
+being called unnecessarily, which opens the possibly of processes being unnecessarily
+killed. Before deciding to kill a process, it goes through the following checklist
+
+
+
