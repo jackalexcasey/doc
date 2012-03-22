@@ -1,0 +1,106 @@
+Background:
+~~~~~~~~~~~
+Before considering AER, we need to talk about ACPI:
+
+ACPI (Advanced Configuration & Power Interface). ACPI is an abstraction
+layer between the OS and platform firmware (BIOS) and hardware.
+
+The core of the Linux ACPI includes an ACPI Machine Language (AML)
+interpreter that is resident in the Linux kernel.
+
+
+Overview:
+~~~~~~~~~
+Linux AER reporting mechanism is a module (KLM). When initially loaded
+on the kernel, it does a few things:
+
+(A) The driver indicate to the BIOS (through an ACPI call) that the
+kernel is now going to take over the AER subsystem. By default BIOS
+process the AER fault (usually by disabling the devices)
+
+(B) The error reporting mechanism is enabled on the root port.
+
+(C) An Interruption handler is attached to the AER vector.
+
+(D) An AER callback registration mechanism is exposed to the world.
+
+
+More details:
+~~~~~~~~~~~~~
+A devices drivers 'bind' to the AER callback registration mechanism by
+providing a callback table to the PCI registration interface. Following
+is a description of the field inside that table:
+(1)   /* PCI bus error detected on this device */
+(2)   /* MMIO has been re-enabled, but not DMA */
+(3)   /* PCI Express link has been reset */
+(4)   /* PCI slot has been reset */
+(5)   /* Device driver may resume normal operations */
+
+
+The error path:
+~~~~~~~~~~~~~~~
+Let's assume that a devices is causing a PCI bus error by doing
+something silly like DMA's to lalaland. 
+
+(A) The host controller is going to raise the AER IRQ and the
+corresponding driver will receive a callback of type (1) /* PCI bus
+error detected on this device */
+
+(B) Typically in the callback, the driver would disconnect himself from
+the PCI buses to avoid further I/O. The goal is to avoid system
+corruption (as much as possible).
+In the case of a network driver, queues are turned off 'here'.
+
+(C) Depending on the fault, the PCI link may also be reset. In that
+cases driver is also notified quickly to avoid deadlocking in spinloops
+waiting for some i/o-space register to change!
+
+(D) When the PCI link is back to normal, the driver also get notified.
+In the cases of network drivers, this is usually when the queues are
+'re-enabled'.
+
+
+VT-d background:
+~~~~~~~~~~~~~~~~
+Intel VT-d provide hardware assist interruption remapping as well as dma
+remapping. Under the hood there is 2 'translation' tables which are
+programmed by the VMM (dom0 in our cases) on the behalf of a VM request
+(domU).
+PCI-e Interruption are tagged with a special ID (reqId) which correspond
+to an entry in the 'translation' table. The corresponding VMM vector is
+raised and chained to the VM(domu) with minimal overhead.
+
+Similar mechanism exist for dma remapping where an IOMMU is 'indexed' to
+a lookup table maintained by the VMM (dom0) and configured on the behalf
+of VM(domu) request.
+
+VT-d aim to provide better isolation and hardware assist lookup.
+
+
+AER in the context of VM / Vnic
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Only the PF driver does register with the AER reporting scheme. In the
+case of Niantic there is only 1 vector because there is 'really' only 1
+devices.
+
+Since the interrupt registration happen in the VMM (dom0), VT-d
+interruption remapping is _not_ used in this cases. As a consequence the
+AER interruption doesn't contain information like "RequesterID"
+therefore there is no association with the faulty VM or what so ever.
+
+Moreover since there is no 'connection' between PF and VF in term of
+Error reporting things like VM going into infinite deadlock in spinloops
+waiting for some i/o-space register is very well possible.
+
+
+Going forward
+~~~~~~~~~~~~~
+I see that we need to modify PF/VF driver in order to put some
+consistency on their error reporting / recovery mechanism scheme.
+
+Also I see that we will likely need an efficient communication mechanism
+between VMM / VM. Maybe we should tap in existing xring technology...
+
+Thanks,
+Etienne
+

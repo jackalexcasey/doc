@@ -1,0 +1,24 @@
+Trapping pio is quite straightforward as the hardware
+provides traps for pio instructions and partially decodes
+the operands. Trapping mmio, on the other hand, is quite
+complex, as the same instructions are used for regular
+memory accesses and mmio:
+
+
+The kvm mmu does not create a shadow page table
+translation when an mmio page is accessed
+
+Instead, the x86 emulator executes the faulting in-
+struction, yielding the direction, size, address, and
+value of the transfer.
+
+
+In kvm, I/O virtualization is performed by userspace.
+All pio and mmio accesses are forwarded to userspace,
+which feeds them into a device model in order to simu-
+late their behavior, and possibly trigger real I/O such as
+transmitting a packet on an Ethernet interface. kvm also
+provides a mechanism for userspace to inject interrupts
+into the guest.
+
+???

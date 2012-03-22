@@ -1,0 +1,120 @@
+Gents,
+
+I put together a simple prototype to illustrate the feasibility of a
+very small Linux KVM based hypervisor. At the end of this email you'll
+find a detailed break down on LOC per subsystem. Currently the prototype
+has 380KLOC; 
+
+Standard configuration mechanism has been used to 'trim down' the kernel
+code base. There is still room for improvement (275KLOC is a realistic
+goal).
+
+Drivers are part of a privileged VM (Same has Xen) and are restartable
+by definition. Platform code, PCIe, Hotplug, Serial console are part of
+the Hypervisor therefore _not_ restartable. (See picture at the end)
+
+*** Ultimately, LOC NOT restartable with Xen [ Xen + Dom0 minimal ] is
+going to be same OR greater than a minimal Linux KVM Hypervisor.
+
+_BUT_
+
+Going with a KVM based Hypervisor as _huge_ advantage:
+
+- Major distribution vendor are using KVM therefore instead of
+reinventing the wheel we could just piggy back their work.
+
+- KVM is a driver part of mainline Linux; It has ~20KLOC easy to
+understand. [Xen code based is complex, poorly documented and rely on
+Python script at runtime!]
+
+- Huge regression test suites exist for Linux
+
+- Xen has customized GDB, Kexec, Backtrace and so on; With KVM
+_everything_ is standard Linux
+
+- User mode device driver can run directly on top of the Hypervisor
+without affecting it's stability. For example, things like PF NIC could
+be adapted to run in User mode.
+
+
+
+
+******* Thin Hypervisor based on KVM *******
+
+        Priviledge VM                VM                VM
+         |User:   |              |User:   |        |User:   |
+         |--------|              |--------|        |--------|
+         |Kernel: |              |Kernel: |        |Kernel: |
+         |--------|              |-------VF Nic    |-------VF Nic
+         |qemu-kvm| <-BackEnd    |qemu-kvm|  |     |qemu-kvm|  |
+         ----------   FrontEnd-> ----------  |     ----------  |
+             |                               |                 |
+       [Pass through]                        |                 |
+User:        |                             [ ---PF nic driver--- ]
+             |                                        |
+-------------|----------------------------------------|----------------
+             |                                        |
+kernel:      |                              [ User mode Driver ]
+             | [ KVM, VT-d / Vt-x ]
+             |
+-----------------------------
+         Hardware
+
+
+
+
+
+******* Lines of codes per subsystem *******
+
+Platform Initialization
+~~~~~~~~~~~~~~~~~~~~~~~
+- Intel IO-APIC, CPU, ACPI, MMU,  TLB                      ---> 61829
+- Bootstrap                                                --->  2545
+                                                           ----------
+                                                                64374
+Core Kernel
+~~~~~~~~~~~
+- Scheduler, Process, Interrupt, Timer, Locking, Signal    ---> 89119
+- Memory Management                                        ---> 46106
+- SysV IPC                                                 --->  5623
+- Block layer                                              ---> 12924
+- Device-Driver Model                                      --->  8765
+- Virtual File System (VFS)                                ---> 48473
+                                                           ----------
+                                                               211010
+File System
+~~~~~~~~~~~
+- EXT2                                                     --->  6612 
+- Code page                                                --->  1404
+- Devpts                                                   --->   578
+- Procfs                                                   --->  8767
+- RamFS                                                    --->   377
+- SysFS                                                    --->  3042 
+- EventFD                                                  --->  2551
+                                                           ----------
+                                                                23331
+Virtualization Support
+~~~~~~~~~~~~~~~~~~~~~~
+- KVM Driver VT-d VT-x                                     ---> 19915
+                                                           ----------
+                                                                19915
+Drivers
+~~~~~~~
+- Loopback, TTY                                            ---> 16617
+- Ramdisk                                                  --->  2636
+- Nvram, RTC                                               --->  3709
+- PCI, PCIe, Hotplug                                       ---> 16361
+- Platform specific (Intel)                                --->  3874
+- User Mode device driver                                  --->   650
+                                                           ----------
+                                                                43847
+Library
+~~~~~~~
+Generic                                                    ---> 18612
+Platform specific                                          --->  1451
+                                                           ----------
+                                                                20063
+TOTAL:
+                                                           ----------
+                                                               382540
+

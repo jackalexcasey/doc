@@ -1,0 +1,80 @@
+INTEL:
+~~~~~~
+cr3 is the root of the page table.
+page_table (translation domain relationship )
+TLB ( Access level )
+page fault
+Instruction to switch from cr3 to another ( independant addr space )
+
+RECAP ON A)PV mmu(lguest) B)shadow MMU kvm (vt-x), C)full mmu kvm EPT
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+- PTE define the mapping between linear -> physical BUT doesn't control the access to the Memory
+- TLB on the other hands controls the access of the memory. TLB are filled with PTE.
+
+SPTE are like TLB as seen from the guest ( because they control the access )
+SPTE / TLB refill:
+	SPTE has less access than guest PTE ( new mapping for EX); 
+		host page_fault validate the mapping an bring the page in.
+	TLB fault:
+		host page_fault inject the page_fault into the guest.
+SPTE / TLB flush:
+	SPTE has more access than guest PTE ( removed mapping )
+		SPTE entry removed / TLB flush ( ZAP SPTE )
+
+PV MMU (lguest):
+	The guest has it's own pagetable; The host track the guest PTE into the SPTE via a PV MMU interface.
+	The HW MMU point to the SPTE when executing the guest.
+	The lguest driver trap the page_fault: They can belong to the host or be injected to the guest
+
+Full virtualized MMU (KVM):
+	The guest has it's own pagetable; The host track the guest PTE into the SPTE via a FULL virtual MMU I/F 
+		using techniques like 'write protect guest PTE'a PV MMU interface.
+	The HW MMU point to the SPTE when executing the guest.
+	The KVM MMU driver trap the page_fault: They can belong to the host or be injected to the guest
+
+Full virtualized MMU with EPT (KVM):
+	The guest has it's own pagetable; The host doesn't track the guest PTE
+	The HW MMU point to a two dimension PTE (EPT); guest PTE + SPTE
+	The HW MMU point to the EPT when executing in VMX mode
+		The HW MMU can generates page_fault to the Guest GVA-GPA directly;
+		The HW MMU can generates page_fault to the host GPA-HPA (kvm_page_fault)
+	EPT is a TLB of GPA to HPA
+
+SWAP, mmu_notifier, KVM SPTE
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+kvm_page_fault() instantiate SPTE; 
+SPTE (with EPT) are really GPA to HPA
+GPA is the malloc'ed region
+kvm_page_fault() does a get_user_pages() to get the host physical for that GPA // malloc memory
+
+Linux VM can swap Linux PTE for the one that comes from the guest memory ( malloc memory )
+	BUT we also need to swap SPTE ( if we want all guest memory swaped out )
+To swap SPTE we need to invalidate all associate SPTE mapping
+	===> Need mmu_notifier
+
+The flow from swapping POV ( We assume Linux does want to swap page on Host and hit a page that contain a SPTE )
+	The MMU_notifier tell us about that
+SWAP ( 1 page )
+	pte_clear ( host MMU )
+	tlb_flush ( host MMU )
+	mmu_notifier : invalidate_page ( 1 page )
+		Invalidate SPTE
+		Invalidate secondary TLB ( the KVM vPID one )
+	restart any kvm_page_fault
+	put_page
+
+SWAP ( range )
+	mmu_notifirer :  range_start()
+		Block kvm_page_fault()
+		Invalidate SPTE s
+	TLB gather (host MMU )
+	range_end() // Unblock kvm_page_fault()
+
+The * invalidate * operation does:
+invalidate_page // invalidate_range_start
+	Find the GFN to invalidate by searching into the host memslot == HVA
+	From HVA get the PAGE and Using the RMAP PA -> All VA mapping; 
+		From there find all SPTE and mark them invalid 
+		( There could be more that one GPA->HPA because of KSM )
+
+

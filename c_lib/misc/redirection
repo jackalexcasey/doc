@@ -1,0 +1,2 @@
+ls /root >p1 2>&1
+# the output of ls goes to p1 and stderr goes to whatever stderr pointed to (&1)

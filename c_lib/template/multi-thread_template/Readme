@@ -1,0 +1,2 @@
+./makeplot out.dat test loopsize cycle
+./a.out  30

@@ -1,0 +1,46 @@
+The flow;
+
+
+When entering a DomU Linux kernel in paravirtualization mode (pv_ops) one of the 
+first things the code does is to setup the pv_ops hook; to avoid privileged instructions.
+
+
+static const struct pv_irq_ops xen_irq_ops __initdata = {
+   .init_IRQ = xen_init_IRQ,
+
+   .save_fl = PV_CALLEE_SAVE(xen_save_fl),
+   .restore_fl = PV_CALLEE_SAVE(xen_restore_fl),
+   .irq_disable = PV_CALLEE_SAVE(xen_irq_disable),
+   .irq_enable = PV_CALLEE_SAVE(xen_irq_enable),
+
+   .safe_halt = xen_safe_halt,
+   .halt = xen_halt,
+#ifdef CONFIG_X86_64
+   .adjust_exception_frame = xen_adjust_exception_frame,
+#endif
+};
+
+
+/* First C function to be called on Xen boot */
+asmlinkage void __init xen_start_kernel(void)
+{
+...
+   /* Install Xen paravirt ops */
+   pv_info = xen_info;
+   pv_init_ops = xen_init_ops;
+   pv_time_ops = xen_time_ops;
+   pv_cpu_ops = xen_cpu_ops;
+   pv_apic_ops = xen_apic_ops;
+   pv_mmu_ops = xen_mmu_ops;
+   pv_mmu_ops.ptep_modify_prot_start = xen_ptep_modify_prot_start;
+   pv_mmu_ops.ptep_modify_prot_commit = xen_ptep_modify_prot_commit;
+...
+
+   /* Interrupt-related operations */      
+   pv_irq_ops = xen_irq_ops;
+}
+
+
+
+
+

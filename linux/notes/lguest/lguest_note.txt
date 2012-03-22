@@ -1,0 +1,453 @@
+lguest driver init_module()
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+-Check is lguest is running on baremetal
+
+	Switcher:
+	Switcher is a piece of code that change the current CPU state to the Guest state ( to run the Guest code )
+	On the way back (interrupt or trap) it changes the state back to the host.
+	Because switcher is used by both Guest and Host is has to be linked at the same virtual ADDR from both
+	side. 
+	
+	This is what map_switcher does
+		static struct vm_struct *switcher_vma;
+		static struct page **switcher_page;
+
+	/* Get the VMA for the address we want */
+	switcher_vma = __get_vm_area(TOTAL_SWITCHER_PAGES * PAGE_SIZE,
+				     VM_ALLOC, SWITCHER_ADDR, SWITCHER_ADDR
+				     + (TOTAL_SWITCHER_PAGES+1) * PAGE_SIZE);
+
+	/* Allocate some page to dump the switcher into */
+
+	NOTE we allocate 2 extra pages for Guest->Host communication
+		Each CPU gets two pages of its own within the high-mapped region
+	
+	/* mmap the page we allocated (&pagep) into the switcher_vma area */
+	err = map_vm_area(switcher_vma, PAGE_KERNEL_EXEC, &pagep);
+
+	/* memcpy the swither code compiled from the HERE using those global tag */
+		ENTRY(end_switcher_text) // ENTRY(start_switcher_text)
+
+	So here the switcher lives under a specific VMA which bith guest and host agreed on.
+
+	When the guest will run; it will need access to that switcher VMA addr ( to execute it)
+	This is why we create a set of PTE for the switcher hold in PER-CPU 'switcher_pte_pages'
+	Those PTE will get incorporated to the guest VMA when it will runs
+
+	This is what 'init_pagetables' does...
+
+init_interrupts()
+	In fact this enable Linux to use another syscall trap# that 0x80 / 128; If syscall_vector
+	( module arg) is different that SYSCALL_VECTOR then we allocate that vector from the 
+	global 'used_vectors'
+
+lguest_device_init; Open the node file open read write close
+
+Then lguest_arch_host_init ( X86 specific initialization )
+	The switcher code is relocatable EXCEPT the Int handler (default_idt_entries)
+	In switcher_32.S the IRQ table is default_idt_entries and the addr is relocated += switcher_offset()
+		HERE the switcher is FULLY relocated and ready to run; Some more init to be done
+	*** NOTE that the switcher contains the IDT table to be used by the Guest
+		This is exactly how for example we gain control when a guest is doing a int 0x80;; i.e. The
+		guest does a syscall then the CPU's lookup the current IDT and find that it should do 'return_to_host'
+
+	TODO copy_in_guest_info
+
+	/* Host information we need to restore when we switch back. */
+		u32 host_cr3;
+		struct desc_ptr host_idt_desc; /*There is only 1 Interrupt Descriptor Table*/
+		struct desc_ptr host_gdt_desc; /*There is a per-CPU GDT descriptor table */
+		u32 host_sp;
+	/* Fields which are used when guest is running. */
+		struct desc_ptr guest_idt_desc; /* points to guest_idt[IDT_ENTRIES] */
+		struct desc_ptr guest_gdt_desc; /* points to guest_gdt[GDT_ENTRIES]; */
+		/*
+		 * setup TSS sp0 = pages->register
+		 * ss0 = points to GDT entry
+		 */
+		struct x86_hw_tss guest_tss;
+		struct desc_struct guest_idt[IDT_ENTRIES];
+		struct desc_struct guest_gdt[GDT_ENTRIES];
+
+	setup_default_gdt_entries
+	setup_default_idt_entries
+
+	The HOST also map the guest segment so we add CS and DS GDT entry in the Host SAME as guest
+
+	To enter in the Guest, we use TSS ( which effectively sets up the proper Segment )
+	The TSS is constructed this way ( and invoked using a lcall )
+		lguest_entry.offset = (long)switch_to_guest + switcher_offset();
+		lguest_entry.segment = LGUEST_CS;
+
+	Other black magic
+
+	Then the module is fully initialize...
+
+		INTEL BACKGROUND
+		~~~~~~~~~~~~~~~~~
+
+		Protected mode
+		- on demand paging through the mmu unit ( virtual memory system )
+		  Segment; isolate various piece of code /data/stack; Restriction on a per segment basis
+
+		Linear addr space
+		Logical address; All segment are contained in the Linear addr space.
+			Logical address (far pointer) = segment selector(16bit) | offset(32bit)
+			Segment selector provide an offset into the GDT table OR LDT 
+				( this is part of the 16 bit selector TI bit; TI=0 =>GDT, TI=1 => LDT...)
+			In the table GDT/IDT there is the segment descriptor
+				(size, access right, priviledge, Base Addr )
+			=>>> Far pointer offset(32bit) + (Segment descriptor) Base addr
+		Linear Addr ---> MMU ---> Physical address
+
+		Logical addr is _always_ used; Paging can be disabled ===> Logical addr -> Physical addr
+
+		The FLAT memory model ( simplistic used of segmentation)
+			2 segment descriptor needed; Code and Data Over the whole 4GB of Linear addr space.
+			cs/ss/ds/es/fs/gs --> SAME (code/data/stack/io/memory)
+		The Protected FLAT model
+			cover only the RAM that is present.
+			cs ---> CODE; ss/ds/es/fs/gs ---> data/stack/io/memory
+		***For every memory access (in protected mode) ALL access are done in logical addressing.
+
+		GlobalDescriptorTable GDT
+		LocalDescriptorTable LDT
+		CurrentPriviledgeLevel CPL
+
+		Vector 0-31 Reserved;
+
+		IDTR is a ptr to the location of the IDT table (anywhere in the linear ADDR space)
+		IDTR hold 32bit addr for IDT and 16 bit for IDT limit ( number of entry in the table)
+		ASM LIDT/SIDT
+
+		Vector # (IRQ or trap) goes in IDT (IDTR); Can be either a Trap gate, Task gate or Interrupt Gate
+		Interrupt gate goes in GDT (GDTR)-> 	Seg descriptor -> Interrupt handler code.
+		Trap gate goes to LDT (LDTR) -> Seg descriptor -> Exception handler code
+
+		Interrupt Vector (Internal HW, External HW (through interruption controller), OR SW via trap INTx instruction
+		The vector provide an index into the IDT table.The gate descriptor can be interrupt gate or trap gate 
+
+		TSS;
+		In protected mode, at least one TSS must be defined. TSS specifies the segment that makes up the TASK.
+
+*** DONE ***
+
+User space <--> lguest Driver communication
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+lguest loader is a program on Host; It interface with /dev/lguest
+/dev/lguest WRITE: ( ~IOCTL )
+	case LHREQ_INITIALIZE:
+		return initialize(file, input);
+	case LHREQ_IRQ:
+		return user_send_irq(cpu, input);
+	case LHREQ_EVENTFD:
+		return attach_eventfd(lg, input);
+*** DONE ***
+
+
+Memory layout (loader)
+~~~~~~~~~~~~~~~~~~~~~~
+mem == is total memory to the guest
+guest_base is guest start
+guest_limit = mem
+guest_max = mem + pages for DEVICES
+
+There is an allocator 'static void *get_pages(unsigned int num)'
+that takes memory between guest_limit to guest_max
+
+The guest memory is from a mmap over /dev/zero with mmap_private.
+The private mapping ensure that a write to one page fault in and provide private access to the page
+*** DONE ***
+
+
+Device creation
+~~~~~~~~~~~~~~~~
+devices.descpage use get_pages to assign 'device' memory
+devices.descpage points to the DEVICE area. In there there is a linked list of device descriptor; The Guest iterates over that same area to discover the device. This is like a BUS
+
+new_device ALLOCATES device descriptor in DEVICE memory Together with the Device description / TYPES
+add_virtqueue allocates virtqueue ring in DEVICE memory right after the device descriptor; 
+Initialize the vring, descripe the PFN of that vring. AND the ___ thread to handle ___ the event over that ring
+  NOTE There might be more that one vring; vring_init is an INLINE.
+
+Each virtqueue have a service routine ( event thread )
+The thread for each service / device is started with 'start_device' LATER in the loader boot process.
+In the thread startup code, the eventfd is also created. There is an Hypercall to passdown the eventFD
+That eventfd is used to signal on that virtqueue..
+
+The service thread block on a wait_for_vq_desc
+This function check if there is available data IF not then it waits on the evenrfd (read ).;
+When there is data it reads the queue and increment the pointer AND return the data to userspace.
+
+Data can be in the form of input or output.
+For input, userspace fill in the IOV and signal back THE guest  with add_used
+If fact add_used doesn't signal the guest; Only wait_for_vq_desc trigger an irq to the guest.
+add_used place data in the pipe...
+
+add_used_and_trigger does update the pipe and trigger an IRQ in the guest.
+
+ TODO; virtio discovery ??? in the guest...
+*** DONE ***
+
+
+Loading the kernel image
+~~~~~~~~~~~~~~~~~~~~~~~~~
+vmlinux OR bzImage gets loaded into the memory. 
+
+map_at is the function that read a specific section of the kernel ELF file and write to Guest memory ( at a specific offset)
+SO chunk of the image are place into the guest memory [guest_base + offset ]
+
+initrd has the same trick...
+
+struct boot_params
+contain the page that has the image information. Normally this is populated by the
+BIOS but there we do it in Loader. Note we pass e820 the whole ram ;; mem
+
+Note that boot_params also has command line, and a hdr.hardware_subarch
+hdr.hardware_subarch set to 1 indicate that the image is a lguest kernel ( this will kick the pv bootstrap of lguest )(
+
+	Kernel start @ arch/x86/kernel/head_32.S [ ENTRY(startup_32) ]
+	Depending on the hardware_subarch we branch
+		157     .long default_entry     /* normal x86/PC */
+		158     .long lguest_entry      /* lguest hypervisor */
+		159     .long xen_entry         /* Xen hypervisor */
+		160     .long default_entry     /* Moorestown MID */
+
+Then we call:
+static void tell_kernel(unsigned long start)
+AND we call into the lguest driver [LHREQ_INITIALIZE (initialize() ]
+INTERNALLY this prepare/setup the state for the lguest kernel into flip->private_data
+*** DONE ***
+
+
+lguest driver [ initialize ] LHREQ_INITIALIZE
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Lguest loader setup a lguest kernel instance through /dev/lguest
+The instance information is keept into flip->private_data ( per guest storage )
+In there the state of the lguest; Register state, stack, ...
+
+	 * base: The start of the Guest-physical memory inside the Launcher memory.
+	 *
+	 * pfnlimit: The highest (Guest-physical) page number the Guest should be
+	 * allowed to access.  The Guest memory lives inside the Launcher, so it sets
+	 * this to ensure the Guest can only reach its own memory.
+	 *
+	 * start: The first instruction to execute ("eip" in x86-speak).
+Latch in the value;
+
+A CPU in lguest is struct lg_cpu
+- x86 CPU
+- Various status to lguest driver
+
+call lg_cpu_start(&lg->cpus[0], 0, args[2]);
+  Init CLOCK device ( HR timer on Host ) does a set_interrupt(cpu, 0);
+  i.e. When the host HR timer expire it call clockdev_fn which then set an IRQ for the quest.
+  
+  Alloc memory for register
+  Initialize register
+	regs->ds = regs->es = regs->ss = __KERNEL_DS|GUEST_PL;  //Kernel data segment
+	regs->cs = __KERNEL_CS|GUEST_PL;  // Kernel code segment;; GUEST_PL is ring1
+	eip points to start
+	esi points to boot information
+	EFLAGS
+	setup the GDT
+		cpu->arch.gdt[GDT_ENTRY_KERNEL_CS] = FULL_EXEC_SEGMENT;
+		cpu->arch.gdt[GDT_ENTRY_KERNEL_DS] = FULL_SEGMENT;
+		cpu->arch.gdt[GDT_ENTRY_KERNEL_CS].b |= (GUEST_PL << 13);
+		cpu->arch.gdt[GDT_ENTRY_KERNEL_DS].b |= (GUEST_PL << 13);
+
+   At this point the lguest driver contain the register set for the guest kernel at startup
+   The guest kernel is not runnig yet.
+
+   Remember current and mm
+
+*** BUILD the pagetable ***
+lguest is using a DIRECT shadow pagetable techniques i.e. the PTE are part of the host like regular process
+The current CPU context sees the guest PTE directly as if it was the host running
+	The Host has the page_fault handler ( to see if it legitimate (contained to the guest or not)
+	If it belong to the guest than the page is brought in (on demand paging host ) 
+	and this fault is not passed to the guest.
+	If there is a mapping error then the guest needs to know about it.
+The guest manipulates it's own pagetable AND (because of PV) end up calling the host to do so.
+In other word, Guest make use of TLB management instruction and host trap them and apply correct 
+change to PTE. This is how Guest/Host are keept in sync...
+
+	INTEL BACKGROUND
+	(Intel 3B ; 28.3.3 )
+	A simple approach to track guest PTE is to trap on every access to those page table; This
+	can be done because Host knows about guest CR3;;; Considerable overhead + Translation guest->host
+
+	PTE define the mapping between linear -> physical BUT doesn't control the access to the Memory
+	TLB on the other hands controls the access of the memory. TLB are filled with PTE.
+
+	Under KVM, the guest manipulates it's own PTE without cause traps into host.
+	Because of that  guest /host PTE may not be persistent
+	Guest PTE Only define the translation but do not control the access. The virtual TLB control the access
+
+	The vTLB mechanism utilize the CPU TLB though host active page table management layer.
+
+
+	In other work, for every guest PTE there is a host PTE that is loosely coupled ( cached transaction )
+	Upon TLB control operation from guest or Host page fault
+	TLB refill ( from page_fault) ; TLB flush from INVLPG
+
+	On bare metal:
+	TLB allow less access than PTE ===> TLB refill ( CPU don't know about that translation 
+		and look into PTE. If not present then page_fault )
+	TLB allow more access than PTE ===> TLB flush ( when CPU remove mapping )
+
+The Initial lguest pagetable are build with 'mem' size and initrd size (if any) + mem_base
+
+On Intel X86 / 4GB, PTE are 4K and there is 2^20 PTE per PGD and there is 4 PGD
+	[PGD (2bits) | PMD (20 bits) | PTE (10 bits)]
+On PAE there is the PMD ( 3 LEVEL DEEPTH PAGETABLE )
+
+The top level PGD are put at the TOP of the memory Just before initrd
+!!Interestingly, since the memory belong to user ( loader ), when lguest writes to memory it
+does a copy_to_user...
+	pte-
+	pte- pgd (pte per pgd)
+	pte-
+
+	pte-
+	pte- pgd (pte per pgd)
+	pte-
+
+	/* This is the code from the above ( User page table construct )
+	 * Here we assume the code fits into the first PGD <=1Gb */
+	lg->pgdirs[0].gpgdir = setup_pagetables(lg, mem, initrd_size);
+	if (IS_ERR_VALUE(lg->pgdirs[0].gpgdir))
+		return lg->pgdirs[0].gpgdir;
+
+	/* Here this is fo the shadow page table... ???more to come
+	lg->pgdirs[0].pgdir = (pgd_t *)get_zeroed_page(GFP_KERNEL);
+	if (!lg->pgdirs[0].pgdir)
+		return -ENOMEM;
+
+	int cpu_pgd; /* Which pgd this cpu is currently using */
+*** DONE ***
+
+Guest run-time
+~~~~~~~~~~~~~~~
+The guest owns the CPU it is running on. The switcher/lguest module setup the proper
+execution context for the current CPU just before entering the guest and restores it when it exit.
+i.e. Proper CPU flag / mask, paging, ptr...
+
+To ensure the guest owns the CPU, IRQ are disabled on that CPU
+The 'run_guest_once' start the execution of the Guest itself. It does so by calling into the switcher 'lguest_entry'
+Even if the guest is stock, it should exit because of the timer IRQ
+
+	/*
+	 * In the Switcher, we want the %cs segment register to use the
+	 * LGUEST_CS GDT entry: we've put that in the Host and Guest GDTs, so
+	 * it will be undisturbed when we switch.  To change %cs and jump we
+	 * need this structure to feed to Intel's "lcall" instruction.
+	 */
+	lguest_entry.offset = (long)switch_to_guest + switcher_offset();
+	lguest_entry.segment = LGUEST_CS;
+
+The guest runs and any event (like trap INT 0x80) is causing the CPU to read the IDT; Because we replace the IDT
+with our on the current CPU then it execute a 'return to host' which restore the original CPU/ host kernel state.
+
+Starting up the guest; Read /dev/lguest
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+The loader does a run_guest which in turn does a read on /dev/lguest
+The read can returns for some reason; If it does then the reason is pass to the loader
+
+The lguest driver run_guest is a loop that execute guest until something happens.
+
+run_guest()
+while(!dead){
+	TODO other stuff HERE...
+
+	IRQ dis
+	**NOTE that IRQ are disabled on that CPU when the guest runs 'local_irq_disable();'
+	lguest_arch_run_guest()
+	IRQ ena
+
+}
+
+lguest_arch_run_guest()
+{
+	Also NOTE that we run the guest on the current CPU so some tweaking might be required.
+	Things like FPU flag / SYSENTER
+		run_guest_once(cpu, lguest_pages(raw_smp_processor_id()));
+	We take great care to re-enable those knobs when exiting from the guest
+}
+
+run_guest_once()
+	NOTE that we specify on which CPU it is running on... because really the read /dev/lguest is coming
+	from user space and can be on any CPU; BTW this is why there is a per CPU lguest_pages structure.
+
+	The perCPU lguest_pages is used to contain Host saved information AND guest information. The guest has
+	access to those 2 pages and CAN update information into it. The information contained in there also
+	reflect the guest state register, GDT IDT TSS
+
+	/*
+	 * Copy the guest-specific information into this CPU's "struct
+	 * lguest_pages".
+	 */
+	copy_in_guest_info(cpu, pages);
+
+	Call into the Guest; This is done with a TSS descriptor 'lguest_entry' that 
+	The TSS is constructed this way ( and invoked using a lcall )
+		lguest_entry.offset = (long)switch_to_guest + switcher_offset();
+		lguest_entry.segment = LGUEST_CS;
+	The TSS setup the GDT for the Guest as well as the TSS entry point. The lcall is like a IRQ call...
+	The following code will effectively call into 'switch_to_guest' and setting GDT accordingly.
+		asm volatile("pushf; lcall *lguest_entry"
+
+*** DONE ***
+
+Host <--> Guest communication
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Hypercalls OR via "struct lguest_data".
+
+
+
+Stock Linux kernel bootstrap
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+typedef struct desc_struct gate_desc;
+typedef struct desc_struct ldt_desc;
+typedef struct desc_struct tss_desc;
+
+gate_desc idt_table[NR_VECTORS] __page_aligned_data = { { { { 0, 0 } } }, };
+
+idt_descr:
+	.word IDT_ENTRIES*8-1		# idt contains 256 entries
+	.long idt_table
+
+ENTRY(boot_gdt)
+	.fill GDT_ENTRY_BOOT_CS,8,0
+	.quad 0x00cf9a000000ffff	/* kernel 4GB code at 0x00000000 */
+	.quad 0x00cf92000000ffff	/* kernel 4GB data at 0x00000000 */
+
+ENTRY(startup_32)
+/*
+ * Set segments to known values.
+ */
+	lgdt pa(boot_gdt_descr)
+...
+...
+subarch_entries:
+	.long default_entry		/* normal x86/PC */
+	.long lguest_entry		/* lguest hypervisor */
+	.long xen_entry			/* Xen hypervisor */
+	.long default_entry		/* Moorestown MID */
+
+ALL entry perform some operation then branch back to 
+		i386_start_kernel()
+
+		which goes to start_kernel()
+
+		then goes back to setup_arch();
+
+
+TODO
+~~~~~
+Time to build the kernel in 32 bit mode in the chroot ENV (32 bit)
+and experiment with it.
+
+

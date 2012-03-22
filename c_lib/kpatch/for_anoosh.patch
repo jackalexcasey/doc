@@ -1,0 +1,44 @@
++CONFIG_DEBUG_SPINLOCK=y
++CONFIG_DEBUG_MUTEXES=y
++CONFIG_DEBUG_LOCK_ALLOC=y
++CONFIG_PROVE_LOCKING=y
++CONFIG_LOCKDEP=y
++CONFIG_LOCK_STAT=y
++CONFIG_DEBUG_LOCKDEP=y
++CONFIG_TRACE_IRQFLAGS=y
++CONFIG_DEBUG_SPINLOCK_SLEEP=y
+diff --git a/lib/spinlock_debug.c b/lib/spinlock_debug.c
+index b7a010a..9c7287b 100644
+--- a/lib/spinlock_debug.c
++++ b/lib/spinlock_debug.c
+@@ -53,8 +53,8 @@ static void spin_bug(spinlock_t *lock, const char *msg)
+ {
+ 	struct task_struct *owner = NULL;
+ 
+-	if (!debug_locks_off())
+-		return;
++//	if (!debug_locks_off())
++//		return;
+ 
+ 	if (lock->owner && lock->owner != SPINLOCK_OWNER_INIT)
+ 		owner = lock->owner;
+@@ -67,6 +67,8 @@ static void spin_bug(spinlock_t *lock, const char *msg)
+ 		owner ? owner->comm : "<none>",
+ 		owner ? task_pid_nr(owner) : -1,
+ 		lock->owner_cpu);
++	if(lock->dep_map.name)
++		printk("SPINLOCK id %s\n",lock->dep_map.name);
+ 	dump_stack();
+ }
+ 
+@@ -117,7 +119,10 @@ static void __spin_lock_debug(spinlock_t *lock)
+ 					"%s/%d, %p (%s)\n",
+ 				raw_smp_processor_id(), current->comm,
+ 				task_pid_nr(current), lock, print_tainted());
++			if(lock->dep_map.name)
++				printk("SPINLOCK id %s\n",lock->dep_map.name);
+ 			dump_stack();
++
+ #ifdef CONFIG_SMP
+ 			trigger_all_cpu_backtrace();
+ #endif

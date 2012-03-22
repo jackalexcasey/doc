@@ -1,0 +1,180 @@
+PCI enumeration:
+~~~~~~~~~~~~~~~~
+Find all devices on all bus; Go thru bridges as well
+
+pci_scan_child_bus(struct pci_bus *bus)
+
+	/* Go find them, Rover! */
+	for (devfn = 0; devfn < 0x100; devfn += 8)
+		pci_scan_slot(bus, devfn);
+
+   >>> pci_scan_device
+      CFG cycle and find device ID vendor ID; Slot may be empty
+
+		pcibios_fixup_bus(bus);
+
+	for (pass=0; pass < 2; pass++)
+		list_for_each_entry(dev, &bus->devices, bus_list) {
+			if (dev->hdr_type == PCI_HEADER_TYPE_BRIDGE ||
+			    dev->hdr_type == PCI_HEADER_TYPE_CARDBUS)
+				max = pci_scan_bridge(bus, dev, max, pass);
+		}
+
+A list of devices is constructed
+Then ressources are assigned
+
+
+void __init
+pci_assign_unassigned_resources(void)
+{
+	struct pci_bus *bus;
+
+	/* Depth first, calculate sizes and alignments of all
+	   subordinate buses. */
+	list_for_each_entry(bus, &pci_root_buses, node) {
+		pci_bus_size_bridges(bus);
+	}
+	/* Depth last, allocate resources and update the hardware. */
+	list_for_each_entry(bus, &pci_root_buses, node) {
+		pci_bus_assign_resources(bus);
+		pci_enable_bridges(bus);
+	}
+
+	/* dump the resource on buses */
+	list_for_each_entry(bus, &pci_root_buses, node) {
+		pci_bus_dump_resources(bus);
+	}
+}
+
+void __ref pci_bus_size_bridges(struct pci_bus *bus)
+
+		pbus_size_io(bus);
+		/* If the bridge supports prefetchable range, size it
+		   separately. If it doesn't, or its prefetchable window
+		   has already been allocated by arch code, try
+		   non-prefetchable range for both types of PCI memory
+		   resources. */
+		mask = IORESOURCE_MEM;
+		prefmask = IORESOURCE_MEM | IORESOURCE_PREFETCH;
+		if (pbus_size_mem(bus, prefmask, prefmask))
+			mask = prefmask; /* Success, size non-prefetch only. */
+		pbus_size_mem(bus, mask, IORESOURCE_MEM);
+
+
+/* Calculate the size of the bus and minimal alignment which
+   guarantees that all child resources fit in this size. */
+static int pbus_size_mem(struct pci_bus *bus, unsigned long mask, unsigned long type)
+
+
+
+pci_bus_assign_resources
+
+	list_for_each_entry(dev, &bus->devices, bus_list) {
+		b = dev->subordinate;
+		if (!b)
+			continue;
+
+		pci_bus_assign_resources(b);
+
+		case PCI_CLASS_BRIDGE_PCI:
+			pci_setup_bridge(b);
+
+/*Initialize bridges with base/limit values we have collected.*/
+static void pci_setup_bridge(struct pci_bus *bus)
+
+
+
+
+
+
+static int __devinit pci_init(void)
+{
+        struct pci_dev *dev = NULL;
+
+        while ((dev = pci_get_device(PCI_ANY_ID, PCI_ANY_ID, dev)) != NULL) {
+                pci_fixup_device(pci_fixup_final, dev);
+        }
+
+        return 0;
+}
+
+
+             +-1e.0-[0000:37]--+-04.0
+             |                 \-09.0
+
+
+root@sunilvk-lnx1:/nobackup/etmartin/kvm/vm/install# lspci -vxx -s  00:1e.0
+00:1e.0 PCI bridge: Intel Corporation 82801 PCI Bridge (rev 90) (prog-if 01)
+	Flags: bus master, fast devsel, latency 0
+	Bus: primary=00, secondary=37, subordinate=37, sec-latency=32
+	I/O behind bridge: 0000d000-0000dfff
+	Memory behind bridge: e4000000-e40fffff
+	Prefetchable memory behind bridge: 00000000c0400000-00000000c04fffff
+	Capabilities: [50] Subsystem: Hewlett-Packard Company Device 130b
+	Kernel driver in use: pci-stub
+00: 86 80 4e 24 07 01 10 00 90 01 04 06 00 00 01 00
+10: 00 00 00 00 00 00 00 00 00 37 37 20 d0 d0 80 22
+20: 00 e4 00 e4 41 c0 41 c0 00 00 00 00 00 00 00 00
+30: 00 00 00 00 50 00 00 00 00 00 00 00 ff 00 02 00
+
+
+37:04.0 Ethernet controller: Intel Corporation 82557/8/9/0/1 Ethernet Pro 100 (rev 10)
+	Subsystem: Intel Corporation Device 0070
+	Flags: medium devsel, IRQ 20
+	Memory at e4020000 (32-bit, non-prefetchable) [size=4K]
+	I/O ports at d000 [size=64]
+	Memory at e4000000 (32-bit, non-prefetchable) [size=128K]
+	Expansion ROM at c0400000 [disabled] [size=64K]
+	Capabilities: [dc] Power Management version 2
+	Kernel driver in use: pci-stub
+00: 86 80 29 12 03 01 90 02 10 00 00 02 10 20 00 00
+10: 00 00 02 e4 01 d0 00 00 00 00 00 e4 00 00 00 00
+20: 00 00 00 00 00 00 00 00 00 00 00 00 86 80 70 00
+30: 00 00 40 c0 dc 00 00 00 00 00 00 00 05 01 08 38
+
+root@sunilvk-lnx1:/nobackup/etmartin/kvm/vm/install# lspci -vxx -s  37:09.0
+37:09.0 FireWire (IEEE 1394): Agere Systems FW322/323 (rev 70) (prog-if 10)
+	Subsystem: Hewlett-Packard Company Device 130b
+	Flags: medium devsel, IRQ 23
+	Memory at e4021000 (32-bit, non-prefetchable) [size=4K]
+	Capabilities: [44] Power Management version 2
+00: c1 11 11 58 02 01 90 02 70 10 00 0c 10 20 00 00
+10: 00 10 02 e4 00 00 00 00 00 00 00 00 00 00 00 00
+20: 00 00 00 00 00 00 00 00 00 00 00 00 3c 10 0b 13
+30: 00 00 00 00 44 00 00 00 00 00 00 00 05 01 0c 18
+
+
+
+             +-1e.0-[0000:37]--
+
+00:1e.0 PCI bridge: Intel Corporation 82801 PCI Bridge (rev 90) (prog-if 01)
+	Flags: bus master, fast devsel, latency 0
+	Bus: primary=00, secondary=37, subordinate=37, sec-latency=32
+	I/O behind bridge: 0000d000-0000dfff
+	Memory behind bridge: e4000000-e40fffff
+	Capabilities: <access denied>
+00: 86 80 4e 24 07 01 10 00 90 01 04 06 00 00 01 00
+10: 00 00 00 00 00 00 00 00 00 37 37 20 d0 d0 80 22
+20: 00 e4 00 e4 f1 ff 01 00 00 00 00 00 00 00 00 00
+30: 00 00 00 00 50 00 00 00 00 00 00 00 ff 00 02 00
+
+
+
+Kernel view 
+VS
+User view;
+
+sudo lspci -H1 -t
+
++-1e.0-[0000:37]--+-04.0
+           |                 \-09.0
+
+
+etmartin@sunilvk-lnx1:/var/log$ lspci -vxx |grep "Memory behind bridge"
+	Memory behind bridge: c0000000-c03fffff
+	Memory behind bridge: e1000000-e3ffffff
+	Memory behind bridge: e4100000-e41fffff
+	Memory behind bridge: e4200000-e42fffff
+	Memory behind bridge: e4000000-e40fffff
+	Memory behind bridge: e5000000-e50fffff
+

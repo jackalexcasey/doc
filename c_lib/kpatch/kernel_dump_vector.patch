@@ -1,0 +1,23 @@
+diff --git a/drivers/uio/udrv_irq.c b/drivers/uio/udrv_irq.c
+index a464d56..3fb6d1e 100644
+--- a/drivers/uio/udrv_irq.c
++++ b/drivers/uio/udrv_irq.c
+@@ -263,6 +263,18 @@ int udrv_switch_to_msix_mode(struct uio_info *dev_info, int nvec,
+ 	}
+ 	mutex_unlock(&priv->dev_lock); 
+ 
++	for(x=0;x<nvec;x++){
++		struct irq_cfg *cfg_new = NULL;
++		struct irq_desc *desc;
++		
++		desc = irq_to_desc(msix_entries[x].vector);
++		if(!desc)
++			return -EINVAL;
++		cfg_new = desc->chip_data;
++		UDRV_DPRINTK(" IRQ vector %d for IRQ # %d\n",cfg_new->vector,
++			msix_entries[x].vector);
++	}
++
+ 	UDRV_DPRINTK("");
+ 	return ret;
+ }

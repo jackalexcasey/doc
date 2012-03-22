@@ -1,0 +1,163 @@
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/*
+  My machine has only 2Gb :( Need an upgrage Hao??? 
+*/
+
+0       -       Heuristic overcommit handling. Obvious overcommits of
+                address space are refused. Used for a typical system. It
+                ensures a seriously wild allocation fails while allowing
+                overcommit to reduce swap usage.  root is allowed to 
+                allocate slighly more memory in this mode. This is the 
+                default.
+
+ptr[x] = malloc((unsigned long long)1024*1024*1024*8); /* Obvious
+overcommits */
+*** FAIL ***
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#define CHUNK_NUMBER 1024
+#define CHUNK_SIZE 1024*1024*512 /*512MB*/
+// Total allocation is 512Gb
+#define die(msg) { perror(msg); exit(EXIT_FAILURE); }
+
+void main(void)
+{
+
+        int x;
+        void *ptr[CHUNK_NUMBER];
+        char cmd[256];
+
+        sprintf(cmd,"cat /proc/meminfo \n");
+        system(cmd);
+
+        for(x=0;x<CHUNK_NUMBER;x++){
+                ptr[x] = malloc(CHUNK_SIZE);
+                if(!ptr[x]){
+                        fprintf(stderr,"out of memory\n");
+                        while(1)
+                                sleep(1);
+                }
+                fprintf(stderr,"meminfo %x\n",x);
+        }
+        while(1)
+                sleep(1);
+
+        system(cmd);
+        die("PASS");    
+}
+
+etmartin@etienne-desktop:~/projects/guest_os/test/memory$ ./a.out 
+MemTotal:        1852712 kB
+MemFree:           47008 kB
+
+etmartin@etienne-desktop:~/projects/guest_os/test/ke100_2$
+cat /proc/meminfo 
+MemTotal:        1852712 kB
+MemFree:           36800 kB
+
+etmartin@etienne-desktop:~/projects/guest_os/test/ke100_2$
+cat /proc/11266/maps 
+00400000-00401000 r-xp 00000000 08:01
+7236185                            /home/etmartin/projects/guest_os/test/memory/a.out
+00600000-00601000 r--p 00000000 08:01
+7236185                            /home/etmartin/projects/guest_os/test/memory/a.out
+00601000-00602000 rw-p 00001000 08:01
+7236185                            /home/etmartin/projects/guest_os/test/memory/a.out
+7f4f559f7000-7fcf55df7000 rw-p 00000000 00:00 0  >>>>>>>>512GB of VMA
+7fcf55df7000-7fcf55f5f000 r-xp 00000000 08:01
+6686865                    /lib/libc-2.9.so
+7fcf55f5f000-7fcf5615f000 ---p 00168000 08:01
+6686865                    /lib/libc-2.9.so
+7fcf5615f000-7fcf56163000 r--p 00168000 08:01
+6686865                    /lib/libc-2.9.so
+7fcf56163000-7fcf56164000 rw-p 0016c000 08:01
+6686865                    /lib/libc-2.9.so
+7fcf56164000-7fcf56169000 rw-p 00000000 00:00 0 
+7fcf56169000-7fcf56189000 r-xp 00000000 08:01
+6684682                    /lib/ld-2.9.so
+7fcf56375000-7fcf56377000 rw-p 00000000 00:00 0 
+7fcf56385000-7fcf56388000 rw-p 00000000 00:00 0 
+7fcf56388000-7fcf56389000 r--p 0001f000 08:01
+6684682                    /lib/ld-2.9.so
+7fcf56389000-7fcf5638a000 rw-p 00020000 08:01
+6684682                    /lib/ld-2.9.so
+7fff04661000-7fff04676000 rw-p 00000000 00:00 0
+[stack]
+7fff047ff000-7fff04800000 r-xp 00000000 00:00 0
+[vdso]
+ffffffffff600000-ffffffffff601000 r-xp 00000000 00:00 0
+[vsyscall]
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+2       -       Don't overcommit. The total address space commit
+                for the system is not permitted to exceed swap + a
+                configurable percentage (default is 50) of physical RAM.
+                Depending on the percentage you use, in most situations
+                this means a process will not be killed while accessing
+                pages but will receive errors on memory allocation as
+                appropriate.
+
+echo 2 > /proc/sys/vm/overcommit_memory
+
+etmartin@etienne-desktop:~/projects/guest_os/test/memory$ ./a.out 
+MemTotal:        1852712 kB
+MemFree:           46556 kB
+
+etmartin@etienne-desktop:~/projects/guest_os/test/memory$
+cat /proc/meminfo 
+MemTotal:        1852712 kB
+MemFree:           46556 kB
+
+etmartin@etienne-desktop:~/projects/guest_os/test/memory$
+cat /proc/12153/maps 
+00400000-00401000 r-xp 00000000 08:01
+7236185                            /home/etmartin/projects/guest_os/test/memory/a.out
+00600000-00601000 r--p 00000000 08:01
+7236185                            /home/etmartin/projects/guest_os/test/memory/a.out
+00601000-00602000 rw-p 00001000 08:01
+7236185                            /home/etmartin/projects/guest_os/test/memory/a.out
+7fe230000000-7fe230021000 rw-p 00000000 00:00 0
+7fe230021000-7fe234000000 ---p 00000000 00:00 0 
+7fe23633b000-7fe2f6341000 rw-p 00000000 00:00 0  >>>>>>>>> 3GB of VMA
+7fe2f6341000-7fe2f64a9000 r-xp 00000000 08:01
+6686865                    /lib/libc-2.9.so
+7fe2f64a9000-7fe2f66a9000 ---p 00168000 08:01
+6686865                    /lib/libc-2.9.so
+7fe2f66a9000-7fe2f66ad000 r--p 00168000 08:01
+6686865                    /lib/libc-2.9.so
+7fe2f66ad000-7fe2f66ae000 rw-p 0016c000 08:01
+6686865                    /lib/libc-2.9.so
+7fe2f66ae000-7fe2f66b3000 rw-p 00000000 00:00 0 
+7fe2f66b3000-7fe2f66d3000 r-xp 00000000 08:01
+6684682                    /lib/ld-2.9.so
+7fe2f68bf000-7fe2f68c1000 rw-p 00000000 00:00 0 
+7fe2f68cf000-7fe2f68d2000 rw-p 00000000 00:00 0 
+7fe2f68d2000-7fe2f68d3000 r--p 0001f000 08:01
+6684682                    /lib/ld-2.9.so
+7fe2f68d3000-7fe2f68d4000 rw-p 00020000 08:01
+6684682                    /lib/ld-2.9.so
+7fff0f9b3000-7fff0f9c8000 rw-p 00000000 00:00 0
+[stack]
+7fff0f9ff000-7fff0fa00000 r-xp 00000000 00:00 0
+[vdso]
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+- On demand paging will allocate pages ONLY when apps will make use it
+- Same behavior for text segment.
+- Physical memory usage and Virtual memory usage are disconnected.
+- Overcommit help to protect against overcommiting the VMA but doesn't
+look at free ram
+- Kernel allocation can cause ' memory inversion ' resulting in OOM
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+

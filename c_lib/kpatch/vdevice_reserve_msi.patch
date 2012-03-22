@@ -1,0 +1,113 @@
+diff --git a/arch/x86/include/asm/hw_irq.h b/arch/x86/include/asm/hw_irq.h
+index eeac829..5295ea2 100644
+--- a/arch/x86/include/asm/hw_irq.h
++++ b/arch/x86/include/asm/hw_irq.h
+@@ -96,6 +96,7 @@ struct irq_cfg {
+ 	cpumask_var_t		old_domain;
+	u8			vector;
+ 	u8			move_in_progress : 1;
++	struct pci_dev *pdev;
+ };
+ 
+ extern struct irq_cfg *irq_cfg(unsigned int);
+diff --git a/arch/x86/kernel/apic/io_apic.c b/arch/x86/kernel/apic/io_apic.c
+index 4580536..ae2eac7 100644
+--- a/arch/x86/kernel/apic/io_apic.c
++++ b/arch/x86/kernel/apic/io_apic.c
+@@ -1200,6 +1200,20 @@ next:
+ 			offset = (offset + 1) % 8;
+ 			vector = FIRST_DEVICE_VECTOR + offset;
+ 		}
++
++		if(cfg->pdev){
++			if(cfg->pdev->vendor==0x1137 && cfg->pdev->device==0x2345){
++				if(vector < 100 || vector > 160)
++					goto next;
++				printk("#");
++			}
++			else{
++				if (vector >= 100 && vector <=160)
++					goto next;
++				printk(".");
++			}
++		}
++
+ 		if (unlikely(current_vector == vector))
+ 			continue;
+ 
+@@ -3240,7 +3254,7 @@ device_initcall(ioapic_init_sysfs);
+ /*
+  * Dynamic irq allocate and deallocation
+  */
+-unsigned int create_irq_nr(unsigned int irq_want, int node)
++unsigned int create_irq_nr(unsigned int irq_want, int node, struct pci_dev *pdev)
+ {
+ 	/* Allocate an unused irq */
+ 	unsigned int irq;
+@@ -3268,6 +3282,9 @@ unsigned int create_irq_nr(unsigned int irq_want, int node)
+ 		desc_new = move_irq_desc(desc_new, node);
+ 		cfg_new = desc_new->chip_data;
+ 
++		/* Remember the pcidev part of the irq cfg structure */
++		cfg_new->pdev = pdev;
++
+ 		if (__assign_irq_vector(new, cfg_new, apic->target_cpus()) == 0)
+ 			irq = new;
+ 		break;
+@@ -3287,7 +3304,7 @@ int create_irq(void)
+ 	int irq;
+ 
+ 	irq_want = nr_irqs_gsi;
+-	irq = create_irq_nr(irq_want, node);
++	irq = create_irq_nr(irq_want, node, NULL);
+ 
+ 	if (irq == 0)
+ 		irq = -1;
+@@ -3554,7 +3571,7 @@ int arch_setup_msi_irqs(struct pci_dev *dev, int nvec, int type)
+ 	irq_want = nr_irqs_gsi;
+ 	sub_handle = 0;
+ 	list_for_each_entry(msidesc, &dev->msi_list, list) {
+-		irq = create_irq_nr(irq_want, node);
++		irq = create_irq_nr(irq_want, node, dev);
+ 		if (irq == 0)
+ 			return -1;
+ 		irq_want = irq + 1;
+diff --git a/arch/x86/kernel/uv_irq.c b/arch/x86/kernel/uv_irq.c
+index 1a9f55a..dfae45f 100644
+--- a/arch/x86/kernel/uv_irq.c
++++ b/arch/x86/kernel/uv_irq.c
+@@ -251,7 +251,7 @@ int uv_setup_irq(char *irq_name, int cpu, int mmr_blade,
+ {
+ 	int irq, ret;
+ 
+-	irq = create_irq_nr(NR_IRQS_LEGACY, uv_blade_to_memory_nid(mmr_blade));
++	irq = create_irq_nr(NR_IRQS_LEGACY, uv_blade_to_memory_nid(mmr_blade), NULL);
+ 
+ 	if (irq <= 0)
+ 		return -EBUSY;
+diff --git a/drivers/pci/htirq.c b/drivers/pci/htirq.c
+index 737a1c4..ef5daab 100644
+--- a/drivers/pci/htirq.c
++++ b/drivers/pci/htirq.c
+@@ -127,7 +127,7 @@ int __ht_create_irq(struct pci_dev *dev, int idx, ht_irq_update_t *update)
+ 	cfg->msg.address_hi = 0xffffffff;
+ 
+ 	node = dev_to_node(&dev->dev);
+-	irq = create_irq_nr(0, node);
++	irq = create_irq_nr(0, node, NULL);
+ 
+ 	if (irq <= 0) {
+ 		kfree(cfg);
+diff --git a/include/linux/irq.h b/include/linux/irq.h
+index dd86679..bfa6929 100644
+--- a/include/linux/irq.h
++++ b/include/linux/irq.h
+@@ -388,7 +388,7 @@ extern void set_irq_noprobe(unsigned int irq);
+ extern void set_irq_probe(unsigned int irq);
+ 
+ /* Handle dynamic irq creation and destruction */
+-extern unsigned int create_irq_nr(unsigned int irq_want, int node);
++extern unsigned int create_irq_nr(unsigned int irq_want, int node, struct pci_dev *pdev);
+ extern int create_irq(void);
+ extern void destroy_irq(unsigned int irq);
+ 

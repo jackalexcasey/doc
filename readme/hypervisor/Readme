@@ -1,0 +1,130 @@
+Generic host:
+~~~~~~~~~~~
+sudo modprobe kvm
+sudo modprobe kvm_intel
+sudo apt-get install debootstrap git-core gcc libncurses5-dev byobu
+
+Chroot Initial environment Creation
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+cd common/chroot
+sudo debootstrap --variant=buildd lucid ./ http://archive.ubuntu.com/ubuntu/
+
+# Before git init make sure empty directory are conserved
+touch boot/.empty 
+touch home/.empty
+touch media/.empty
+touch mnt/.empty
+touch opt/.empty
+touch root/.empty
+touch selinux/.empty
+touch srv/.empty
+touch tmp/.empty
+
+touch sys/.empty
+touch dev/.empty
+touch proc/.empty
+touch dev/pts/.empty
+touch dev/shm/.empty
+
+touch etc/ssl/private/.empty
+touch var/log/apt/.empty
+touch var/lib/dpkg/updates/.empty
+touch etc/apt/preferences.d/.empty
+touch var/cache/apt/archives/partial/.empty
+touch var/lib/apt/lists/partial/.empty
+
+.gitignore
+proc/*
+!proc/.empty
+sys/*
+!sys/.empty
+dev/*
+!dev/.empty
+!dev/shm/.empty
+!dev/pts/.empty
+
+Chroot adding packages
+~~~~~~~~~~~~~~~~~~~~~~
+make enter
+apt-get install 'your favorite package'
+exit
+make leave
+sudo chown -R etmartin ./
+sudo chgrp -R etmartin ./
+git add .
+
+Chroot adding packages build from source
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+git clone 'your favorite packages somewhere outside this tree'
+./configure --prefix='path to ./chroot'
+make
+make install
+sudo chown -R etmartin ./
+sudo chgrp -R etmartin ./
+git add .
+
+Chroot adding kernel image
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+git clone 'your kernel'
+make bzImage
+make INSTALL_PATH='path to ./chroot/boot' install
+
+Chroot adding modules
+~~~~~~~~~~~~~~~~~~~~~
+make modules
+make INSTALL_MOD_PATH='path to ./chroot/boot' modules_install
+
+
+
+HYPERVISOR extra:
+~~~~~~~~~~~~~~~~~
+cd ixgbe-2.0.84.9/src
+sudo insmod ixgbe.ko max_vfs=63
+
+
+
+ISO VM install
+~~~~
+cd vm
+cp /boot/vmlinuz-2.6.32-21-generic ./vmlinuz-dom0
+
+#Install
+qemu-img create -f qcow2 dom0.qcow2 1024M
+kvm -hda dom0.qcow2 -m  512  -boot d  -cdrom ./ubuntu-10.04-server-amd64.iso
+cp dom0.qcow2 ../hypervisor/initrd/FIXUP/boot/
+
+#UPDATE
+kvm -hda dom0.qcow2 -m  512 
+
+#We need to use a -kernel argument to pass CMD line (single)
+#We are taking kernel from the host;
+cp vmlinuz-dom0 ../hypervisor/initrd/FIXUP/boot/
+
+rsync over
+~~~~~~~~~~
+rsync -av --delete ./ cisco@lab:/nobackup/etmartin/gitrepo/hypervisor/
+
+setup the host
+~~~~~~~~~~~~~~
+rsync -av chroot/boot/ /boot/
+rsync -av chroot/lib/modules/ /lib/modules/
+
+rsync over from thirdparty
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+cd kvm-host-stage/x86_64/lib/modules
+rsync -av ./ cisco@171.71.137.34:/nobackup/etmartin/gitrepo/hypervisor/chroot/lib/modules/
+
+cd kvm-host-stage/x86_64/boot
+rsync -av ./ cisco@171.71.137.34:/nobackup/etmartin/gitrepo/hypervisor/chroot/boot/
+
+ramdisk
+~~~~~~~
+mv initrd.img-2.6.32-21-server initrd.img-2.6.32-21-server.gz
+find . |cpio -o | gzip  >../initrd.img-2.6.32
+
+Usefull Link
+~~~~~~~~~~~
+http://pc-wiki.cisco.com/Ubuntu_Workstation
+
+
+

@@ -1,0 +1,271 @@
+Without EPT ( lguest for example )
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+lguest is using DIRECT shadow pagetable techniques i.e. the PTE are part of the host like regular process
+The guest manipulates it's own pagetable AND (because of PV) end up calling the host to do so.
+In other word, Guest make use of TLB management instruction and host trap them and apply correct 
+change to PTE. This is how Guest/Host are keept in sync...
+
+lguest has PV hook for all the mmu operation; With vt-x you can trap instead.
+When the lguest kernel is started initially we give an identity PTE for it to boot.
+I.E. We construct a PTE in the guest memory; points the Guest CR3 to it; All guest memory is mmap in the Host PTE
+	Guest Virtual -> Guest physical   ||| PAGE_OFFSET+n -> n
+	Later the kernel will replace it with his own PTE with other translation ( kernel mapping will remain though )
+
+MMU operation trap in the Host. We reflect it onto the corresponding Host PTE.
+	EX: Guest change access right on a page RO.; trap on Host, 
+	look up guest physical pages/ know Host physical location / 
+	mark that page RO so that next attempt by the Guest to access that page will page_fault in the host
+===> We utilize the host MMU
+
+Without EPT ( KVM/vt-x for example )
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+KVM specialized in full virtualization and doesn't have the luxury of having a Guest MMU calling into it.
+==> ACCESS to MMU must be trapped an emulates. This emulation is the job of the KVM MMU or Virtual TLB
+
+The major problem of emulating the GUEST PTE on the Host is to maintain consistency i.e.
+	Make sure the guest PTE in sync with the shadow PTE
+
+NOTE: the KVM mmu can be seen as a TLB for the Guest ( Virtual TLB )
+	PTE define the mapping between linear -> physical BUT doesn't control the access to the Memory
+	TLB on the other hands controls the access of the memory. TLB are filled with PTE.
+	Guest PTE Only define the translation but do not control the access. 
+	The virtual TLB control the access ( the shadow page table __is__ the vTLB).
+	A)Like TLB the vTLB/SPTE can be flushed out ( TLB allow more access than PTE  ==> remove mapping )
+	B)Like TLB the vTLB/SPTE can be refilled ( TLB allow less access that PTE ==> New mapping )
+
+	A) is a Zap of the SPTE
+	B) a page fault on the host inside the KVM mmu, validate Guest PTE new mapping; Apply change to SPTE
+
+The first attempt was to trap guest TLB instruction and apply effect on SPTE ( trapping TLB is possible with vt-x)
+This is slow because context switch uses TLB flush instruction...
+===> SO the SPTE was zapped every time
+
+Another approach to track guest PTE is to trap on every access to those page table; (write protect guest page)
+- The write protect a guest pages in the guest we need to know all mapping to that page and mark them RO
+  This is called a reverse mapping ( from a physical guest pages what are all the virtual mapping that maps it )
+- Write to Guest PTE must be emulates and apply to SPTE correctly
+- Guest can recycle a PTE into a normal memory that application is using. This cause lots of wirte emulation
+  	- An heuristic is created to detach from that cases.
+
+****
+SPTE is build dynamically; Translate 'Guest Virtual Address' to 'Host Physical Addr'
+It is setup by trapping guest PTE access
+
+With EPT ( full MMU virtualization )
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Another approach is to use Hardware virtualization for MMU ( EPT )
+The idea is the SPTE/virtual TLB driven by the KVM MMU is given to the EPT hardware
+
+In the previous incarnation, the SPTE was driven by write protection trap to Guest PTE
+With EPT there is EPT violation ( no need to write protect Guest PTE anymore )
+	The guest manipulates it's own PTE without cause traps into host.
+		Because of that  guest /host PTE may not be consistent but that's OK because
+			Guest PTE Only define the translation but do not enfore the access. 
+			ONLY the virtual TLB SPTE control the access
+
+Upon inconsistent operation from the guest onto the SPTE there is a EPT violation access that is
+generated
+
+We set the EPT pointer with [vmx_set_cr3()] to point to EPT table ( re-use of KVM SPTE )
+
+It used to be that every time a KVM guest changed its page tables, the host had to be involved. The host would validate that the entries the guest put in its page tables were valid and that they did not access any memory which was not allowed. It did this with two mechanisms.
+
+One was that the actual set of page tables being used by the virtualization hardware are separate from the page tables that the guest *thought* were being used. The guest first makes a change in its page tables. Later, the host notices this change, verifies it, and then makes a real page table which is accessed by the hardware. The guest software is not allowed to directly manipulate the page tables accessed by the hardware. This concept is called shadow page tables and it is a very common technique in virtualization.
+
+The second part was that the VMX/AMD-V extensions allowed the host to trap whenever the guest tried to set the register pointing to the base page table (CR3). 
+
+The basic problem is that every access to memory must go through both the page tables of the guest and then the page tables of the host. The two-dimensional part comes in because the page tables of the guest must *themselves* go through the page tables of the host. 
+
+=>>> Guest has it's own CR3 so it walk it's own VA->PA table Then access HVA wich also has it's own translation
+
+****
+EPT is build dynamically ( like the shadow page table ); translate 'Guest Virtual Addr to Host Physical Addr'
+It is setup by using ETP violation (tdp_page_fault)
+EPT has it's own set of TLB management I/F driven by invept
+	-ept_sync_global
+	-ept_sync_context
+	-ept_sync_individual_addr
+EPT has Software tagged TLB // V PID ===> Cached transaction are tagged with the VPID ID
+
+The KVM module initialize the mode of operation for the MMU;
+/*
+ * When setting this variable to true it enables Two-Dimensional-Paging
+ * where the hardware walks 2 page tables:
+ * 1. the guest-virtual to guest-physical
+ * 2. while doing 1. it walks guest-physical to host-physical
+ * If the hardware supports that we don't need to do shadow paging.
+ */
+bool tdp_enabled = false;
+	if (tdp_enabled)
+		return init_kvm_tdp_mmu(vcpu);
+	else
+		return init_kvm_softmmu(vcpu);
+
+	The Guest paging model depends on what type of guest we are dealing with ( 64 bit / 32 bit / PAE )
+			r = nonpaging_init_context(vcpu);
+		else if (is_long_mode(vcpu))
+			r = paging64_init_context(vcpu);
+		else if (is_pae(vcpu))
+			r = paging32E_init_context(vcpu);
+		else
+			r = paging32_init_context(vcpu);
+
+	In order to maintain the shadow page we MUST know what the guest PTE looks like
+		( in order to understand / emulate them ); This is the Shadows paging.
+		EVEN in the cases of EPT we must understand the Guest paging structure
+
+The KVM page fault handler:
+	'int kvm_mmu_page_fault(struct kvm_vcpu *vcpu, gva_t cr2, u32 error_code)'
+BRANCH into the appropriate page_fault handler
+	r = vcpu->arch.mmu.page_fault(vcpu, cr2, error_code);
+
+This page_fault handler is comming either from:
+ - VMX exception handler <--- Here is we have EPT page fault is not causing exception
+   OR
+ - static int handle_ept_violation(struct kvm_vcpu *vcpu)
+
+The EPT violation reads into the VMCS register sets to find out about that GPA
+	gpa = vmcs_read64(GUEST_PHYSICAL_ADDRESS);
+
+*** REMEMBER ***
+	A)Like TLB the vTLB/SPTE can be flushed out ( TLB allow more access than PTE  ==> remove mapping )
+	B)Like TLB the vTLB/SPTE can be refilled ( TLB allow less access that PTE ==> New mapping )
+
+	A) is a Zap of the SPTE
+	B) a page fault on the host inside the KVM mmu, validate Guest PTE new mapping; Apply change to SPTE
+
+______TESTING________
+
+A simple test for (B) would be to create a test program in the VM and MMAP anonymous memory
+UNDER VMA addr 0xabcdefg THEN access it;
+Printk in the 'handle_ept_violation' IF GVA == 0xabcdefg
+===> This turns out to print nothing...
+
+The EPT violation is coming from an unresolved GPA BECAUSE
+**** The SPTE is a TLB that map GPA to HPA ****
+The guest can change the GVA but if this doesn't affect the GPA->HPA then no EPT violation will happen
+
+Instead let's use /dev/mem
+	OK well /dev/mem doesn't really read mem on kernel 2.6...
+
+Let's just try the DMA memory in libudrv;;;
+The problem is that DMA is inside GPA because of initial scrubbing... CONFIRMED ;)
+By removing the debug=1 from uio_dma_proxy there is no scrubbing;
+	A libudrv mmap to dma_proxy with HINT 0x12340000 gives:
+		EPT: GPA: 0x100000, GVA: 0x1234000 
+	!!
+
+BUG investigatoin
+~~~~~~~~~~~~~~~~~~~
+One way to mitigate the problem would be to prevent swapping OR PINNING all guest pages
+SPTES mapping of the MMIO region of pci_passthrough
+NOTE mapping / accessing IO memory outside the guest hangs the VM...
+The problem shows up when the guest is running out of memory; Probably also when the host is trying to swap.
+
+MAYBE the SPTE are affected by a MMIO region instead?????????/
+
+How to force drop all caches
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+The interface "echo 3 > /proc/sys/vm/drop_caches" drop the caches for pagecache, dentries and inodes
+BUT this doesn't tell kswapd to run
+The best way is to use chewmem program
+
+TLB flushing and effect on Guest SPTE
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+The VM guest flush TLB in its own scope; Things like 'invlpg'
+When this happens it causes a VMEXIT; handle_invlpg()
+	static int handle_invlpg(struct kvm_vcpu *vcpu)
+		kvm_mmu_invlpg(vcpu, exit_qualification);
+			vcpu->arch.mmu.invlpg(vcpu, gva);  === NOP in TDP  mode
+			kvm_mmu_flush_tlb(vcpu);
+				void kvm_mmu_flush_tlb(struct kvm_vcpu *vcpu)
+				{
+					++vcpu->stat.tlb_flush;
+					kvm_x86_ops->tlb_flush(vcpu);
+				}
+
+GUEST MMIO memory
+~~~~~~~~~~~~~~~~~
+Guest knows about the memory it has mapped in; It knows about the memory for the Pass-throught device also
+
+__kvm_set_memory_region create memslots for each region;
+	This called into that flush all SPTES...
+		kvm_arch_flush_shadow(kvm);
+		
+		/* map the pages in iommu page table */
+		r = kvm_iommu_map_pages(kvm, &new);
+
+		if (flush)
+			kvm_arch_flush_shadow(kvm);
+
+		spin_lock(&kvm->mmu_lock);
+		if (!kvm->arch.n_requested_mmu_pages) {
+			unsigned int nr_mmu_pages = kvm_mmu_calculate_mmu_pages(kvm);
+			kvm_mmu_change_mmu_pages(kvm, nr_mmu_pages);
+		}
+
+		kvm_mmu_slot_remove_write_access(kvm, mem->slot);
+		spin_unlock(&kvm->mmu_lock);
+
+		/*
+		 * Changing the number of mmu pages allocated to the vm
+		 * Note: if kvm_nr_mmu_pages is too small, you will get dead lock
+		 */
+		void kvm_mmu_change_mmu_pages(struct kvm *kvm, unsigned int goal_nr_mmu_pages)
+		{
+
+void kvm_arch_flush_shadow(struct kvm *kvm)
+{
+	kvm_mmu_zap_all(kvm);
+	kvm_reload_remote_mmus(kvm);
+}
+
+//http://thread.gmane.org/gmane.linux.kernel/1151509
+
+QEMU / Guest MMIO
+~~~~~~~~~~~~~~~~~~
+
+slow_map == non aligned access
+
+First there is a mmap of the BAR : 'pci_dev->v_addrs[i].u.r_virtbase = mmap'
+Second if !slow_map 
+qemu_ram_alloc_from_ptr ( ... pci_dev->v_addrs[i].u.r_virtbase;
+	This is like allocation into a VMA range
+
+pci_register_bar (
+	assigned_dev_iomem_map_slow
+	assigned_dev_iomem_map
+	assigned_dev_ioport_map
+
+assigned_dev_iomem_map
+	cpu_register_physical_memory
+THEN kvm_assign_pci_device
+
+***KVM***
+KVM_SET_USER_MEMORY_REGION
+	KVM_REGISTER_COALESCED_MMIO ???
+kvm_vm_ioctl_set_memory_region
+__kvm_set_memory_region
+kvm_arch_prepare_memory_region
+kvm_iommu_map_pages /* mmap in the IOMMU if needed */
+kvm_arch_commit_memory_region /* kvm_mmu_change_mmu_pages */
+	kvm_mmu_change_mmu_pages(kvm, nr_mmu_pages)
+
+	PAGE goes in the SPTE
+
+***QEMU***
+kvm_set_user_memory_region
+
+
+DEBUG in KVM for memory slot ///
+
+===> MMIO is a userspace MMAP like VM main memory
+
+
+TOOLS
+~~~~~~~~
+kvm_stat -l >& /tmp/outputvoid *virtbase = pci_dev->v_addrs[i].u.r_virtbase;
+kvmtrace -D outdir -o myguest
+kvmtrace_format user/formats <> myguest-kvmtrace.out
+
+

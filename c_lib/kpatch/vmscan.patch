@@ -1,0 +1,245 @@
+diff --git a/arch/x86/kernel/cpu/mcheck/mce.c b/arch/x86/kernel/cpu/mcheck/mce.c
+index 1fb8390..957859d 100644
+--- a/arch/x86/kernel/cpu/mcheck/mce.c
++++ b/arch/x86/kernel/cpu/mcheck/mce.c
+@@ -919,6 +919,15 @@ void do_machine_check(struct pt_regs *regs, long error_code)
+ 	int i;
+ 	int worst = 0;
+ 	int severity;
++
++	{
++		__u64 tsc;
++		rdtscll(tsc);
++		pr_emerg("TSC %llx ", tsc);
++		show_regs(regs);
++	//	return ;
++	}
++
+ 	/*
+ 	 * Establish sequential order between the CPUs entering the machine
+ 	 * check handler.
+@@ -1059,8 +1068,8 @@ void do_machine_check(struct pt_regs *regs, long error_code)
+ 	 * This is mainly used in the case when the system doesn't
+ 	 * support MCE broadcasting or it has been disabled.
+ 	 */
+-	if (no_way_out && tolerant < 3)
+-		mce_panic("Fatal machine check on current CPU", final, msg);
++//	if (no_way_out && tolerant < 3)
++//		mce_panic("Fatal machine check on current CPU", final, msg);
+ 
+ 	/*
+ 	 * If the error seems to be unrecoverable, something should be
+diff --git a/mm/vmscan.c b/mm/vmscan.c
+index 56e63a6..3186000 100644
+--- a/mm/vmscan.c
++++ b/mm/vmscan.c
+@@ -1925,6 +1925,8 @@ static int sleeping_prematurely(pg_data_t *pgdat, int order, long remaining)
+ 	if (remaining)
+ 		return 1;
+ 
++
++
+ 	/* If after HZ/10, a zone is below the high mark, it's premature */
+ 	for (i = 0; i < pgdat->nr_zones; i++) {
+ 		struct zone *zone = pgdat->node_zones + i;
+@@ -1932,6 +1934,9 @@ static int sleeping_prematurely(pg_data_t *pgdat, int order, long remaining)
+ 		if (!populated_zone(zone))
+ 			continue;
+ 
++		if (zone_is_all_unreclaimable(zone))
++			continue;
++
+ 		if (!zone_watermark_ok(zone, order, high_wmark_pages(zone),
+ 								0, 0))
+ 			return 1;
+@@ -2181,7 +2186,90 @@ out:
+ 	trace_mm_kswapd_ran(pgdat, total_reclaimed);
+ 	return sc.nr_reclaimed;
+ }
++#if 0
++static int kswapd(void *p)
++{
++	unsigned long order, new_order;
++	int classzone_idx, new_classzone_idx;
++	pg_data_t *pgdat = (pg_data_t*)p;
++	struct task_struct *tsk = current;
+ 
++	struct reclaim_state reclaim_state = {
++		.reclaimed_slab = 0,
++	};
++	const struct cpumask *cpumask = cpumask_of_node(pgdat->node_id);
++
++	lockdep_set_current_reclaim_state(GFP_KERNEL);
++
++	if (!cpumask_empty(cpumask))
++		set_cpus_allowed_ptr(tsk, cpumask);
++	current->reclaim_state = &reclaim_state;
++
++	/*
++	 * Tell the memory management that we're a "memory allocator",
++	 * and that if we need more memory we should get access to it
++	 * regardless (see "__alloc_pages()"). "kswapd" should
++	 * never get caught in the normal page freeing logic.
++	 *
++	 * (Kswapd normally doesn't need memory anyway, but sometimes
++	 * you need a small amount of memory in order to be able to
++	 * page out something else, and this flag essentially protects
++	 * us from recursively trying to free more memory as we're
++	 * trying to free the first piece of memory in the first place).
++	 */
++	tsk->flags |= PF_MEMALLOC | PF_SWAPWRITE | PF_KSWAPD;
++	set_freezable();
++
++	order = new_order = 0;
++	classzone_idx = new_classzone_idx = pgdat->nr_zones - 1;
++	for ( ; ; ) {
++		int ret;
++
++		/*
++		 * If the last balance_pgdat was unsuccessful it's unlikely a
++		 * new request of a similar or harder type will succeed soon
++		 * so consider going to sleep on the basis we reclaimed at
++		 */
++		if (classzone_idx >= new_classzone_idx && order == new_order) {
++			new_order = pgdat->kswapd_max_order;
++			new_classzone_idx = pgdat->classzone_idx;
++			pgdat->kswapd_max_order =  0;
++			pgdat->classzone_idx = pgdat->nr_zones - 1;
++		}
++
++		if (order < new_order || classzone_idx > new_classzone_idx) {
++			/*
++			 * Don't sleep if someone wants a larger 'order'
++			 * allocation or has tigher zone constraints
++			 */
++			order = new_order;
++			classzone_idx = new_classzone_idx;
++		} else {
++			kswapd_try_to_sleep(pgdat, order, classzone_idx);
++			order = pgdat->kswapd_max_order;
++			classzone_idx = pgdat->classzone_idx;
++			pgdat->kswapd_max_order = 0;
++			pgdat->classzone_idx = pgdat->nr_zones - 1;
++		}
++
++		ret = try_to_freeze();
++		if (kthread_should_stop())
++			break;
++
++		/*
++		 * We can speed up thawing tasks if we don't call balance_pgdat
++		 * after returning from the refrigerator
++		 */
++		if (!ret) {
++			trace_mm_vmscan_kswapd_wake(pgdat->node_id, order);
++			order = balance_pgdat(pgdat, order, &classzone_idx);
++		}
++	}
++	return 0;
++}
++#endif
++
++#if 1
+ /*
+  * The background pageout daemon, started as a kernel thread
+  * from the init process.
+@@ -2198,6 +2286,8 @@ out:
+ static int kswapd(void *p)
+ {
+ 	unsigned long order;
++	unsigned long new_order;
++	int count=0;
+ 	pg_data_t *pgdat = (pg_data_t*)p;
+ 	struct task_struct *tsk = current;
+ 	DEFINE_WAIT(wait);
+@@ -2227,9 +2317,21 @@ static int kswapd(void *p)
+ 	tsk->flags |= PF_MEMALLOC | PF_SWAPWRITE | PF_KSWAPD;
+ 	set_freezable();
+ 
+-	order = 0;
++	order = new_order = 0;
+ 	for ( ; ; ) {
+-		unsigned long new_order;
++
++
++		if( !(count%100000))
++			printk("*");
++		count++;
++		/*
++		{
++			prepare_to_wait(&pgdat->kswapd_wait, &wait, TASK_INTERRUPTIBLE);
++			schedule_timeout(HZ/10);
++			printk("&");
++			finish_wait(&pgdat->kswapd_wait, &wait);
++		}
++		*/
+ 
+ 		prepare_to_wait(&pgdat->kswapd_wait, &wait, TASK_INTERRUPTIBLE);
+ 		new_order = pgdat->kswapd_max_order;
+@@ -2240,13 +2342,18 @@ static int kswapd(void *p)
+ 			 * allocation
+ 			 */
+ 			order = new_order;
++			printk("L");
+ 		} else {
+ 			if (!freezing(current)) {
+ 				long remaining = 0;
+ 
+-				/* Try to sleep for a short interval */
++				/* Try to sleep for a short interval 
++				 * - Zones are above high water mark
++				 * - no remaining
++				 */
+ 				if (!sleeping_prematurely(pgdat, order, remaining)) {
+ 					remaining = schedule_timeout(HZ/10);
++					printk("#");
+ 					finish_wait(&pgdat->kswapd_wait, &wait);
+ 					prepare_to_wait(&pgdat->kswapd_wait, &wait, TASK_INTERRUPTIBLE);
+ 				}
+@@ -2256,6 +2363,7 @@ static int kswapd(void *p)
+ 				 * premature sleep. If not, then go fully
+ 				 * to sleep until explicitly woken up
+ 				 */
++				printk("+");
+ 				if (!sleeping_prematurely(pgdat, order, remaining))
+ 					schedule();
+ 				else {
+@@ -2274,12 +2382,13 @@ static int kswapd(void *p)
+ 			/* We can speed up thawing tasks if we don't call
+ 			 * balance_pgdat after returning from the refrigerator
+ 			 */
+-			balance_pgdat(pgdat, order);
++			if((order = balance_pgdat(pgdat, order))!=0)
++				printk("!_%d_!",order);
+ 		}
+ 	}
+ 	return 0;
+ }
+-
++#endif
+ /*
+  * A zone is low on free memory, so wake its kswapd task to service it.
+  */
+diff --git a/virt/kvm/kvm_main.c b/virt/kvm/kvm_main.c
+index 231c84a..1f9700b 100644
+--- a/virt/kvm/kvm_main.c
++++ b/virt/kvm/kvm_main.c
+@@ -989,7 +989,8 @@ static void kvm_mmu_notifier_invalidate_range_start(struct mmu_notifier *mn,
+ {
+ 	struct kvm *kvm = mmu_notifier_to_kvm(mn);
+ 	int need_tlb_flush = 0, idx;
+-
++	
++	printk("kvm_mmu_notifier_invalidate_range_start \n");
+ 	idx = srcu_read_lock(&kvm->srcu);
+ 	spin_lock(&kvm->mmu_lock);
+ 	/*
+@@ -1015,6 +1016,8 @@ static void kvm_mmu_notifier_invalidate_range_end(struct mmu_notifier *mn,
+ {
+ 	struct kvm *kvm = mmu_notifier_to_kvm(mn);
+ 
++	printk("kvm_mmu_notifier_invalidate_range_end \n");
++
+ 	spin_lock(&kvm->mmu_lock);
+ 	/*
+ 	 * This sequence increase will notify the kvm page fault that

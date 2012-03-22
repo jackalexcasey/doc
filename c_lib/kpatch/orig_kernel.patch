@@ -1,0 +1,875 @@
+diff --cc arch/ppc/kernel/time.c
+index 18ee851,25f889a..0000000
+--- a/arch/ppc/kernel/time.c
++++ b/arch/ppc/kernel/time.c
+@@@ -122,6 -122,20 +122,23 @@@ void wakeup_decrementer(void
+  	 */
+  	last_jiffy_stamp(0) = tb_last_stamp = get_tbl();
+  }
+++<<<<<<< HEAD
+++=======
++ extern void gen550_progress(char *s, unsigned short hex);
++ 
++ #define TRACE_ME() do{\
++ 	static int a=0; \
++ 	char cmd[256]; \
++ 	sprintf(cmd,"_%d_",__LINE__); \
++ 	gen550_progress(cmd,0);\
++ }while(0);
++ 
++ #define PRINT_ME(fmt, args...) do{\
++ 	char cmd[256]; \
++ 	sprintf(cmd,"\r\n" fmt, ## args); \
++ 	gen550_progress(cmd,0);\
++ }while(0);
+++>>>>>>> 54fd91048e78cfac52a72cd6b5f7ba7ceb7735e7
+  
+  /*
+   * timer_interrupt - gets called when the decrementer overflows,
+@@@ -136,8 -150,15 +153,20 @@@ void timer_interrupt(struct pt_regs * r
+  	unsigned jiffy_stamp = last_jiffy_stamp(cpu);
+  	extern void do_IRQ(struct pt_regs *);
+  
+++<<<<<<< HEAD
+ +	if (atomic_read(&ppc_n_lost_interrupts) != 0)
+ +		do_IRQ(regs);
+++=======
++ 	static volatile int count =0;
++ 
++ 	if (atomic_read(&ppc_n_lost_interrupts) != 0)
++ 		do_IRQ(regs);
++ 	
++ 	if(!(count%100)){
++ 		PRINT_ME("__%d__",count);
++ 	}
++ 	count++;
+++>>>>>>> 54fd91048e78cfac52a72cd6b5f7ba7ceb7735e7
+  
+  	old_regs = set_irq_regs(regs);
+  	irq_enter();
+diff --cc block/react_fec_flashmap.c
+index b244b92,96e6e96..0000000
+--- a/block/react_fec_flashmap.c
++++ b/block/react_fec_flashmap.c
+@@@ -39,6 -39,20 +39,23 @@@ static u32 hardsect_size  = 512
+  static int reactmap_major = 0;
+  static int ndevices = 1;	/* Increment this value to add new images */
+  
+++<<<<<<< HEAD
+++=======
++ extern void gen550_progress(char *s, unsigned short hex);
++ 
++ #define TRACE_ME() do{\
++ 	static int a=0; \
++ 	char cmd[256]; \
++ 	sprintf(cmd,"_%d_",__LINE__); \
++ 	gen550_progress(cmd,0);\
++ }while(0);
++ 
++ #define PRINT_ME(fmt, args...) do{\
++ 	char cmd[256]; \
++ 	sprintf(cmd,"\r\n" fmt, ## args); \
++ 	gen550_progress(cmd,0);\
++ }while(0);
+++>>>>>>> 54fd91048e78cfac52a72cd6b5f7ba7ceb7735e7
+  
+  #define UNINITIALIZED_CACHE 0xffffffff
+  #define NSTAT_ENTRIES 1024
+@@@ -145,16 -159,16 +162,29 @@@ int rspayload_scrambling(unsigned char 
+  }
+  
+  void reactmap_print_header(struct fsfec_header* hdr) {
+++<<<<<<< HEAD
+ +	printk (KERN_NOTICE "REACTMAP image information:\n");
+ +	printk (KERN_NOTICE "  %s\n", hdr->description );
+ +	printk (KERN_NOTICE "  File Format Version: %d\n", hdr->version);
+ +	printk (KERN_NOTICE "  Image created on: %s\n", hdr->timestamp );
+ +	printk (KERN_NOTICE "  Image size: %d\n", hdr->imagesize );
+ +	printk (KERN_NOTICE "  Payload size: %d\n", hdr->payloadsize );
+ +	printk (KERN_NOTICE "  Payload checksum: %08x\n", hdr->checksum );
+ +	printk (KERN_NOTICE "  Reed-Solomon parameters: symsize %d, genpoly 0x%x, fcs %d, prim %d, nroots %d, padding %d\n", hdr->symsize, hdr->genpoly, hdr->fcs, hdr->prim, hdr->nroots, hdr->pad );
+ +    if (hdr->scrambling)
+ +        printk (KERN_NOTICE "  Payload scrambling enabled (type %d)\n", hdr->scrambling );
+++=======
++ 	PRINT_ME (KERN_NOTICE "REACTMAP image information:\n");
++ 	PRINT_ME (KERN_NOTICE "  %s\n", hdr->description );
++ 	PRINT_ME (KERN_NOTICE "  File Format Version: %d\n", hdr->version);
++ 	PRINT_ME (KERN_NOTICE "  Image created on: %s\n", hdr->timestamp );
++ 	PRINT_ME (KERN_NOTICE "  Image size: %d\n", hdr->imagesize );
++ 	PRINT_ME (KERN_NOTICE "  Payload size: %d\n", hdr->payloadsize );
++ 	PRINT_ME (KERN_NOTICE "  Payload checksum: %08x\n", hdr->checksum );
++ 	PRINT_ME (KERN_NOTICE "  Reed-Solomon parameters: symsize %d, genpoly 0x%x, fcs %d, prim %d, nroots %d, padding %d\n", hdr->symsize, hdr->genpoly, hdr->fcs, hdr->prim, hdr->nroots, hdr->pad );
++     if (hdr->scrambling)
++         PRINT_ME (KERN_NOTICE "  Payload scrambling enabled (type %d)\n", hdr->scrambling );
+++>>>>>>> 54fd91048e78cfac52a72cd6b5f7ba7ceb7735e7
+  }
+  
+  struct fsfec_header* reactmap_read_header(u32 flash_base_addr) {
+@@@ -177,6 -191,8 +207,11 @@@
+    block = ioremap( flash_base_addr, FSFEC_HEADERSIZE );
+    if(block == NULL)
+  	goto out_error;
+++<<<<<<< HEAD
+++=======
++ 	
++ 	PRINT_ME ("**** HEaders ioremap %lx, %x\n",flash_base_addr,FSFEC_HEADERSIZE);
+++>>>>>>> 54fd91048e78cfac52a72cd6b5f7ba7ceb7735e7
+  
+    cache = kzalloc( FSFEC_HEADERSIZE, GFP_KERNEL);
+    if(cache == NULL)
+@@@ -190,8 -206,11 +225,16 @@@
+    for(i=0; i<k; i++)
+  	cache[i] = block[i];
+  
+++<<<<<<< HEAD
+++  for(i=0; i<FSFEC_HDR_NROOTS; i++)
+++	par[i] = block[k+i];
+++=======
++ 	PRINT_ME ("MEMcpy headers!\n");
+    for(i=0; i<FSFEC_HDR_NROOTS; i++)
+  	par[i] = block[k+i];
++ 	
++ 	PRINT_ME ("decode_rs8!\n");
+++>>>>>>> 54fd91048e78cfac52a72cd6b5f7ba7ceb7735e7
+  
+    derrors = decode_rs8(rs,cache,par,k,0,0,NULL,0,NULL);
+    if ( derrors >= 0 ) {
+@@@ -201,7 -220,7 +244,11 @@@
+  
+  	hdr->version = reactmap_U4_read_from_offset( cache, FSFEC_VERSION_OFFSET);
+      if ( hdr->version < 1 || hdr->version > FSFEC_VERSION ) {
+++<<<<<<< HEAD
+ +		printk (KERN_WARNING "REACTMAP: Invalid header version no\n");
+++=======
++ 		PRINT_ME (KERN_WARNING "REACTMAP: Invalid header version no\n");
+++>>>>>>> 54fd91048e78cfac52a72cd6b5f7ba7ceb7735e7
+  	  	goto out_hdr_error;
+  	}
+  
+@@@ -235,9 -254,9 +282,15 @@@
+  
+  
+    out_error:
+++<<<<<<< HEAD
+ +	printk (KERN_WARNING "REACTMAP: memory allocation failed!\n");
+ +  out_hdr_error:
+ +	printk (KERN_WARNING "REACTMAP: Invalid or uncorrectable header block at address 0x%08x\n", flash_base_addr);
+++=======
++ 	PRINT_ME (KERN_WARNING "REACTMAP: memory allocation failed!\n");
++   out_hdr_error:
++ 	PRINT_ME (KERN_WARNING "REACTMAP: Invalid or uncorrectable header block at address 0x%08x\n", flash_base_addr);
+++>>>>>>> 54fd91048e78cfac52a72cd6b5f7ba7ceb7735e7
+  	if ( cache )
+  		kfree( cache );
+  	if ( hdr )
+@@@ -297,16 -316,18 +350,28 @@@ void reactmap_testimage(struct reactmap
+  	u16 parity[dev->hdr->nroots];
+  
+  	total_rs_blocks = dev->hdr->imagesize / dev->rs_data.rsblock_size;
+++<<<<<<< HEAD
+++=======
++ 	PRINT_ME ("reactmap_testimage\n");
+++>>>>>>> 54fd91048e78cfac52a72cd6b5f7ba7ceb7735e7
+  
+  	for ( current_rs_block=0; current_rs_block<total_rs_blocks ; current_rs_block++) {
+  
+  		data_offset = im->data + current_rs_block*dev->rs_data.rsblock_size;
+  		parity_offset = data_offset + dev->rs_data.rspayload_size;
+++<<<<<<< HEAD
+ +
+++=======
++ 	
+++>>>>>>> 54fd91048e78cfac52a72cd6b5f7ba7ceb7735e7
+  		memcpy(data, data_offset, dev->rs_data.rspayload_size);
+  		for ( i=0; i<dev->hdr->nroots; i++)
+  			parity[i] = parity_offset[i];
+  
+++<<<<<<< HEAD
+++=======
++ /* When this code is compiled out things are working!!! */
+++>>>>>>> 54fd91048e78cfac52a72cd6b5f7ba7ceb7735e7
+  		derrors = decode_rs8(dev->rs_data.rs, data, parity, dev->rs_data.rspayload_size, 0, 0, NULL, 0, NULL);
+  
+  		if(derrors != 0) { /* log error */
+@@@ -320,6 -341,7 +385,10 @@@
+  		if ( current_rs_block%20==0 && current_rs_block>0 )
+  			schedule();
+  	}
+++<<<<<<< HEAD
+++=======
++ 	PRINT_ME ("reactmap_testimage DONE\n");
+++>>>>>>> 54fd91048e78cfac52a72cd6b5f7ba7ceb7735e7
+  }
+  
+  void reactmap_testimage_wq(void *pdev) {
+@@@ -475,12 -497,12 +544,20 @@@ static u32 reactmap_transfer(struct rea
+  	s32 derrors;
+  
+  	if ((offset + nbytes) > dev->size) {
+++<<<<<<< HEAD
+ +		printk (KERN_NOTICE "Beyond-end write\n");
+++=======
++ 		PRINT_ME (KERN_NOTICE "Beyond-end write\n");
+++>>>>>>> 54fd91048e78cfac52a72cd6b5f7ba7ceb7735e7
+  		return 0;
+  	}
+  
+  	if (write) {
+++<<<<<<< HEAD
+ +		printk (KERN_WARNING "Tried to write to FLASH\n");
+++=======
++ 		PRINT_ME (KERN_WARNING "Tried to write to FLASH\n");
+++>>>>>>> 54fd91048e78cfac52a72cd6b5f7ba7ceb7735e7
+  		return 0;
+  	}
+  
+@@@ -493,9 -515,9 +570,15 @@@
+  
+  			derrors = reactmap_rsdecode(current_rs_block, dev);			
+  			if(derrors < 0) {
+++<<<<<<< HEAD
+ +				printk (KERN_WARNING "REACTMAP: Reed-Solomon decoder found an uncorrectable block (block no %d)\n",current_rs_block);
+ +				if (current_rs_block == 0) {
+ +					printk (KERN_WARNING "REACTMAP: Filesystem image might not have been Reed-Solomon encoded\n");
+++=======
++ 				PRINT_ME (KERN_WARNING "REACTMAP: Reed-Solomon decoder found an uncorrectable block (block no %d)\n",current_rs_block);
++ 				if (current_rs_block == 0) {
++ 					PRINT_ME (KERN_WARNING "REACTMAP: Filesystem image might not have been Reed-Solomon encoded\n");
+++>>>>>>> 54fd91048e78cfac52a72cd6b5f7ba7ceb7735e7
+  				}
+  				return 0; /* error */
+  			} else {
+@@@ -531,7 -553,7 +614,11 @@@ static void reactmap_request(request_qu
+  	while ((req = elv_next_request(q)) != NULL) {
+  		struct reactmap_dev *dev = req->rq_disk->private_data;
+  		if (! blk_fs_request(req)) {
+++<<<<<<< HEAD
+ +			printk (KERN_NOTICE "reactmap: Skip non-fs request\n");
+++=======
++ 			PRINT_ME (KERN_NOTICE "reactmap: Skip non-fs request\n");
+++>>>>>>> 54fd91048e78cfac52a72cd6b5f7ba7ceb7735e7
+  			end_request(req, 0);
+  			continue;
+  		}
+@@@ -615,7 -637,6 +702,10 @@@ static struct block_device_operations r
+  	.ioctl	         = reactmap_ioctl
+  };
+  
+++<<<<<<< HEAD
+ +
+++=======
+++>>>>>>> 54fd91048e78cfac52a72cd6b5f7ba7ceb7735e7
+  /*
+   * Set up our internal device.
+   */
+@@@ -626,6 -647,8 +716,11 @@@ static void setup_device(struct reactma
+  
+  	memset (dev, 0, sizeof (struct reactmap_dev));
+  
+++<<<<<<< HEAD
+++=======
++ 	PRINT_ME("Setup_device %d",which);
++ 
+++>>>>>>> 54fd91048e78cfac52a72cd6b5f7ba7ceb7735e7
+  	/*
+  	 * Assign memory space
+  	 */
+@@@ -653,19 -676,27 +748,41 @@@
+  
+  	if ( dev->hdr ) {
+  		dev->image.data = ioremap( dev->image.flash_base_addr + FSFEC_HEADERSIZE, dev->hdr->imagesize );
+++<<<<<<< HEAD
+++=======
++ 	
++ 	PRINT_ME ("**** IMAGE 1 ioremap %lx, %x\n",dev->image.flash_base_addr + FSFEC_HEADERSIZE, dev->hdr->imagesize);
++ 
+++>>>>>>> 54fd91048e78cfac52a72cd6b5f7ba7ceb7735e7
+  		dev->size = dev->hdr->payloadsize;
+  		dev->rs_data.rs = init_rs(dev->hdr->symsize, dev->hdr->genpoly, dev->hdr->fcs, dev->hdr->prim, dev->hdr->nroots);
+  
+  		if ( hdr_image && dev->hdr->checksum == hdr_image->checksum && hdr_image && dev->hdr->imagesize ==  hdr_image->imagesize ) {
+  			dev->mirror_image.data = ioremap( dev->mirror_image.flash_base_addr + FSFEC_HEADERSIZE, dev->hdr->imagesize );
+++<<<<<<< HEAD
+ +		}
+ +		else if (hdr_image)
+ +			printk (KERN_WARNING "REACTMAP: Mirror image CRC doesn't match base image\n");
+ +
+ +	} else if ( hdr_image ) {
+ +		printk (KERN_WARNING "REACTMAP: Base image not present, using mirror image\n");
+ +		dev->image.data = ioremap( dev->mirror_image.flash_base_addr + FSFEC_HEADERSIZE, hdr_image->imagesize );
+ +		dev->size = hdr_image->payloadsize;
+++=======
++ 	
++ 			PRINT_ME ("**** IMAGE 2 ioremap %lx, %x\n",dev->mirror_image.flash_base_addr + FSFEC_HEADERSIZE , dev->hdr->imagesize);
++ 
++ 		}
++ 		else if (hdr_image)
++ 			PRINT_ME (KERN_WARNING "REACTMAP: Mirror image CRC doesn't match base image\n");
++ 
++ 	} else if ( hdr_image ) {
++ 		PRINT_ME (KERN_WARNING "REACTMAP: Base image not present, using mirror image\n");
++ 		dev->image.data = ioremap( dev->mirror_image.flash_base_addr + FSFEC_HEADERSIZE, hdr_image->imagesize );
++ 		dev->size = hdr_image->payloadsize;
++ 			
++ 			PRINT_ME ("**** IMAGE 3 ioremap %lx, %x\n",dev->mirror_image.flash_base_addr + FSFEC_HEADERSIZE , hdr_image->imagesize);
+++>>>>>>> 54fd91048e78cfac52a72cd6b5f7ba7ceb7735e7
+  
+  		temp_flash_addr = dev->image.flash_base_addr;
+  		dev->image.flash_base_addr = dev->mirror_image.flash_base_addr;
+@@@ -676,7 -707,9 +793,13 @@@
+  		dev->rs_data.rs = init_rs(dev->hdr->symsize, dev->hdr->genpoly, dev->hdr->fcs, dev->hdr->prim, dev->hdr->nroots);
+  
+  	} else {
+++<<<<<<< HEAD
+ +		printk (KERN_WARNING "REACTMAP: No valid image present\n");
+++=======
++ 		PRINT_ME("NO valid image present");
++ 
++ 		PRINT_ME (KERN_WARNING "REACTMAP: No valid image present\n");
+++>>>>>>> 54fd91048e78cfac52a72cd6b5f7ba7ceb7735e7
+  		goto out_noimage;
+  	}
+  
+@@@ -744,7 -777,7 +867,11 @@@
+  	 */
+  	dev->gd = alloc_disk(REACTMAP_MINORS);
+  	if (! dev->gd) {
+++<<<<<<< HEAD
+ +		printk (KERN_NOTICE "alloc_disk failure\n");
+++=======
++ 		PRINT_ME (KERN_NOTICE "alloc_disk failure\n");
+++>>>>>>> 54fd91048e78cfac52a72cd6b5f7ba7ceb7735e7
+  		goto out_malloc_error;
+  	}
+  	dev->gd->major = reactmap_major;
+@@@ -755,11 -788,11 +882,19 @@@
+  	snprintf (dev->gd->disk_name, 32, "reactmap%c", which + 'a');
+  	set_capacity(dev->gd, dev->size*(hardsect_size/KERNEL_SECTOR_SIZE));
+  	add_disk(dev->gd);
+++<<<<<<< HEAD
+ +	printk (KERN_NOTICE " Successfuly allocated /dev/react%c (minor %d) at addr 0x%x of size 0x%x\n", which + 'a', dev->gd->first_minor, dev->image.flash_base_addr, dev->size);
+ +	return;
+ +
+ +  out_malloc_error:
+ +	printk (KERN_WARNING "REACTMAP: Memory allocation failure.\n");
+++=======
++ 	PRINT_ME (KERN_NOTICE " Successfuly allocated /dev/react%c (minor %d) at addr 0x%x of size 0x%x\n", which + 'a', dev->gd->first_minor, dev->image.flash_base_addr, dev->size);
++ 	return;
++ 
++   out_malloc_error:
++ 	PRINT_ME (KERN_WARNING "REACTMAP: Memory allocation failure.\n");
+++>>>>>>> 54fd91048e78cfac52a72cd6b5f7ba7ceb7735e7
+  
+    out_noimage:
+  	if ( dev->rs_data.parity )
+@@@ -792,11 -825,11 +927,19 @@@ static int __init reactmap_init(void
+  	 */
+  	reactmap_major = register_blkdev(reactmap_major, "reactmap");
+  	if (reactmap_major <= 0) {
+++<<<<<<< HEAD
+ +		printk(KERN_WARNING "REACTMAP: unable to get major number\n");
+ +		return -EBUSY;
+ +	}
+ +
+ +	printk (KERN_NOTICE "REACTMAP: allocated major device no %d\n", reactmap_major);
+++=======
++ 		PRINT_ME(KERN_WARNING "REACTMAP: unable to get major number\n");
++ 		return -EBUSY;
++ 	}
++ 
++ 	PRINT_ME (KERN_NOTICE "REACTMAP: allocated major device no %d\n", reactmap_major);
+++>>>>>>> 54fd91048e78cfac52a72cd6b5f7ba7ceb7735e7
+  
+  	/*
+  	 * Allocate the device array, and initialize each one.
+@@@ -805,13 -838,12 +948,20 @@@
+  	if (Devices == NULL)
+  		goto out_unregister;
+  	for (i = 0; i < ndevices; i++) {
+++<<<<<<< HEAD
+ +		printk (KERN_NOTICE "REACTMAP: initializing minor %d\n", i*16);
+++=======
++ 		PRINT_ME (KERN_NOTICE "REACTMAP: initializing minor %d\n", i*16);
+++>>>>>>> 54fd91048e78cfac52a72cd6b5f7ba7ceb7735e7
+  		setup_device(&Devices[i], i);
+  	}
+  
+  	reactmap_create_proc();
+  
+++<<<<<<< HEAD
+ +
+++=======
+++>>>>>>> 54fd91048e78cfac52a72cd6b5f7ba7ceb7735e7
+  	return 0;
+  
+    out_unregister:
+diff --cc build_me.sh
+index 21203e7,64b2de1..0000000
+--- a/build_me.sh
++++ b/build_me.sh
+@@@ -1,5 -1,5 +1,9 @@@
+  echo "Building Linux BSP for REACT."
+++<<<<<<< HEAD
+ +make -s ARCH=ppc clean
+++=======
++ #make -s ARCH=ppc clean
+++>>>>>>> 54fd91048e78cfac52a72cd6b5f7ba7ceb7735e7
+  make -s ARCH=ppc uImage
+  echo "Finished, executable is uImage in /arch/ppc/boot/images."
+  
+@@@ -10,7 -10,7 +14,11 @@@ DESTFEC=${DEST}.fe
+  BOOTDISK_NOAPP=../Bootdisk/8548ramdisk_noapp
+  DEST_NOAPP=react-image-noapp
+  DESTFEC_NOAPP=${DEST_NOAPP}.fec
+++<<<<<<< HEAD
+ +FSFEC=/usr/games/fsfec
+++=======
++ FSFEC=./fsfec
+++>>>>>>> 54fd91048e78cfac52a72cd6b5f7ba7ceb7735e7
+  
+  echo "Building Bootdisk image with App."
+  gzip -c ${BOOTDISK} > bootdisk-withapp.gz
+diff --cc init/main.c
+index 8b4a7d7,7648c8a..0000000
+--- a/init/main.c
++++ b/init/main.c
+@@@ -63,6 -63,16 +63,19 @@@
+  #include <asm/smp.h>
+  #endif
+  
+++<<<<<<< HEAD
+++=======
++ extern void gen550_progress(char *s, unsigned short hex);
++ 
++ #define TRACE_ME() do{\
++ 	static int a=0; \
++ 	char cmd[256]; \
++ 	sprintf(cmd,"_%d_",__LINE__); \
++ 	gen550_progress(cmd,0);\
++ }while(0);
++ 	
++ 
+++>>>>>>> 54fd91048e78cfac52a72cd6b5f7ba7ceb7735e7
+  /*
+   * This is one of the first .c files built. Error out early if we have compiler
+   * trouble.
+@@@ -416,17 -426,24 +429,35 @@@ static void __init smp_init(void
+  static void noinline rest_init(void)
+  	__releases(kernel_lock)
+  {
+++<<<<<<< HEAD
+ +	kernel_thread(init, NULL, CLONE_FS | CLONE_SIGHAND);
+ +	numa_default_policy();
+ +	unlock_kernel();
+++=======
++ 	TRACE_ME();
++ 	kernel_thread(init, NULL, CLONE_FS | CLONE_SIGHAND);
++ 	TRACE_ME();
++ 	numa_default_policy();
++ 	TRACE_ME();
++ 	unlock_kernel();
++ 	TRACE_ME();
+++>>>>>>> 54fd91048e78cfac52a72cd6b5f7ba7ceb7735e7
+  
+  	/*
+  	 * The boot idle thread must execute schedule()
+  	 * at least one to get things moving:
+  	 */
+  	preempt_enable_no_resched();
+++<<<<<<< HEAD
+ +	schedule();
+ +	preempt_disable();
+++=======
++ 	TRACE_ME();
++ 	schedule();
++ 	TRACE_ME();
++ 	preempt_disable();
++ 	TRACE_ME();
+++>>>>>>> 54fd91048e78cfac52a72cd6b5f7ba7ceb7735e7
+  
+  	/* Call into cpu_idle with preempt disabled */
+  	cpu_idle();
+@@@ -507,10 -524,14 +538,20 @@@ asmlinkage void __init start_kernel(voi
+  	page_address_init();
+  	printk(KERN_NOTICE);
+  	printk(linux_banner);
+++<<<<<<< HEAD
+++=======
++ 	
++ 	TRACE_ME();
++ 
+++>>>>>>> 54fd91048e78cfac52a72cd6b5f7ba7ceb7735e7
+  	setup_arch(&command_line);
+  	unwind_setup();
+  	setup_per_cpu_areas();
+  	smp_prepare_boot_cpu();	/* arch-specific boot-cpu hooks */
+++<<<<<<< HEAD
+++=======
++ 	TRACE_ME();
+++>>>>>>> 54fd91048e78cfac52a72cd6b5f7ba7ceb7735e7
+  
+  	/*
+  	 * Set up the scheduler prior starting any interrupts (such as the
+@@@ -518,6 -539,7 +559,10 @@@
+  	 * time - but meanwhile we still have a functioning scheduler.
+  	 */
+  	sched_init();
+++<<<<<<< HEAD
+++=======
++ 	TRACE_ME();
+++>>>>>>> 54fd91048e78cfac52a72cd6b5f7ba7ceb7735e7
+  	/*
+  	 * Disable preemption - early bootup scheduling is extremely
+  	 * fragile until we cpu_idle() for the first time.
+@@@ -525,6 -547,7 +570,10 @@@
+  	preempt_disable();
+  	build_all_zonelists();
+  	page_alloc_init();
+++<<<<<<< HEAD
+++=======
++ 	TRACE_ME();
+++>>>>>>> 54fd91048e78cfac52a72cd6b5f7ba7ceb7735e7
+  	printk(KERN_NOTICE "Kernel command line: %s\n", saved_command_line);
+  	parse_early_param();
+  	parse_args("Booting kernel", command_line, __start___param,
+@@@ -538,18 -561,22 +587,32 @@@
+  	sort_main_extable();
+  	trap_init();
+  	rcu_init();
+++<<<<<<< HEAD
+ +	init_IRQ();
+++=======
++ 	TRACE_ME();
++ 	init_IRQ();
++ 	TRACE_ME();
+++>>>>>>> 54fd91048e78cfac52a72cd6b5f7ba7ceb7735e7
+  	pidhash_init();
+  	init_timers();
+  	hrtimers_init();
+  	softirq_init();
+  	timekeeping_init();
+  	time_init();
+++<<<<<<< HEAD
+++=======
++ 	TRACE_ME();
+++>>>>>>> 54fd91048e78cfac52a72cd6b5f7ba7ceb7735e7
+  	profile_init();
+  	if (!irqs_disabled())
+  		printk("start_kernel(): bug: interrupts were enabled early\n");
+  	early_boot_irqs_on();
+  	local_irq_enable();
+++<<<<<<< HEAD
+++=======
++ 	TRACE_ME();
+++>>>>>>> 54fd91048e78cfac52a72cd6b5f7ba7ceb7735e7
+  
+  	/*
+  	 * HACK ALERT! This is early. We're enabling the console before
+@@@ -557,10 -584,12 +620,18 @@@
+  	 * this. But we do want output early, in case something goes wrong.
+  	 */
+  	console_init();
+++<<<<<<< HEAD
+++=======
++ 	TRACE_ME();
+++>>>>>>> 54fd91048e78cfac52a72cd6b5f7ba7ceb7735e7
+  	if (panic_later)
+  		panic(panic_later, panic_param);
+  
+  	lockdep_info();
+++<<<<<<< HEAD
+++=======
++ 	TRACE_ME();
+++>>>>>>> 54fd91048e78cfac52a72cd6b5f7ba7ceb7735e7
+  
+  	/*
+  	 * Need to run this when irqs are enabled, because it wants
+@@@ -568,6 -597,7 +639,10 @@@
+  	 * too:
+  	 */
+  	locking_selftest();
+++<<<<<<< HEAD
+++=======
++ 	TRACE_ME();
+++>>>>>>> 54fd91048e78cfac52a72cd6b5f7ba7ceb7735e7
+  
+  #ifdef CONFIG_BLK_DEV_INITRD
+  	if (initrd_start && !initrd_below_start_ok &&
+@@@ -580,16 -610,20 +655,30 @@@
+  	vfs_caches_init_early();
+  	cpuset_init_early();
+  	mem_init();
+++<<<<<<< HEAD
+++	kmem_cache_init();
+++=======
++ 	TRACE_ME();
+  	kmem_cache_init();
++ 	TRACE_ME();
+++>>>>>>> 54fd91048e78cfac52a72cd6b5f7ba7ceb7735e7
+  	setup_per_cpu_pageset();
+  	numa_policy_init();
+  	if (late_time_init)
+  		late_time_init();
+  	calibrate_delay();
+++<<<<<<< HEAD
+++=======
++ 	TRACE_ME();
+++>>>>>>> 54fd91048e78cfac52a72cd6b5f7ba7ceb7735e7
+  	pidmap_init();
+  	pgtable_cache_init();
+  	prio_tree_init();
+  	anon_vma_init();
+++<<<<<<< HEAD
+++=======
++ 	TRACE_ME();
+++>>>>>>> 54fd91048e78cfac52a72cd6b5f7ba7ceb7735e7
+  #ifdef CONFIG_X86
+  	if (efi_enabled)
+  		efi_enter_virtual_mode();
+@@@ -613,11 -647,14 +702,22 @@@
+  	delayacct_init();
+  
+  	check_bugs();
+++<<<<<<< HEAD
+ +
+ +	acpi_early_init(); /* before LAPIC and SMP init */
+ +
+ +	/* Do the rest non-__init'ed, we're now alive */
+ +	rest_init();
+++=======
++ 	TRACE_ME();
++ 
++ 	acpi_early_init(); /* before LAPIC and SMP init */
++ 	TRACE_ME();
++ 
++ 	/* Do the rest non-__init'ed, we're now alive */
++ 	rest_init();
++ 	TRACE_ME();
+++>>>>>>> 54fd91048e78cfac52a72cd6b5f7ba7ceb7735e7
+  }
+  
+  static int __initdata initcall_debug;
+@@@ -640,6 -677,13 +740,16 @@@ static void __init do_initcalls(void
+  		char *msg = NULL;
+  		char msgbuf[40];
+  		int result;
+++<<<<<<< HEAD
+++=======
++ 	
++ 	
++ 		{
++ 			char cmd[256];
++ 			sprintf(cmd,"_0x%p_",*call);
++ 			gen550_progress(cmd,0);
++ 		}
+++>>>>>>> 54fd91048e78cfac52a72cd6b5f7ba7ceb7735e7
+  
+  		if (initcall_debug) {
+  			printk("Calling initcall 0x%p", *call);
+@@@ -683,16 -727,21 +793,32 @@@
+   */
+  static void __init do_basic_setup(void)
+  {
+++<<<<<<< HEAD
+++	/* drivers will send hotplug events */
+++	init_workqueues();
+++	usermodehelper_init();
+++=======
++ 	TRACE_ME();
+  	/* drivers will send hotplug events */
+  	init_workqueues();
++ 	TRACE_ME();
+  	usermodehelper_init();
++ 	TRACE_ME();
+++>>>>>>> 54fd91048e78cfac52a72cd6b5f7ba7ceb7735e7
+  	driver_init();
+  
+  #ifdef CONFIG_SYSCTL
+  	sysctl_init();
+  #endif
+++<<<<<<< HEAD
+++
+++	do_initcalls();
+++=======
++ 	TRACE_ME();
+  
+  	do_initcalls();
++ 	TRACE_ME();
+++>>>>>>> 54fd91048e78cfac52a72cd6b5f7ba7ceb7735e7
+  }
+  
+  static void __init do_pre_smp_initcalls(void)
+@@@ -715,6 -764,7 +841,10 @@@ static void run_init_process(char *init
+  
+  static int init(void * unused)
+  {
+++<<<<<<< HEAD
+++=======
++ 	TRACE_ME();
+++>>>>>>> 54fd91048e78cfac52a72cd6b5f7ba7ceb7735e7
+  	lock_kernel();
+  	/*
+  	 * init can run on any cpu.
+@@@ -740,8 -790,10 +870,15 @@@
+  	sched_init_smp();
+  
+  	cpuset_init_smp();
+++<<<<<<< HEAD
+++
+++	do_basic_setup();
+++=======
++ 	TRACE_ME();
+  
+  	do_basic_setup();
++ 	TRACE_ME();
+++>>>>>>> 54fd91048e78cfac52a72cd6b5f7ba7ceb7735e7
+  
+  	/*
+  	 * check if there is an early userspace init.  If yes, let it do all
+@@@ -761,6 -813,7 +898,10 @@@
+  	 * we're essentially up and running. Get rid of the
+  	 * initmem segments and start the user-mode stuff..
+  	 */
+++<<<<<<< HEAD
+++=======
++ 	TRACE_ME();
+++>>>>>>> 54fd91048e78cfac52a72cd6b5f7ba7ceb7735e7
+  	free_initmem();
+  	unlock_kernel();
+  	mark_rodata_ro();
+diff --cc kernel/softlockup.c
+index 50afeb8,9433df6..0000000
+--- a/kernel/softlockup.c
++++ b/kernel/softlockup.c
+@@@ -93,6 -93,7 +93,10 @@@ static int watchdog(void * __bind_cpu
+  	 * debug-printout triggers in softlockup_tick().
+  	 */
+  	while (!kthread_should_stop()) {
+++<<<<<<< HEAD
+++=======
++ 		printk("!");
+++>>>>>>> 54fd91048e78cfac52a72cd6b5f7ba7ceb7735e7
+  		set_current_state(TASK_INTERRUPTIBLE);
+  		touch_softlockup_watchdog();
+  		schedule();
+diff --cc lib/reed_solomon/decode_rs.c
+index a58df56,ce0fb70..0000000
+--- a/lib/reed_solomon/decode_rs.c
++++ b/lib/reed_solomon/decode_rs.c
+@@@ -64,6 -64,7 +64,10 @@@
+  			}
+  		}
+  	}
+++<<<<<<< HEAD
+++=======
++ asm volatile("sync; isync");
+++>>>>>>> 54fd91048e78cfac52a72cd6b5f7ba7ceb7735e7
+  
+  	for (j = 0; j < nroots; j++) {
+  		for (i = 0; i < nroots; i++) {
+@@@ -74,8 -75,10 +78,15 @@@
+  					alpha_to[rs_modnn(rs, index_of[syn[i]] +
+  						       (fcr+i)*prim)];
+  			}
+++<<<<<<< HEAD
+ +		}
+ +	}
+++=======
++ 
++ 		}
++ 	}
++ asm volatile("sync; isync");
+++>>>>>>> 54fd91048e78cfac52a72cd6b5f7ba7ceb7735e7
+  	s = syn;
+  
+  	/* Convert syndromes to index form, checking for nonzero condition */
+@@@ -112,6 -115,7 +123,10 @@@
+  			}
+  		}
+  	}
+++<<<<<<< HEAD
+++=======
++ asm volatile("sync; isync");
+++>>>>>>> 54fd91048e78cfac52a72cd6b5f7ba7ceb7735e7
+  
+  	for (i = 0; i < nroots + 1; i++)
+  		b[i] = index_of[lambda[i]];
+@@@ -167,7 -171,9 +182,13 @@@
+  			}
+  			memcpy(lambda, t, (nroots + 1) * sizeof(t[0]));
+  		}
+++<<<<<<< HEAD
+++	}
+++=======
++ asm volatile("sync; isync");
+  	}
++ asm volatile("sync; isync");
+++>>>>>>> 54fd91048e78cfac52a72cd6b5f7ba7ceb7735e7
+  
+  	/* Convert lambda to index form and compute deg(lambda(x)) */
+  	deg_lambda = 0;
+@@@ -176,6 -182,8 +197,11 @@@
+  		if (lambda[i] != nn)
+  			deg_lambda = i;
+  	}
+++<<<<<<< HEAD
+++=======
++ asm volatile("sync; isync");
++ 
+++>>>>>>> 54fd91048e78cfac52a72cd6b5f7ba7ceb7735e7
+  	/* Find roots of error+erasure locator polynomial by Chien search */
+  	memcpy(&reg[1], &lambda[1], nroots * sizeof(reg[0]));
+  	count = 0;		/* Number of roots of lambda(x) */
+@@@ -197,7 -205,9 +223,13 @@@
+  		 */
+  		if (++count == deg_lambda)
+  			break;
+++<<<<<<< HEAD
+++	}
+++=======
++ asm volatile("sync; isync");
+  	}
++ asm volatile("sync; isync");
+++>>>>>>> 54fd91048e78cfac52a72cd6b5f7ba7ceb7735e7
+  	if (deg_lambda != count) {
+  		/*
+  		 * deg(lambda) unequal to number of roots => uncorrectable
+@@@ -220,6 -230,7 +252,10 @@@
+  		}
+  		omega[i] = index_of[tmp];
+  	}
+++<<<<<<< HEAD
+++=======
++ asm volatile("sync; isync");
+++>>>>>>> 54fd91048e78cfac52a72cd6b5f7ba7ceb7735e7
+  
+  	/*
+  	 * Compute error values in poly-form. num1 = omega(inv(X(l))), num2 =
+@@@ -259,7 -270,9 +295,13 @@@
+  				if (data && (loc[j] < (nn - nroots)))
+  					data[loc[j] - pad] ^= cor;
+  			}
+++<<<<<<< HEAD
+++		}
+++=======
++ asm volatile("sync; isync");
+  		}
++ asm volatile("sync; isync");
+++>>>>>>> 54fd91048e78cfac52a72cd6b5f7ba7ceb7735e7
+  	}
+  
+  finish:
+diff --cc setenv.sh
+index f7e0345,896f3fa..0000000
+--- a/setenv.sh
++++ b/setenv.sh
+@@@ -1,5 -1,5 +1,9 @@@
+  #!/bin/bash
+++<<<<<<< HEAD
+ +PATH=$PATH:/opt/embedded/tools/usr/bin
+++=======
++ PATH=$PATH:/home/etmartin/neptec/opt/embedded/tools/usr/bin/
+++>>>>>>> 54fd91048e78cfac52a72cd6b5f7ba7ceb7735e7
+  PATH=$PATH:/usr/games
+  export CROSS_COMPILE=ppc_85xx-
+  export ARCH=ppc

@@ -1,0 +1,53 @@
+Here is my view about the restart ability aspect:
+
+(A) The very first aspect of the restart ability problem is common
+between Xen and KVM and it's the restart ability aspect of the Linux
+Kernel itself. At initialization time, Linux expect devices to be in a
+certain states and is certainly _not_ prepare to receive inbound DMA
+transaction from a network adapter queuing packet for example.
+
+One could argue that in a 'controlled' shutdown scenario Linux is
+restart able and in that cases I agree; Unfortunately I think we are
+more concerned about the 'un-controlled' cases...
+
+(B) The second aspect is related to the front-end / back-end shared
+memory communication primitive. Again in both cases Xen and KVM share
+common ground here. KVM is using a technology called vring where Xen is
+using xring. With pv_ops the underlying technology will likely merge.
+
+(C) With KVM, Linux itself is the hypervisor. Virtual machine are
+standard processes as seen by the host. Under Xen the hypervisor is an
+independent micro-kernel in ring 0 that interact closely with Dom0 Linux
+kernel in Ring1. 
+
+From the restart ability perspective having an independent hypervisor
+really _doesn't_ help here because as long as we keep the machine under
+software control (No hardware reset) we are free in any cases to poke
+around in the memory an prepare for an eventual recovery.
+
+Again I see similarity in the recovery process from both Xen and KVM
+perspective. One 'big' conceptually interesting area is that the 'new'
+instance is going to have to 'rebuild' itself  based on the defunct
+state potentially by looking at existing register configuration on the
+chipset or by looking at data structure present in the 'old' image (like
+using gdb on a core file) for example.
+
+In the case of Xen the memory partitioning is well defined; DomN is
+known to occupied address range [a,b]. This greatly simplify the lookup.
+KVM on the other hand would require a simple modification to behave in
+the same way.
+
+(D) KVM as one _big_ advantage for restart ability namely kexec. Kexec
+is a mechanism that is usually used for debugging purpose where in the
+case of a kernel crash,  the 'software' reset trap is redirected into a
+special memory partition where a 'debug' linux kernel is started.  From
+that debug environment one could gdb over the 'crash' kernel area for
+example.
+
+(E) Here is another interesting point about KVM restart ability.
+With KVM, VMs are really just 'regular' process as seen by Linux
+therefore if we achieve KVM restart ability we also achieve process
+survivability (over kernel crash!)
+
+Etienne
+

@@ -1,0 +1,77 @@
+*  Test #1 REVISED Observation
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Test #1 involve 'looping' ICMP packets at user space through a separate
+ICMP process. An External PC flood the interface with ICMP request.
+
+          "ICMP" process
+            |
+         shm_fifo
+            |
+     "E100 User driver" process
+            |
+*User land  |
+------------|----------
+*Kernel land|
+            |
+            |
+            |  
+          e100<--------->External PC [ ICMP flood ]
+
+Initial results:
+
+   Cpu(s): 25.3%us,  1.1%sy,  0.0%ni, 73.4%id
+   USER      PR  NI  VIRT  RES  SHR S %CPU %MEM TIME+ COMMAND
+   root      20   0  110m 1940 1552 R  107  0.1   0:38.28 ___e100___
+   etmartin  20   0 11024 1352 1228 S    2  0.1   0:00.35 ___icmp___
+
+***Revised Results***:
+
+The initial ShmFifo implementation was based on pooling! I changed the
+implementation to use conditional variable instead. The gain was
+immediate {From 100% CPU utilization to 11% CPU utilization}:
+
+   Cpu(s): 2.0%us,  1.7%sy,  0.0%ni, 96.3%id
+   USER      PR  NI  VIRT  RES  SHR S %CPU %MEM TIME+ COMMAND
+   root      20   0  110m 1884 1560 S   11  0.1   0:03.47 ___e100___
+
+Every network buffer where allocated/freed out of Kernel. I changed the
+implementation to use an object based pool that recycle the buffer
+instead of releasing them back to the kernel. (Similar to
+Buffman/Packman). {From 11% CPU utilization to 9% CPU utilization}
+
+   Cpu(s):  2.2%us,  0.5%sy,  0.0%ni, 97.3%id
+   USER      PR  NI  VIRT  RES  SHR S %CPU %MEM TIME+ COMMAND
+   root      20   0  110m 1896 1560 R    9  0.1   0:05.05 ___e100___
+
+
+*  Test #3 Description
+~~~~~~~~~~~~~~~~~~~~~~
+
+Test #3 involve 'looping' ICMP packet at User space using RAW socket. In
+that cases the Kernel driver is used and there is 1 copy for RX and 1
+copy for TX. An External PC flood the interface with ICMP request.
+
+          "ICMP" process
+            |
+        RAW socket
+            |
+*User land  |
+------------|----------
+*Kernel land|
+            |
+            |
+            |  
+          e100<--------->External PC [ ICMP flood ]
+
+*  Test #3 Observation
+~~~~~~~~~~~~~~~~~~~~~~
+
+-The CPU usage remains _very_ minimal. The extra 'copy' seem to be very
+negligible. Socket interface is highly efficient.
+
+   Cpu(s):  0.1%us,  0.1%sy,  0.0%ni, 99.8%id
+   USER      PR  NI  VIRT  RES  SHR S %CPU %MEM TIME+ COMMAND
+   root      20   0 18548  616  460 S  1  0.0  0:00.19 
+
+Etienne

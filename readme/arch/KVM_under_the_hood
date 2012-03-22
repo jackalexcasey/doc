@@ -1,0 +1,43 @@
+Guys,
+
+As you already know, per last week discussion ;),  I have strong conviction that KVM is the way to go for our virtualization solution so I feel like I need to highlight some of the aspect that makes me think that way. Maybe I'm missing some portion of the overall requirement for virtualization but in anyway here is what I have:
+
+KVM is a driver: 
+First, KVM is a driver under Linux and like other Kernel Loadable Module (KLM) it can be upgraded dynamically which obviously provide interesting capacities for bug fixes or performance enhancement. The architecture agnostic code base for the driver is ~3500 LOC and the X86_64 architecture code base is ~10000 LOC.
+        The KVM driver is part of mainline therefore it is not centric on any specific Linux distribution.
+        
+        KVM driver export an API:
+The KVM driver is a framework that exposed the CPU virtualization capabilities through a well defined API and special file (/dev/kvm).
+        
+QemuKVM is an application that make uses of the KVM API:
+QemuKVM provide a container for guest Operating System where generic third party OS like Windows, Linux or QNX can run into. The QemuKVM container implement both full-virtualization and para-virtualization which in the later case is optimized for Linux OS guess only. The complex created by QemuKVM container together with the guest OS is what we called a Virtual Machine VM and effectively under Linux is nothing else but a process. Given such a relationship, it easy to deploy a customized VM since, as an example, the memory map for the guest OS is defined part of it's associated QemuKVM instance.
+        
+        Inside QemuKVM:
+The QemuKVM container is just a regular process from the host's perspective therefore it has a PID associated to it, it consume memory, CPU and IO resources. It has access to all the underlying OS facilities like: threading, scheduling, IPC, networking, Shared memory, IO devices... Existing Unix utilities like top / ps / kill or gdb will work the same way. 
+        
+        - The container is made of 1 main loop and n threads where n correspond to the number of Virtual CPU given to the Guest OS at startup. 
+        - The main IO loop does a blocking read on "/dev/kvm" waiting for fault trigged by the Guest OS . 
+        - The n threads of execution are initialized (ioctl /dev/kvm) to point to the Guest OS entry point (startup code). Their address space is configured in such a way that it is managed by the KVM modules which provide spte support part of VTx
+        
+        Every time a Guest OS issue an IO access it will triggers a fault into the KVM modules which eventually unblock the main IO loop. The IO loop dispatch (depending on the memory maps) the request, process it and return the value to the KVM modules which in turn restore the context of the Guest OS right after the faulty IO instruction. 
+        
+        - Full virtualization is slow because there is a fault for every device IO register access
+        
+        - Para-virtualization on the other hand is fast because only the payload is transfer to the IO loop generally triggering only 1 fault. The para-virtualization IPC ( Guest OS to QemuKVM container) use a special shared memory / lock free Async IPC mechanism called Vrings.
+        
+        Debug-ability:
+If KVM-Qemu crash, it will produce a core file; Any debug-ability enhancement done on the host Linux kernel will automatically be inherited by the VM complex.
+        
+Manageability:
+Since VM's are process, standard application can be use to ensure the viability of the system: "top" "ps" "kill" "gdb".
+        
+        Simplicity:
+The KVM architecture is simple and efficient. Customization of QemuKVM is also easy (XR_linux qemu_ppc / VXR).
+        KVM offer lots of flexibility for programmer.
+        
+        Performance:
+Since QemuKVM container is subject to the same rule than any others process on Linux, real time is an aspect that required work because by default in Linux, all process are in fair share scheduling classes.
+        - To get minimal clock skew in the Guest OS, QemuKVM needs to be part of real time task and assigned to a particular CPU (set scheduler / cpu affinity). Of course, care must be taken to avoid starving host services that the guestOS may indirectly busywait upon. 
+        - CPU over commitment, that is running more VCPUs than real processor cores exist must be avoided. 
+        - Lazy map should be avoided with mlockall
+        - Large page should be use to improve on memory bandwidth.

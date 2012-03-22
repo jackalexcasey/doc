@@ -1,0 +1,191 @@
+diff --git a/arch/powerpc/kernel/vdso32/vdso32.lds b/arch/powerpc/kernel/vdso32/vdso32.lds
+index 96cdf2d..1f36b21 100644
+--- a/arch/powerpc/kernel/vdso32/vdso32.lds
++++ b/arch/powerpc/kernel/vdso32/vdso32.lds
+@@ -3,7 +3,7 @@
+ /*
+  * Automatically generated C config: don't edit
+  * Linux kernel version: 2.6.20
+- * Wed Feb  2 14:35:34 2011
++ * Wed Sep 21 12:14:22 2011
+  */
+ /*
+  * This is the infamous ld script for the 32 bits vdso
+diff --git a/arch/ppc/boot/images/uImage b/arch/ppc/boot/images/uImage
+index df583c1..b43aa9d 100644
+Binary files a/arch/ppc/boot/images/uImage and b/arch/ppc/boot/images/uImage differ
+diff --git a/arch/ppc/kernel/time.c b/arch/ppc/kernel/time.c
+index 18ee851..25f889a 100755
+--- a/arch/ppc/kernel/time.c
++++ b/arch/ppc/kernel/time.c
+@@ -122,6 +122,20 @@ void wakeup_decrementer(void)
+ 	 */
+ 	last_jiffy_stamp(0) = tb_last_stamp = get_tbl();
+ }
++extern void gen550_progress(char *s, unsigned short hex);
++
++#define TRACE_ME() do{\
++	static int a=0; \
++	char cmd[256]; \
++	sprintf(cmd,"_%d_",__LINE__); \
++	gen550_progress(cmd,0);\
++}while(0);
++
++#define PRINT_ME(fmt, args...) do{\
++	char cmd[256]; \
++	sprintf(cmd,"\r\n" fmt, ## args); \
++	gen550_progress(cmd,0);\
++}while(0);
+ 
+ /*
+  * timer_interrupt - gets called when the decrementer overflows,
+@@ -136,8 +150,15 @@ void timer_interrupt(struct pt_regs * regs)
+ 	unsigned jiffy_stamp = last_jiffy_stamp(cpu);
+ 	extern void do_IRQ(struct pt_regs *);
+ 
++	static volatile int count =0;
++
+ 	if (atomic_read(&ppc_n_lost_interrupts) != 0)
+ 		do_IRQ(regs);
++	
++	if(!(count%100)){
++		PRINT_ME("__%d__",count);
++	}
++	count++;
+ 
+ 	old_regs = set_irq_regs(regs);
+ 	irq_enter();
+diff --git a/gmon.out b/gmon.out
+index fc992cf..996f96f 100644
+Binary files a/gmon.out and b/gmon.out differ
+diff --git a/lib/reed_solomon/decode_rs.c b/lib/reed_solomon/decode_rs.c
+index 0acf5a9..ce0fb70 100755
+--- a/lib/reed_solomon/decode_rs.c
++++ b/lib/reed_solomon/decode_rs.c
+@@ -62,9 +62,9 @@
+ 					alpha_to[rs_modnn(rs, index_of[syn[i]] +
+ 						       (fcr + i) * prim)];
+ 			}
+-			asm volatile("sync; isync");
+ 		}
+ 	}
++asm volatile("sync; isync");
+ 
+ 	for (j = 0; j < nroots; j++) {
+ 		for (i = 0; i < nroots; i++) {
+@@ -75,9 +75,10 @@
+ 					alpha_to[rs_modnn(rs, index_of[syn[i]] +
+ 						       (fcr+i)*prim)];
+ 			}
+-			asm volatile("sync; isync");
++
+ 		}
+ 	}
++asm volatile("sync; isync");
+ 	s = syn;
+ 
+ 	/* Convert syndromes to index form, checking for nonzero condition */
+@@ -112,9 +113,9 @@
+ 						alpha_to[rs_modnn(rs, u + tmp)];
+ 				}
+ 			}
+-			asm volatile("sync; isync");
+ 		}
+ 	}
++asm volatile("sync; isync");
+ 
+ 	for (i = 0; i < nroots + 1; i++)
+ 		b[i] = index_of[lambda[i]];
+@@ -135,7 +136,6 @@
+ 							  index_of[lambda[i]] +
+ 							  s[r - i - 1])];
+ 			}
+-			asm volatile("sync; isync");
+ 		}
+ 		discr_r = index_of[discr_r];	/* Index form */
+ 		if (discr_r == nn) {
+@@ -152,7 +152,6 @@
+ 								  b[i])];
+ 				} else
+ 					t[i + 1] = lambda[i + 1];
+-			asm volatile("sync; isync");
+ 			}
+ 			if (2 * el <= r + no_eras - 1) {
+ 				el = r + no_eras - el;
+@@ -172,7 +171,9 @@
+ 			}
+ 			memcpy(lambda, t, (nroots + 1) * sizeof(t[0]));
+ 		}
++asm volatile("sync; isync");
+ 	}
++asm volatile("sync; isync");
+ 
+ 	/* Convert lambda to index form and compute deg(lambda(x)) */
+ 	deg_lambda = 0;
+@@ -180,8 +181,9 @@
+ 		lambda[i] = index_of[lambda[i]];
+ 		if (lambda[i] != nn)
+ 			deg_lambda = i;
+-	asm volatile("sync; isync");
+ 	}
++asm volatile("sync; isync");
++
+ 	/* Find roots of error+erasure locator polynomial by Chien search */
+ 	memcpy(&reg[1], &lambda[1], nroots * sizeof(reg[0]));
+ 	count = 0;		/* Number of roots of lambda(x) */
+@@ -193,7 +195,6 @@
+ 				q ^= alpha_to[reg[j]];
+ 			}
+ 		}
+-	asm volatile("sync; isync");
+ 		if (q != 0)
+ 			continue;	/* Not a root */
+ 		/* store root (index-form) and error location number */
+@@ -204,7 +205,9 @@
+ 		 */
+ 		if (++count == deg_lambda)
+ 			break;
++asm volatile("sync; isync");
+ 	}
++asm volatile("sync; isync");
+ 	if (deg_lambda != count) {
+ 		/*
+ 		 * deg(lambda) unequal to number of roots => uncorrectable
+@@ -226,8 +229,8 @@
+ 				    alpha_to[rs_modnn(rs, s[i - j] + lambda[j])];
+ 		}
+ 		omega[i] = index_of[tmp];
+-	asm volatile("sync; isync");
+ 	}
++asm volatile("sync; isync");
+ 
+ 	/*
+ 	 * Compute error values in poly-form. num1 = omega(inv(X(l))), num2 =
+@@ -242,7 +245,6 @@
+ 		}
+ 		num2 = alpha_to[rs_modnn(rs, root[j] * (fcr - 1) + nn)];
+ 		den = 0;
+-	asm volatile("sync; isync");
+ 
+ 		/* lambda[i+1] for i even is the formal derivative
+ 		 * lambda_pr of lambda[i] */
+@@ -268,8 +270,9 @@
+ 				if (data && (loc[j] < (nn - nroots)))
+ 					data[loc[j] - pad] ^= cor;
+ 			}
+-	asm volatile("sync; isync");
++asm volatile("sync; isync");
+ 		}
++asm volatile("sync; isync");
+ 	}
+ 
+ finish:
+diff --git a/react-image-noapp.fec b/react-image-noapp.fec
+index b7a0318..ebe4234 100644
+Binary files a/react-image-noapp.fec and b/react-image-noapp.fec differ
+diff --git a/react-image-withapp.fec b/react-image-withapp.fec
+index 2613998..606a252 100644
+Binary files a/react-image-withapp.fec and b/react-image-withapp.fec differ
+diff --git a/usr/initramfs_data.cpio.gz b/usr/initramfs_data.cpio.gz
+index 6f7dd58..77c09fd 100644
+Binary files a/usr/initramfs_data.cpio.gz and b/usr/initramfs_data.cpio.gz differ

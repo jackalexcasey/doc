@@ -1,0 +1,201 @@
+Install:
+~~~~~~~~
+Ubuntu server.ISO
+
+*Ext3 / mount nothing but / golden /boot and /nobackup
+
+#
+Partition overvier
+#
+#  Host AKA Golden
+#  Host_dev AKA Host
+
+
+'RP is 256MB'
+
+MBR
+ -> Primary partition 1 2 3 4
+ -> Grub
+
+Primary1
+ -> '/boot' 8Gb "/dev/sda1"
+
+Primary2
+ -> '/' of Host 4Gb "/dev/sda2"; Ubuntu Server 
+
+Primary3
+ -> '/' of Host_dev 80Gb "/dev/sda3"; Ubuntu Server + NIS + Automount + Dev tools
+
+Primary4
+ -> Extended partition Tables "/dev/sda4"
+
+Logical1
+ -> Dump 80Gb "/dev/sda5"
+
+Logical2
+ -> Swap (2xRam -> 6Gb) "/dev/sda6"
+
+Logical3
+ -> ClosV1 8Gb "/dev/sda7"
+
+Logical4
+ -> ClosV2 8Gb "/dev/sda8"
+
+Logical5
+ -> XrV1 8Gb "/dev/sda9"
+
+Logical6
+ -> XRV2 8Gb "/dev/sda10"
+
+Logical7
+ -> /nobackup 19Gb "/dev/sda11"
+
+
+Golden image to Host transition
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#
+# Revert grub to older version "<v2"
+#
+sudo apt-get purge grub2 grub-pc
+cd /boot/
+sudo rm -rf grub/*
+sudo apt-get install grub
+sudo update-grub
+sudo grub-install /dev/sda
+
+#
+# Setup the Host image from current Golden image
+#
+cd /
+
+# Mount host_dev partition
+sudo mount /dev/sda3 /mnt/
+
+sudo rsync -av --delete ./ /mnt --exclude="/proc/*" --exclude="/mnt/*" --exclude="/sys/*" --exclude="/boot/*"
+cd /mnt
+sudo rm initrd.img vmlinuz 
+
+sudo blkid -o value /dev/sda3
+->>c1ffe2f2-1bbc-4ddc-973f-5f6e71896734
+
+#Adjust FSTAB with /dev/sda3 for '/'
+sudo vi /mnt/etc/fstab
+
+#Add a grub entry for the new partition
+sudo vi /boot/grub/menu.lst
+
+#Should ultimately look like this
+title           Host_dev
+uuid            d33fba80-4c24-4644-b28c-6a4f935ffdf1
+kernel          /vmlinuz-2.6.32-21-server root=UUID=c1ffe2f2-1bbc-4ddc-973f-5f6e71896734 ro 
+initrd          /initrd.img-2.6.32-21-server
+
+title           Host
+uuid            d33fba80-4c24-4644-b28c-6a4f935ffdf1
+kernel          /vmlinuz-2.6.32-21-server root=UUID=05752c9a-955d-489f-8e7e-ba401821d383 ro quiet splash
+initrd          /initrd.img-2.6.32-21-server
+
+title           Host (recovery mode)
+uuid            d33fba80-4c24-4644-b28c-6a4f935ffdf1
+kernel          /vmlinuz-2.6.32-21-server root=UUID=05752c9a-955d-489f-8e7e-ba401821d383 ro  single
+initrd          /initrd.img-2.6.32-21-server
+
+title           memtest86+
+uuid            d33fba80-4c24-4644-b28c-6a4f935ffdf1
+kernel          /memtest86+.bin
+
+
+# /nobackup
+sudo mkdir cisco
+sudo chown -R cisco cisco/
+sudo chgrp -R cisco cisco/
+
+Reboot on Host
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+NIS & Automount
+~~~~~~~~~~~~~~~
+sudo apt-get install csh nis
+
+>>> Domain is : 'sj4.eng.'
+>>> Let it fail "2 minutes..."
+sudo /etc/rc2.d/S18nis stop
+
+cat /etc/nsswitch.conf
+# /etc/nsswitch.conf
+#
+# Example configuration of GNU Name Service Switch functionality.
+# If you have the `glibc-doc-reference' and `info' packages installed, try:
+# `info libc "Name Service Switch"' for information about this file.
+
+passwd:     files nis
+shadow:     files nis
+group:      files nis
+
+hosts:      files dns
+
+ethers:     files
+netmasks:   files
+networks:   files
+protocols:  files
+rpc:        files 
+services:   files nis
+
+netgroup:   files nis
+
+publickey:  nis
+
+automount:  files
+aliases:    files 
+
+cat /etc/defaultdomain
+sj4.eng.
+
+cat /etc/yp.conf 
+domain sj4.eng. server sj4-nis5.cisco.com
+ypserver sj4-nis2.cisco.com
+ypserver sj4-nis3.cisco.com
+ypserver sj4-nis4.cisco.com
+ypserver sj4-nis1.cisco.com
+
+sudo /etc/rc2.d/S18nis start
+
+#
+# NIS should work from here
+#
+
+#AutoFS
+sudo apt-get install autofs
+cd /etc
+sudo scp etmartin@etmartin-lds:/etc/auto.* ./
+
+# network interface
+# etmartin-lnx is 171.71.136.206
+sudo vi /etc/network/interfaces
+# The primary network interface
+auto eth0
+iface eth0 inet static
+	address 171.71.136.206
+	netmask 255.255.254.0
+ 	network 171.71.136.0
+	broadcast 171.71.136.255
+	gateway 171.71.136.1
+
+
+# Resolv
+sudo vi /etc/resolv.conf
+nameserver 171.68.266.120
+domain cisco.com
+nameserver 171.70.168.183
+nameserver 64.102.6.247
+
+#Hostname Setting
+cat /etc/hostname 
+betty
+cat /etc/hosts
+127.0.0.1	localhost
+127.0.1.1	betty.cisco.com	betty
+
+reboot
+
+

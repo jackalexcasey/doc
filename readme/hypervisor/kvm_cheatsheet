@@ -1,0 +1,76 @@
+Basic Installation:
+~~~~~~~~~~~~~~~~~~
+#Create disk image
+qemu-img create -f qcow2 server.qcow2 6G
+
+#Boot off the install ISO
+kvm  -hda server.qcow2 -m  512  -boot d  -cdrom ./ubuntu-9.10-server-amd64.iso 
+
+#Boot the installed image
+kvm  -hda  server.qcow2 -m 512
+
+Copy on Write Disk:
+~~~~~~~~~~~~~~~~~~
+#Form original install disk:
+qemu-img create -b server.qcow2 -f qcow2 node1.qcow2
+
+#Boot from the COW disk (leave the install disk alone)
+kvm  -hda  node1.qcow2 -m 400
+
+KVM and Disk partition:
+~~~~~~~~~~~~~~~~~~~~~~
+sudo kvm '...' -drive file=/dev/sda5,if=virtio,boot=on
+
+KVM and PV network:
+~~~~~~~~~~~~~~~~~~
+sudo kvm '...'  -net nic,model=virtio -net user
+
+KVM and SMP Guest VM
+~~~~~~~~~~~~~~~~~~~
+kvm '...' -smp 4
+
+KVM and initrd
+~~~~~~~~~~~~~
+kvm -m 512 -kernel arch/x86/boot/bzImage -initrd ../ramdisk/ramdisk.image.gz -append "root=/dev/ram init=/bin/bash"
+
+KVM and console
+~~~~~~~~~~~~~~
+kvm '...' -nographic -append "console=ttyS0 115200,8n1" -pcidevice host=03:15.4
+
+KVM and pass-thru
+~~~~~~~~~~~~~~~~
+kvm '...' -pcidevice host=03:15.4
+
+KVM monitor
+~~~~~~~~~~~
+-monitor telnet:127.0.0.1:4444,server,nowait
+AND
+telnet 127.0.0.1 4444
+
+HUGETLB:
+~~~~~~~
+'At HOST boot time'
+echo 512 > /proc/sys/vm/nr_hugepages
+cat /proc/sys/vm/nr_hugepages
+512
+mkdir HUGE
+sudo mount -t hugetlbfs none ./HUGE/
+sudo kvm '...' -mem-path ./HUGE/
+
+My setup:
+~~~~~~~~
+sudo kvm -drive file=/dev/sda7,if=virtio,boot=on -kernel image/boot/bzImage -nographic -append "console=ttyS0 115200,8n1 root=fd00 init=/etc/rc.S" -pcidevice host=03:15.4
+
+InterVM shared memory:
+~~~~~~~~~~~~~~~~~~~~~~
+ivshmem_server  &
+kvm '...' -device ivshmem,shm=ivshmem,size=1
+>>> 00:04.0 RAM memory: Qumranet, Inc. Device 1110
+
+Custom build kvm:
+~~~~~~~~~~~~~~~~~
+To build use gitrepo/qemu-kvm
+./configure --target-list=x86_64-softmmu --prefix=.../hypervisor/chroot
+
+Use ./chroot/bin/qemu-system-x86_64 INSTEAD of kvm
+

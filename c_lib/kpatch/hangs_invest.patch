@@ -1,0 +1,38 @@
+diff --git a/arch/x86/kvm/vmx.c b/arch/x86/kvm/vmx.c
+index 0968a52..d2b0d9e 100644
+--- a/arch/x86/kvm/vmx.c
++++ b/arch/x86/kvm/vmx.c
+@@ -3312,6 +3312,7 @@ static int handle_ept_violation(struct kvm_vcpu *vcpu)
+ {
+ 	unsigned long exit_qualification;
+ 	gpa_t gpa;
++	gpa_t gva;
+ 	int gla_validity;
+ 
+ 	exit_qualification = vmcs_readl(EXIT_QUALIFICATION);
+@@ -3334,6 +3335,13 @@ static int handle_ept_violation(struct kvm_vcpu *vcpu)
+ 		return 0;
+ 	}
+ 
++	gva = vmcs_readl(GUEST_LINEAR_ADDRESS);
++
++	if( gva == 0x12340000){// Our mapping
++		printk(KERN_ERR "EPT: GPA: 0x%lx, GVA: 0x%lx\n",
++			(long unsigned int)vmcs_read64(GUEST_PHYSICAL_ADDRESS),
++			vmcs_readl(GUEST_LINEAR_ADDRESS));
++	}
+ 	gpa = vmcs_read64(GUEST_PHYSICAL_ADDRESS);
+ 	trace_kvm_page_fault(gpa, exit_qualification);
+ 	return kvm_mmu_page_fault(vcpu, gpa & PAGE_MASK, 0);
+diff --git a/virt/kvm/kvm_main.c b/virt/kvm/kvm_main.c
+index 1bd8a96..d34641f 100644
+--- a/virt/kvm/kvm_main.c
++++ b/virt/kvm/kvm_main.c
+@@ -1003,6 +1003,7 @@ static void kvm_mmu_notifier_invalidate_range_start(struct mmu_notifier *mn,
+ 	struct kvm *kvm = mmu_notifier_to_kvm(mn);
+ 	int need_tlb_flush = 0, idx;
+ 
++	printk("kvm_mmu_notifier_invalidate_range_start\n");
+ 	idx = srcu_read_lock(&kvm->srcu);
+ 	spin_lock(&kvm->mmu_lock);
+ 	/*
