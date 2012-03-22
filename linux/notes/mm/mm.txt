@@ -151,4 +151,86 @@ being called unnecessarily, which opens the possibly of processes being unnecess
 killed. Before deciding to kill a process, it goes through the following checklist
 
 
+**** RECAP ****
+~~~~~~~~~~~~~~~
+All memory is describe by a struct pages;
+LRU active list working set of pages
+LRU inactive list contain reclaim candidate
+LRU lists and page cache are closely related
+
+The LRU active list size is maintain to about 2/3 LRU inactive list
+refill inactive() move pages from the bottom of active list to inactive list
+Pages are reclaimed from the inactive list
+
+The function shrink cache() is the part of the replacement algorithm that takes
+pages from the inactive list and decides how they should be swapped out.
+
+	Two parameters, max scan and max mapped, determine how much work the
+	function will do and are affected by the priority.
+
+	Each time the function shrink caches() is called without enough pages being freed, the priority will be
+	decreased until the highest priority 1 is reached.
+
+	This means that, at lowest priority 6, at most one-sixth of the pages in the inactive list
+	will be scanned, and, at highest priority, all of them will be
+
+	-Page is mapped by a process. max mapped-- if(max mapped ==0 )page tables of processes will be linearly search at the end
+	-The page is locked for I/O
+	-Page is dirty, is unmapped by all processes, has no buffers and belongs
+	to a device or file mapping.
+	-Page has buffers associated with data on disk
+	-Page is anonymous and is mapped by more than one process. max mapped-- if(max mapped ==0 ) ...
+	-Page has no process referencing it.
+
+
+	***Swapping Out Process Pages
+		linearly searching all processes for the PTEs that reference a particular struct page.
+	
+The page cache is a set of data structures that contain pages that are backed by
+regular files, block devices or swap. Reason is to eliminate disk access:
+Pages read from a file or block device are generally added to the page cache to avoid
+further disk I/O
+
+ - pages that were faulted in as a result of reading a memory mapped file
+ - Blocks read from a block device or filesystem are packed into special pages
+   called buffer pages.
+ - Anonymous pages exist in a special aspect of the page cache called the swap
+   cache
+ - Pages belonging to shared memory regions are treated in a similar fashion to
+   anonymous pages
+
+
+
+
+Active:          1065676 kB
+Inactive:         671944 kB
+Active(anon):     445992 kB
+Inactive(anon):     7648 kB
+Active(file):     619684 kB
+Inactive(file):   664296 kB
+
+When pages reach the bottom of the list, the referenced flag is checked.
+If it is set, it is moved back to the top of the list, and the next page is checked. If
+it is cleared, it is moved to the inactive list.
+
+***
+As a final nail in the stack algorithm coffin, the lists
+are almost ignored when paging out from processes because pageout decisions are
+related to their location in the virtual address space of the process rather than the
+location within the page lists.
+
+
+Scale BAD example:
+
+The first is if the candidates for reclamation are principally anonymous pages. In this case, Linux will keep examining
+a large number of pages before linearly scanning process page tables searching for
+pages to reclaim, but this situation is fortunately rare.
+
+The second situation is where there is a single process with many file-backed
+resident pages in the inactive list that are being written to frequently. Processes
+and kswapd may go into a loop of constantly laundering these pages and placing
+them at the top of the inactive list without freeing anything. In this case, few
+pages are moved from the active list to inactive list because the ratio between
+the two lists, sizes remains do not change significantly.
+
 
