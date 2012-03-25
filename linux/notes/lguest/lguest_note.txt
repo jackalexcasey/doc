@@ -159,35 +159,82 @@ The guest memory is from a mmap over /dev/zero with mmap_private.
 The private mapping ensure that a write to one page fault in and provide private access to the page
 *** DONE ***
 
-
-Device creation
-~~~~~~~~~~~~~~~~
+Device Model
+~~~~~~~~~~~~
 devices.descpage use get_pages to assign 'device' memory
-devices.descpage points to the DEVICE area. In there there is a linked list of device descriptor; The Guest iterates over that same area to discover the device. This is like a BUS
+devices.descpage points to the DEVICE area. In there there is a linked list of device descriptor; The Guest iterates over that same area to discover the device. This is the LGUEST BUS ( launcher <--> guest kernel )
 
-new_device ALLOCATES device descriptor in DEVICE memory Together with the Device description / TYPES
-add_virtqueue allocates virtqueue ring in DEVICE memory right after the device descriptor; 
+'new_device()' ALLOCATES device descriptor in DEVICE memory Together with the Device description / TYPES
+
+'add_virtqueue()' allocates virtqueue ring in DEVICE memory right after the device descriptor; 
 Initialize the vring, descripe the PFN of that vring. AND the ___ thread to handle ___ the event over that ring
   NOTE There might be more that one vring; vring_init is an INLINE.
 
 Each virtqueue have a service routine ( event thread )
-The thread for each service / device is started with 'start_device' LATER in the loader boot process.
-In the thread startup code, the eventfd is also created. There is an Hypercall to passdown the eventFD
+
+When the guest is started (run_guest()) it block in a pread()
+When it unblock because of a HCALL_NOTIFY (unsigned long) 
+	we update start/reset that particular thread. ===> This is the control plane (start / reset ...)
+	NOTE reset == kill_thread
+
+In the thread startup code, the eventfd is created and passed down to lguest with a 'write(lguest_fd,'
+
 That eventfd is used to signal on that virtqueue..
-
-The service thread block on a wait_for_vq_desc
-This function check if there is available data IF not then it waits on the evenrfd (read ).;
+The service thread block on a 'wait_for_vq_desc()' which does a read on the eventfd.
 When there is data it reads the queue and increment the pointer AND return the data to userspace.
+	NOTE that a virtqueue can be a request to read or write
+	EX;guest kernel reads disk =>> request show up in launcher; reads disk fill virtqueue return
 
-Data can be in the form of input or output.
-For input, userspace fill in the IOV and signal back THE guest  with add_used
-If fact add_used doesn't signal the guest; Only wait_for_vq_desc trigger an irq to the guest.
-add_used place data in the pipe...
+The queue transport the IOV to be filled or filled with data...
+EX: Guest stdout -> IOV to launcher -> write stdout directly then release the virtqueue 'add_used'
+EX: Guest stdin -> IOV to launcher -> read stdin directly then release and SIGNEL the virtqueue
+	with 'add_used_and_trigger' 
 
-add_used_and_trigger does update the pipe and trigger an IRQ in the guest.
+The virtio model
+~~~~~~~~~~~~~~~~~
+Virtio is implemented as a BUS driver in Linux
+	'bus_register(&virtio_bus)'
 
- TODO; virtio discovery ??? in the guest...
-*** DONE ***
+Virtio client DRIVER register with virtio through 'register_virtio_driver()'
+Virtio backend DEVICE register with virtio through 'register_virtio_device()'
+	NOTE: both Device and Driver live on that 'virtio_bus'
+
+The Virtion BUS driver 'binding' logic is called whenever a new device OR driver is added to its BUS
+	'match'
+	'probe'
+Upon a 'match' i.e. a device == driver The virtio_dev_probe is called and setup things 
+	and call into the Virtio client DRIVER 'probe function'
+
+Here we detect all the virtio device on the linked list of descriptor
+Then we map the virtio device memory ( above normal mem )
+Then we register this DEVICE with the virtio BUS register_virtio_device
+
+?????
+	- The kernel virtio _driver_ layer is used e.g. 'virtio_console.c' // 'virtio-rng.c'
+		randowm is simple...
+			probe()
+			//The virtqueue is obtain this way
+			vq = virtio_find_single_vq(vdev, random_recv_done, "input");
+
+			Signaling on the queue is done by virtio calling into
+				random_recv_done(struct virtqueue *vq)
+
+			Data is read on the queue with:
+				if (!virtqueue_get_buf(vq, &len))
+			Signaling with:
+			void virtqueue_kick(struct virtqueue *_vq)
+
+Client (driver)
+	
+	/* There should always be room for one buffer. */
+	if (virtqueue_add_buf(vq, &sg, 0, 1, random_data) < 0)
+		BUG();
+	if (virtqueue_add_buf(vq, &sg, 0, 1, random_data) < 0)
+		BUG();
+
+	virtqueue_kick(vq);
+?????/
+
 
 
 Loading the kernel image
