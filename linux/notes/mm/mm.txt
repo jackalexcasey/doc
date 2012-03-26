@@ -234,3 +234,26 @@ pages are moved from the active list to inactive list because the ratio between
 the two lists, sizes remains do not change significantly.
 
 
+
+=>>> Memory map file backed up by disk; fd = open("file"; ptr = mmap(...,...,...,fd) ptr[x]=x;)
+1) mmap setup the VMA; Backing storage can be memory ( anonymous pages ) OR Disk ( file /fd )
+	__do_page_fault
+	handle_mm_fault
+	handle_pte_fault
+
+2) Anonymous pages// Access the VMA cause a page_fault;
+	VMA anonymous do_anonymous_page // Get the memory // setup the PTE
+
+3) Disk backed /// Access the VM cause a page_fault // Try to bring that page in the page cache
+	VMA backed up by disk ; if (likely(vma->vm_ops->fault)); return do_linear_fault
+		__do_fault
+		ret = vma->vm_ops->fault(vma, &vmf); filemap_fault
+
+
+If we have a program Similar to chewmem that chewpage_cache i.e. file backed mmap && touch all pages
+	>> The amount of pages touched represent the memory taken
+	>> At some point kswapd will run because of low mem; Try to evict page cache BUT they are constantly touched by the scrubber so
+	>> no real work is DONE...
+	>>
+
+
