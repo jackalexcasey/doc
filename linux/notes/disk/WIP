@@ -1,0 +1,23 @@
+Some of the practical examples are database software needing to commit its transactions atomically or a journalling filesystem needing to update its metadata atomically. More on this soon.
+
+
+Imagine you are writing one such driver, and for ensuring consistency you have the requirement that a certain block, has to be written to the disk strictly before one or more other blocks .  A common practical example of this is the journal commit block which has to be written to the journal area on disk strictly before the corresponding filesystem metadata blocks are written to the filesystem area on the disk. If the journalling filesystem code does not ensure this, we can have power failure while it is in the middle of writing the affected filesystem metadata blocks and we will not have a valid journal entry to redo it, result — corrupted filesystem.
+
+The wait-n-issue approach is the least efficient and is used as a last resort if the target device does not support IO ordering inherently.
+
+
+The word completed in the above sentence can have different meanings depending on the underlying device, f.e. if the underlying device has a battery protected non-volatile cache, the WRITE can be safely assumed completed, as soon as it hits the writeback cache, on the contrary, if the underlying device has volatile disk cache, the WRITE cannot be assumed completed till it hits the platters. Whatever be the case, the bottomline is that if a WRITE IO is completed, it means that the changes done by that WRITE IO are visible across a power failure, which can hit right after the WRITE IO is treated completed. The Linux block layer barrier IO implementation abstracts out all these device specific stuff and gives a uniform interface to its users via the block IO barrier primitive. During the device probe, the block device driver determines the characteristics of the device, like the WCE (Write Cache Enable) setting, the NV (Non Volatile Cache) setting, etc, and informs this to the block layer proper, which then uses this infomation to do the right things to give the user the desired block IO barrier semantics.
+
+
+
+As a result, the filesystem vendors/maintainers started to ask people to disable the disk non-volatile WBC if they wanted filesystem consistency across power failures.
+
+
+
+
+QEMU also supports a wide variety of caching modes. Writeback is useful for testing but does not offer storage guarantees. Writethrough (the default) is safer, and relies on the host cache. If you're using raw volumes or partitions, it is best to avoid the cache completely, which reduces data copies and bus traffic: 
+
+
+
+
+blk_queue_ordered() needs to be called once, before the device can be used. The block device drivers typically call it from their setup routine, which is called once at the time of device initialization. If the driver does not call blk_queue_ordered(), the block layer assumes that the device does not support ordering and subsequently fails any barrier IOs issued to that device with EOPNOTSUPP. This has the same effect as calling blk_queue_ordered() with ordered argument of QUEUE_ORDERED_NONE.  The prepare_flush_fn() is called by the block layer to create a request that it can issue for flushing the disk cache. This as we see later is an important tool for meeting the persistence requirement.

@@ -1,0 +1,100 @@
+LAYER
+~~~~~~
+User
+VFS
+FS
+BlockIO {Block layer SCSI generic (bsg) driver version scsi/sg.c}
+BlockDriver {ata/ahci} Advanced Host Controller Interface
+	http://www.intel.com/technology/serialata/pdf/rev1_1.pdf
+
+SATA is serial ATA
+
+Write to disk always goes to page_cache first; Read from disk get it from page_cache is present...
+
+O_DIRECT bypass the page_cache
+
+Journaling FS
+	writeback: metadata(journal) disk then data disk =>> Data corruption
+	Ordered: Data disk then metadata(journal) disk
+
+Disk device has a writeback cache i.e. signal that write is done but the data is inside the Cache of the drive
+
+
+Journal force a SYNC to disk   OTHERWISE the data can stay for a long time in the page_cache
+
+
+QEMU / VM
+~~~~~~~~~~~
+User
+VFS
+FS
+BlockIO {virtio_blk.c; The virtio layer shows up as a block layer directly LIKE loop and floppy cdrom for EX }
+BlockDriver 
+	QEMU { file based on partition /dev/sda'n' OR file }
+
+O_DIRECT for no page_cache
+
+AHCI:
+host = ata_host_alloc_pinfo(&pdev->dev, ppi, n_ports);
+    .qc_prep        = ahci_qc_prep,
+
+
+
+sg:
+.write = sg_write,
+
+
+
+Block device are registered EX init_sd(void)
+	if (register_blkdev(sd_major(i), "sd") == 0)
+
+Like fops, there is block ops 'struct block_device_operations'
+
+The request is initialized this way:
+	dev->queue = blk_init_queue(sbull_request, &dev->lock);
+
+Request can be command and read/write... 'void request(request_queue_t *queue);'
+
+ahci ===  Advanced Host Controller Interface is like the PHY layer for the SATA link
+	 Sata is a BUS 
+
+q = __scsi_alloc_queue(sdev->host, scsi_request_fn);
+
+__scsi_alloc_queue
+	q = blk_init_queue(request_fn, NULL); <<< struct request_queue *q
+
+//Receive a queue of request
+static void do_virtblk_request(struct request_queue *q)
+
+// Get individual request with
+struct request *req;
+req = blk_peek_request(q);
+
+blk_start_request()
+
+EXAMPLE dmesg:
+
+SCSI subsystem initialized
+libata version 3.00 loaded.
+
+739 ahci 0000:00:1f.2: version 3.0
+740   alloc irq_desc for 18 on node -1
+741   alloc kstat_irqs on node -1
+742 ahci 0000:00:1f.2: PCI INT B -> GSI 18 (level, low) -> IRQ 18
+743   alloc irq_desc for 54 on node -1
+744   alloc kstat_irqs on node -1
+745 ahci 0000:00:1f.2: irq 54 for MSI/MSI-X
+746 ahci 0000:00:1f.2: controller can't do SNTF, turning off CAP_SNTF
+747 ahci 0000:00:1f.2: AHCI 0001.0200 32 slots 6 ports 3 Gbps 0x3f impl RAID mode
+748 ahci 0000:00:1f.2: flags: 64bit ncq pm led clo pmp pio slum part ccc sxs
+749 ahci 0000:00:1f.2: setting latency timer to 64
+
+scsi0 : ahci
+scsi1 : ahci
+scsi2 : ahci
+scsi3 : ahci
+scsi4 : ahci
+scsi5 : ahci
+
+
+

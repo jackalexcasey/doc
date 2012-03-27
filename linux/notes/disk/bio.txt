@@ -1,0 +1,66 @@
+
+Many storage devices, especially in the consumer market, come with volatile
+write back caches.  That means the devices signal I/O completion to the
+operating system before data actually has hit the non-volatile storage.  This
+behavior obviously speeds up various workloads, but it means the operating
+system needs to force data out to the non-volatile storage when it performs
+a data integrity operation like fsync, sync or an unmount.
+
+The Linux block layer provides two simple mechanisms that let filesystems
+control the caching behavior of the storage device.  These mechanisms are
+a forced cache flush, and the Force Unit Access (FUA) flag for requests.
+
+
+Explicit cache flushes
+----------------------
+
+The REQ_FLUSH flag can be OR ed into the r/w flags of a bio submitted from
+the filesystem and will make sure the volatile cache of the storage device
+has been flushed before the actual I/O operation is started.  This explicitly
+guarantees that previously completed write requests are on non-volatile
+storage before the flagged bio starts. 
+
+Filesystems can simply set the REQ_FLUSH and REQ_FUA bits and do not have to
+worry if the underlying devices need any explicit cache flushing and how
+the Forced Unit Access is implemented.  The REQ_FLUSH and REQ_FUA flags
+may both be set on a single bio.
+
+
+
+Typical users of Linux block devices are the filesystems , volume managers (Device Mapper), s/w RAID (MD Raid) and database softwares.  All these drivers maintain some metadata to manage the block devices and the storage provided by them. This metadata is usually persisted (mostly on the same device) so that things work fine across reboots. Since the metadata is so crucial for the correct functioning of the driver, it has to be correctly updated at all times. Not all  metadata states are valid, and hence for correctness, a metadata update shall take care to move the metadata from one valid state to another valid state
+
+In short, one can mark an IO as a “barrier IO” before issuing it to the block layer, and the Linux block layer will ensure that all the IOs issued to that device before the barrier IO, are completed before the barrier IO, and all the IOs issued to that device after the barrier IO, are completed only after the barrier IO itself is completed.
+
+If there is a power failure before we started updating the persistent metadata copy, we lose the metadata updates completely, but the good thing is that the persistent metadata is still in a consistent state — the earlier consistent state. 
+
+As I said before, a simple albeit in-efficient way to do this is to issue each IO in the order that we want and wait for it to complete before issuing another IO. This is called the sync-n-wait approach and is exactly what the journalling filesystems and other users concerned about ordering, used to do. The fact is that most of them are still using the sync-n-wait approach and  are using the block IO barrier just to provide persistence.
+
+
+
+Virtual MACHINE QEMU consideration
+HERE the whole ram means the page_cache 
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Yes, they are both considered writeback cache modes that require the
+guest to issue flushes in order to be correct. The only difference is
+that the cache is much bigger with cache=writeback (the whole host RAM
+as opposed to a small disk cache).
+
+
+VM disk writes to host page_cache...
+cache=writeback emulates a large disk cache much the same as every modern hard drive has a builtin cache.
+
+The only real difference is that the host cache is very, very large. Some modern file systems did not take the necessary steps to ensure consistency when a volatile write cache is present (ext3 up until very recently when barrier=1 became default).
+
+But since the host cache is very large, and may not be flushed for many minutes after the initial write, this can exacerbate the problem. 
+
+
+
+
+page_cache
+~~~~~~~~~~~~~
+If you write to a file / backed up by a disk, the data goes to the page_cache.
+if you read that file you get the data from the page_cache
+
+The IO schedule will eventually put the block on the disk...
+
