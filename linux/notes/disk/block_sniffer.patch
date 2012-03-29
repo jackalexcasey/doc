@@ -1,0 +1,43 @@
+diff --git a/drivers/ata/libata-core.c b/drivers/ata/libata-core.c
+index 3b09e83..72cd93d 100644
+--- a/drivers/ata/libata-core.c
++++ b/drivers/ata/libata-core.c
+@@ -4850,6 +4850,26 @@ static int ata_sg_setup(struct ata_queued_cmd *qc)
+ 		return -1;
+ 
+ 	DPRINTK("%d sg elements mapped\n", n_elem);
++
++	{
++		int i, nelems;
++		struct scatterlist *sglist, *sg;
++		unsigned long *addr;
++
++		sglist = qc->sg;
++		nelems = qc->n_elem;
++
++		for_each_sg(sglist, sg, nelems, i){
++			addr = sg_virt(sg);
++			if(addr[0] == 0xdeadbeef){
++				printk("P:%lx\n",addr[1]);
++			}
++//			printk("%d %lx %lx %lx %lx %p \nSS:%s\n", n_elem,sg->length,sg->offset,
++//				sg->dma_address, sg->page_link, addr, str);
++//			printk("SS:%s\n",str);
++		}
++	}
++
+ 	qc->orig_n_elem = qc->n_elem;
+ 	qc->n_elem = n_elem;
+ 	qc->flags |= ATA_QCFLAG_DMAMAP;
+diff --git a/drivers/scsi/scsi_lib.c b/drivers/scsi/scsi_lib.c
+index 98fe434..86f0af0 100644
+--- a/drivers/scsi/scsi_lib.c
++++ b/drivers/scsi/scsi_lib.c
+@@ -1515,7 +1515,6 @@ static void scsi_request_fn(struct request_queue *q)
+ 			continue;
+ 		}
+ 
+-
+ 		/*
+ 		 * Remove the request from the request list.
+ 		 */
