@@ -8,6 +8,8 @@
 #include <fcntl.h>
 #include <strings.h>
 
+static char *myname;    /* Name that we were invoked under */
+
 /*
  * ./prog filename block_nr
  *
@@ -16,24 +18,52 @@
  * Create a large file made of multiple block
  * Write those in a loop together with a counter
  */
-#define BLOCK_SIZE 512
+void usage(void)
+{
+	fprintf(stderr,"%s -f filename -b block nr [-d] O_DIRECT mode [-B] block size (default 512)\n",myname);
+	exit(1);
+}
+
 int main( int argc, char **argv)
 
 {
+	int opt;
 	void *buf;
 	unsigned long *data;
-	char *filename;
-	int block_nr;
+	char *filename=NULL;
+	int block_nr=0;
 	int ret = 0;
 	unsigned long bytes_written = 0;
 	int fd,x;
+	int flags=0;
+	int BLOCK_SIZE=512;
 
-	if(argc ==3 ){
-		filename = argv[1];
-		block_nr = atoi(argv[2]);
+	myname = argv[0];
+
+	while ((opt = getopt(argc, argv, "f:b:dB:")) != -1) {
+		switch (opt) {
+			case 'f':
+				filename = optarg;
+				break;
+			case 'b':
+				block_nr = atoi(optarg);
+				break;
+			case 'B':
+				BLOCK_SIZE= atoi(optarg);
+				break;
+			case 'd':
+				flags = flags | O_DIRECT;
+				break;
+			default:
+				usage();
+		}
 	}
-	else
-		return -1;
+
+	if(!filename || block_nr==0)
+		usage();
+	
+	argc -= optind;
+	argv += optind;
 	
 	if( (ret = posix_memalign(&buf, BLOCK_SIZE, BLOCK_SIZE)) ) {
 		perror("Memalign failed");
@@ -41,7 +71,7 @@ int main( int argc, char **argv)
 	}
 	memset(buf, 0, BLOCK_SIZE);
 
-	if( (fd = open(filename, O_CREAT|O_WRONLY|O_DIRECT,0666) ) < 0 ) {
+	if( (fd = open(filename, O_CREAT|O_WRONLY|flags,0666) ) < 0 ) {
 		perror("Open failed");
 		exit(ret);
 	}
