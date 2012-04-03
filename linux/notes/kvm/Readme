@@ -1,0 +1,2 @@
+echo -17 > /proc/85/oom_adj
+
