@@ -73,10 +73,11 @@ void init(void)
 		perror("mmap_hwid_file");
 		return;
 	}
+	memset(shmmutex,0,HWID_TABLE_SIZE);
 	pthread_mutexattr_init (&attr);
 	pthread_mutexattr_setrobust_np (&attr, PTHREAD_MUTEX_ROBUST_NP);
 
-	for(x=0;x<1024;x++){
+	for(x=0;x<mutexnr;x++){
 		pthread_mutex_init(&shmmutex->mutex[x], &attr);
 		pthread_mutex_lock(&shmmutex->mutex[x]);
 	}
