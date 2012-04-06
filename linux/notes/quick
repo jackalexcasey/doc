@@ -1,0 +1,22 @@
+Preemption
+~~~~~~~~~~~~~
+Userspace call into kernel through system call. 
+In the example do_syscall123() while(1); Userspace will spin forever
+
+Without preemption, the system will not allowed other process from going into the kernel.
+With preemption, the system will preempt the current process (executing in kernel contex) after it's timeslice is exhausted.
+
+NOTE there is function (like kmalloc) that can sleep irrespective of preemption; This is Ok since the current context
+is going to be switch out normally
+
+A spinlock() disable preemption ( so that is a process's timeslice is exhausted it won't be preempted )
+
+Without preemption, a spinlock doesn't disable preemption.
+
+The function might_sleep() is place into function that can sleep (like kmalloc)
+On a system with preemption, if you hold a spinlock and you call into kmalloc for ex then might_sleep with give you warning.
+	BECAUSE if you sleep while holdign a spinlock on this CPU and another process comes in a grab that same lock THEN deadlock.
+
+in_atomic it cannot know about held spinlocks in non-preemptible kernels.
+
+There is also the concept of voluntary preemption where there is predefined preemption (schedule) point in the kernel
