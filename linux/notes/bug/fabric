@@ -1,0 +1,140 @@
+Userspace PCI proxy version: 1.00: timeout=10, policy=lazy,stub mode=ON
+uio_hp_pdriver uio_hp_pdriver.0: claimed by uio_pci_proxy
+pci_proxy:udrv_hp_init 
+pci_proxy:udrv_aer_probe 
+pci_proxy:pci_find_hwid 7:0.0 -> PCIe hwid :3_1_2.0
+pci_proxy:udrv_hp_probe 7:0.0 -> :3_1_2.0 
+pci_proxy 0000:07:00.0: claimed by uio_pci_proxy
+pci_proxy:udrv_aer_probe 
+pci_proxy:pci_find_hwid 8:0.0 -> PCIe hwid :3_1_3.0
+pci_proxy:udrv_hp_probe 8:0.0 -> :3_1_3.0 
+pci_proxy 0000:08:00.0: claimed by uio_pci_proxy
+pci_proxy:udrv_aer_probe 
+pci_proxy:pci_find_hwid 13:0.0 -> PCIe hwid :3_2_2.0
+pci_proxy:udrv_hp_probe 13:0.0 -> :3_2_2.0 
+pci_proxy 0000:13:00.0: claimed by uio_pci_proxy
+pci_proxy:udrv_aer_probe 
+pci_proxy:pci_find_hwid 14:0.0 -> PCIe hwid :3_2_3.0
+pci_proxy:udrv_hp_probe 14:0.0 -> :3_2_3.0 
+pci_proxy 0000:14:00.0: claimed by uio_pci_proxy
+pci_proxy:udrv_aer_probe 
+pci_proxy:pci_find_hwid 1f:0.0 -> PCIe hwid :3_3_2.0
+pci_proxy:udrv_hp_probe 1f:0.0 -> :3_3_2.0 
+pci_proxy 0000:1f:00.0: claimed by uio_pci_proxy
+pci_proxy:udrv_aer_probe 
+pci_proxy:pci_find_hwid 20:0.0 -> PCIe hwid :3_3_3.0
+pci_proxy:udrv_hp_probe 20:0.0 -> :3_3_3.0 
+pci_proxy 0000:20:00.0: claimed by uio_pci_proxy
+pci_proxy:udrv_aer_probe 
+pci_proxy:pci_find_hwid 2b:0.0 -> PCIe hwid :3_8_2.0
+pci_proxy:udrv_hp_probe 2b:0.0 -> :3_8_2.0 
+pci_proxy 0000:2b:00.0: claimed by uio_pci_proxy
+pci_proxy:udrv_aer_probe 
+pci_proxy:pci_find_hwid 2c:0.0 -> PCIe hwid :3_8_3.0
+pci_proxy:udrv_hp_probe 2c:0.0 -> :3_8_3.0 
+pci_proxy 0000:2c:00.0: claimed by uio_pci_proxy
+pci_proxy:udrv_aer_probe
+
+pci_proxy:udrv_hp_probe 58:0.0
+ 58:0.0  11ab:e01f cannot register with HP
+pci_proxy:udrv_aer_remove 
+pci_proxy:udrv_aer_probe 
+pci_proxy:udrv_hp_probe 59:0.0
+ 59:0.0  11ab:e01f cannot register with HP
+pci_proxy:udrv_aer_remove 
+pci_proxy:udrv_aer_probe 
+pci_proxy:udrv_hp_probe 5a:0.0
+ 5a:0.0  11ab:e01f cannot register with HP
+pci_proxy:udrv_aer_remove 
+pci_proxy:udrv_aer_probe 
+pci_proxy:udrv_hp_probe 5b:0.0
+ 5b:0.0  11ab:e01f cannot register with HP
+pci_proxy:udrv_aer_remove 
+pci_proxy:udrv_aer_probe 
+pci_proxy:udrv_hp_probe 58:0.0
+ 58:0.0  11ab:e01f cannot register with HP
+pci_proxy:udrv_aer_remove 
+pci_proxy:udrv_aer_probe 
+pci_proxy:udrv_hp_probe 59:0.0
+ 59:0.0  11ab:e01f cannot register with HP
+pci_proxy:udrv_aer_remove 
+pci_proxy:udrv_aer_probe 
+pci_proxy:udrv_hp_probe 5a:0.0
+ 5a:0.0  11ab:e01f cannot register with HP
+pci_proxy:udrv_aer_remove 
+pci_proxy:udrv_aer_probe 
+pci_proxy:udrv_hp_probe 5b:0.0
+ 5b:0.0  11ab:e01f cannot register with HP
+pci_proxy:udrv_aer_remove 
+pci_proxy:udrv_aer_probe 
+
+pci_proxy:pci_find_hwid c:0.0 -> PCIe hwid :3_1_a.0
+pci_proxy:udrv_hp_probe c:0.0 -> :3_1_a.0 
+pci_proxy 0000:0c:00.0: claimed by uio_pci_proxy
+pci_proxy:udrv_aer_probe 
+pci_proxy:pci_find_hwid 18:0.0 -> PCIe hwid :3_2_a.0
+pci_proxy:udrv_hp_probe 18:0.0 -> :3_2_a.0 
+pci_proxy 0000:18:00.0: claimed by uio_pci_proxy
+pci_proxy:udrv_aer_probe 
+pci_proxy:pci_find_hwid 24:0.0 -> PCIe hwid :3_3_a.0
+pci_proxy:udrv_hp_probe 24:0.0 -> :3_3_a.0 
+pci_proxy 0000:24:00.0: claimed by uio_pci_proxy
+pci_proxy:udrv_aer_probe 
+pci_proxy:pci_find_hwid 30:0.0 -> PCIe hwid :3_8_a.0
+pci_proxy:udrv_hp_probe 30:0.0 -> :3_8_a.0 
+pci_proxy 0000:30:00.0: claimed by uio_pci_proxy
+pci_proxy:udrv_aer_probe 
+
+pci_proxy:udrv_hp_probe 58:0.0
+ 58:0.0  11ab:e01f cannot register with HP
+pci_proxy:udrv_aer_remove 
+pci_proxy:udrv_aer_probe 
+pci_proxy:udrv_hp_probe 59:0.0
+ 59:0.0  11ab:e01f cannot register with HP
+pci_proxy:udrv_aer_remove 
+pci_proxy:udrv_aer_probe 
+pci_proxy:udrv_hp_probe 5a:0.0
+ 5a:0.0  11ab:e01f cannot register with HP
+pci_proxy:udrv_aer_remove 
+pci_proxy:udrv_aer_probe 
+pci_proxy:udrv_hp_probe 5b:0.0
+ 5b:0.0  11ab:e01f cannot register with HP
+pci_proxy:udrv_aer_remove 
+pci_proxy:udrv_aer_probe 
+pci_proxy:pci_find_hwid 5c:0.0 -> PCIe hwid :3.0
+pci_proxy:udrv_hp_probe 5c:0.0 -> :3.0 
+pci_proxy 0000:5c:00.0: claimed by uio_pci_proxy
+pci 0000:01:10.0: enabling device (0000 -> 0002)
+
+
+
+
+
+
+
+
+
+
+
+
+
+Userspace PCI proxy version: 1.00: timeout=10, policy=lazy,stub mode=OFF
+uio_hp_pdriver uio_hp_pdriver.0: claimed by uio_pci_proxy
+qemu_hwid 0000:c0:06.0: PCI INT A -> GSI 18 (level, low) -> IRQ 18
+  alloc irq_desc for 95 on node -1
+    alloc kstat_irqs on node -1
+	qemu_hwid 0000:c0:06.0: irq 95 for MSI/MSI-X
+	pci_proxy 0000:27:00.0: PCI INT A -> GSI 19 (level, low) -> IRQ 19
+	 27:0.0  10ee:ccc cannot register with HP
+	 pci_proxy 0000:27:00.0: PCI INT A disabled
+	 pci_proxy 0000:27:00.0: PCI INT A -> GSI 19 (level, low) -> IRQ 19
+	  27:0.0  10ee:ccc cannot register with HP
+	  pci_proxy 0000:27:00.0: PCI INT A disabled
+	  pci_proxy 0000:27:00.0: PCI INT A -> GSI 19 (level, low) -> IRQ 19
+	   27:0.0  10ee:ccc cannot register with HP
+	   pci_proxy 0000:27:00.0: PCI INT A disabled
+	   pci_proxy 0000:27:00.0: PCI INT A -> GSI 19 (level, low) -> IRQ 19
+	    27:0.0  10ee:ccc cannot register with HP
+		pci_proxy 0000:27:00.0: PCI INT A disabled
+		 c0:7.0  1234:3c81 cannot register with HP
+

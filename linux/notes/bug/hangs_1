@@ -1,0 +1,34 @@
+Nov  4 18:42:26 host kernel: BUG: soft lockup - CPU#0 stuck for 67s! [qemu-system-x86:1394]
+Nov  4 18:42:26 host kernel: Modules linked in: uio_pci_proxy tun bridge ipv6 dm_mod usb_storage 8021q garp stp
+llc ixgbe kvm_intel kvm sr_mod cdrom ext4 jbd2 sg virtio_blk virtio_net ata_piix virtio_pci virtio_ring virtio i
+2c_piix4 i2c_core [last unloaded: scsi_wait_scan]
+Nov  4 18:42:26 host kernel: CPU 0:
+Nov  4 18:42:26 host kernel: Modules linked in: uio_pci_proxy tun bridge ipv6 dm_mod usb_storage 8021q garp stp
+llc ixgbe kvm_intel kvm sr_mod cdrom ext4 jbd2 sg virtio_blk virtio_net ata_piix virtio_pci virtio_ring virtio i
+2c_piix4 i2c_core [last unloaded: scsi_wait_scan]
+Nov  4 18:42:26 host kernel: Pid: 1394, comm: qemu-system-x86 Tainted: G           ---------------- T 2.6.32-131
+ #1 Bochs
+Nov  4 18:42:26 host kernel: RIP: 0010:[<ffffffff814efaee>]  [<ffffffff814efaee>] _spin_lock+0x1e/0x30
+Nov  4 18:42:27 host kernel: RSP: 0018:ffff88037805dcc8  EFLAGS: 00000206
+Nov  4 18:42:27 host kernel: RAX: 0000000000000000 RBX: ffff88037805dcc8 RCX: 0000000000000000
+Nov  4 18:42:27 host kernel: RDX: 0000000000000001 RSI: ffff880397eb8140 RDI: ffff88037810c000
+Nov  4 18:42:27 host kernel: RBP: ffffffff8100bbce R08: ffff88037805dea0 R09: 0000000000000000
+Nov  4 18:42:27 host kernel: R10: ffff88039857d180 R11: ffff88039857d180 R12: ffffffff810a299e
+Nov  4 18:42:27 host kernel: R13: ffff88037805dc38 R14: 00007fff32f3e790 R15: ffffffff810a2942
+Nov  4 18:42:27 host kernel: FS:  00007f667e1e9700(0000) GS:ffff880028200000(0000) knlGS:0000000000000000
+Nov  4 18:42:27 host kernel: CS:  0010 DS: 0000 ES: 0000 CR0: 000000008005003b
+Nov  4 18:42:27 host kernel: CR2: 00007fe47da2ae70 CR3: 0000000376c94000 CR4: 00000000000026f0
+Nov  4 18:42:27 host kernel: DR0: 0000000000000000 DR1: 0000000000000000 DR2: 0000000000000000
+Nov  4 18:42:27 host kernel: DR3: 0000000000000000 DR6: 00000000ffff0ff0 DR7: 0000000000000400
+Nov  4 18:42:27 host kernel: Call Trace:
+Nov  4 18:42:27 host kernel:  [<ffffffff8100e093>] ? dump_trace+0x113/0x360
+Nov  4 18:42:27 host kernel:  [<ffffffffa00c64ce>] ? kvm_vcpu_block+0x4be/0x7b0 [kvm]
+Nov  4 18:42:27 host kernel:  [<ffffffff81149976>] ? __mmu_notifier_invalidate_range_start+0x66/0xa0
+Nov  4 18:42:27 host kernel:  [<ffffffff8112911a>] ? unmap_vmas+0xbaa/0xbc0
+Nov  4 18:42:27 host kernel:  [<ffffffff8112fecb>] ? vma_adjust+0x3bb/0x530
+Nov  4 18:42:27 host kernel:  [<ffffffff81133ea7>] ? anon_vma_chain_link+0x47/0x60
+Nov  4 18:42:27 host kernel:  [<ffffffff8112ef4d>] ? unmap_region+0x8d/0x130
+Nov  4 18:42:27 host kernel:  [<ffffffff81130177>] ? __split_vma+0x137/0x250
+Nov  4 18:42:27 host kernel:  [<ffffffff81130c45>] ? do_munmap+0x2c5/0x360
+Nov  4 18:42:27 host kernel:  [<ffffffff81131dc1>] ? sys_brk+0x121/0x130
+Nov  4 18:42:27 host kernel:  [<ffffffff8100b0b2>] ? system_call_fastpath+0x16/0x1b

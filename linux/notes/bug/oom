@@ -1,0 +1,59 @@
+<6>Trying to unpack rootfs image as initramfs...
+<0>do_IRQ: 0.132 No irq handler for vector (irq -1)
+<0>do_IRQ: 0.132 No irq handler for vector (irq -1)
+<0>do_IRQ: 0.204 No irq handler for vector (irq -1)
+<0>do_IRQ: 0.180 No irq handler for vector (irq -1)
+<0>Kernel panic - not syncing: Out of memory and no killable processes...
+<0>
+<4>Pid: 1, comm: swapper Tainted: G           ---------------- T 2.6.32-131 #1
+<4>Call Trace:
+<4> [<ffffffff81062bc5>] ? panic+0xa5/0x1b0
+<4> [<ffffffff81105cb6>] ? select_bad_process+0x36/0x110
+<4> [<ffffffff81105e2c>] ? __out_of_memory+0x9c/0xa0
+<4> [<ffffffff811061b0>] ? out_of_memory+0x160/0x1d0
+<4> [<ffffffff81115212>] ? __alloc_pages_nodemask+0x902/0x920
+<4> [<ffffffff8114c7d0>] ? kmem_getpages+0x60/0x150
+<4> [<ffffffff8114e4cf>] ? fallback_alloc+0x17f/0x230
+---Type <return> to continue, or q <return> to quit---
+<4> [<ffffffff8114e616>] ? ____cache_alloc_node+0x96/0x120
+<4> [<ffffffff8114ec35>] ? kmem_cache_alloc+0x135/0x190
+<4> [<ffffffff8126288b>] ? radix_tree_preload+0x3b/0xa0
+<4> [<ffffffff811029da>] ? add_to_page_cache_locked+0x7a/0x130
+<4> [<ffffffff81102aba>] ? add_to_page_cache_lru+0x2a/0x70
+<4> [<ffffffff811039f9>] ? grab_cache_page_write_begin+0x99/0xc0
+<4> [<ffffffff81188f8e>] ? simple_write_begin+0x3e/0x80
+<4> [<ffffffff81102f09>] ? generic_file_buffered_write+0x119/0x270
+<4> [<ffffffff810691c7>] ? current_fs_time+0x27/0x30
+<4> [<ffffffff81104cf1>] ? __generic_file_aio_write+0x251/0x400
+<4> [<ffffffff81129319>] ? unmap_mapping_range+0x79/0x270
+<4> [<ffffffff81104f02>] ? generic_file_aio_write+0x62/0xc0
+<4> [<ffffffff81163812>] ? do_sync_write+0xf2/0x130
+<4> [<ffffffff81088f20>] ? autoremove_wake_function+0x0/0x40
+<4> [<ffffffff8126dc93>] ? zlib_updatewindow+0x43/0x100
+<4> [<ffffffff8120ed46>] ? selinux_file_permission+0xf6/0x130
+<4> [<ffffffff81203156>] ? security_file_permission+0x16/0x20
+<4> [<ffffffff81164bec>] ? vfs_write+0xcc/0x1a0
+<4> [<ffffffff81164db5>] ? sys_write+0x55/0x90
+<4> [<ffffffff81b2c5a5>] ? do_copy+0x95/0xd0
+<4> [<ffffffff81b2bf25>] ? write_buffer+0x25/0x40
+<4> [<ffffffff81b2bf9f>] ? flush_buffer+0x5f/0xb0
+<4> [<ffffffff81b5b79b>] ? gunzip+0x35b/0x4b0
+---Type <return> to continue, or q <return> to quit---
+<4> [<ffffffff81b2bf40>] ? flush_buffer+0x0/0xb0
+<4> [<ffffffff8125dd90>] ? nofill+0x0/0x10
+<4> [<ffffffff81b2cd9f>] ? unpack_to_rootfs+0x22f/0x3a0
+<4> [<ffffffff81b2be50>] ? error+0x0/0x20
+<4> [<ffffffff8127c1a0>] ? match_pci_dev_by_id+0x0/0x70
+<4> [<ffffffff81b2cf10>] ? populate_rootfs+0x0/0x2d0
+<4> [<ffffffff81b2cf80>] ? populate_rootfs+0x70/0x2d0
+<4> [<ffffffff8127b85a>] ? pci_dev_put+0x1a/0x20
+<4> [<ffffffff8127c72a>] ? pci_get_subsys+0x9a/0x100
+<4> [<ffffffff81b5d350>] ? pci_apply_final_quirks+0x0/0x40
+<4> [<ffffffff81b2cf10>] ? populate_rootfs+0x0/0x2d0
+<4> [<ffffffff81002046>] ? do_one_initcall+0x36/0x1c0
+<4> [<ffffffff81b2a0c0>] ? kernel_init+0x2c0/0x320
+<4> [<ffffffff81b29140>] ? early_idt_handler+0x0/0x71
+<4> [<ffffffff8100c10a>] ? child_rip+0xa/0x20
+<4> [<ffffffff81b29140>] ? early_idt_handler+0x0/0x71
+<4> [<ffffffff81b29e00>] ? kernel_init+0x0/0x320
+<4> [<ffffffff8100c100>] ? child_rip+0x0/0x20

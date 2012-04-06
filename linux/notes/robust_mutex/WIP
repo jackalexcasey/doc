@@ -1,0 +1,21 @@
+5 S root       584    83   584  0    1  78  -2 -  4254 poll_s   760   0 04:33 ?        00:00:00 udevd --daemon
+0 S root       603     1   603  0    1  80   0 -  4512 wait    2112   0 04:33 ttyS0    00:00:00 bash
+0 S root       611   603   611  0    4  80   0 - 11024 hrtime  1716   0 04:33 ttyS0    00:00:00 ./robust_mutex
+1 S root       611   603   612  0    4  80   0 - 11024 hrtime  1716   0 04:33 ttyS0    00:00:00 ./robust_mutex
+1 S root       611   603   615  0    4  80   0 - 11024 futex_  1716   0 04:33 ttyS0    00:00:00 ./robust_mutex
+1 S root       611   603   616  0    4  80   0 - 11024 futex_  1716   0 04:33 ttyS0    00:00:00 ./robust_mutex
+4 R root       619   603   619  0    1  80   0 -  3743 -       1072   0 04:33 ttyS0    00:00:00 ps -elLF
+root@etmartin-lnx:~/prog# !
+kmemleak: 1 new suspected memory leaks (see /sys/kernel/debug/kmemleak)
+!!BOOM!!!!!!!!
+madvise
+curr 612 wake_futex 616
+curr after 612
+pthread_mutex_lock EOWNERDEAD
+DONE INIT 1 100000 meg
+curr 612 wake_futex 615
+curr after 612
+pthread_mutex_lock EOWNERDEAD
+DONE INIT 0 100000 meg
+DONE 612
+!!!!!

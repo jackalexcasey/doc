@@ -1,0 +1,25 @@
+Out of memory: kill process 1598 (pm) score 21304 or a child
+Killed process 1616 (slice_manager) vsz:127828kB, anon-rss:456kB, file-rss:12kB
+syslogd invoked oom-killer: gfp_mask=0x201da, order=0, oom_adj=0
+syslogd cpuset=/ mems_allowed=0
+Pid: 1334, comm: syslogd Tainted: G           ---------------- T 2.6.32-131 #1
+Call Trace:
+ [<ffffffff81105874>] ? oom_kill_process+0x154/0x280
+ [<ffffffff81105d4d>] ? select_bad_process+0xcd/0x110
+ [<ffffffff81105de5>] ? __out_of_memory+0x55/0xa0
+ [<ffffffff811061b0>] ? out_of_memory+0x160/0x1d0
+ [<ffffffff81115212>] ? __alloc_pages_nodemask+0x902/0x920
+ [<ffffffff810d5bea>] ? delayacct_end+0x8a/0xa0
+ [<ffffffff811447ab>] ? alloc_pages_current+0xab/0x110
+ [<ffffffff81102957>] ? __page_cache_alloc+0x97/0xa0
+ [<ffffffff81117c47>] ? __do_page_cache_readahead+0xd7/0x1d0
+ [<ffffffff81117d61>] ? ra_submit+0x21/0x30
+ [<ffffffff81104a8d>] ? filemap_fault+0x42d/0x440
+ [<ffffffff8112b429>] ? __do_fault+0x59/0x530
+ [<ffffffff8112b99f>] ? handle_pte_fault+0x9f/0xad0
+ [<ffffffff811799a2>] ? core_sys_select+0x1f2/0x2e0
+ [<ffffffff8112c537>] ? handle_mm_fault+0x167/0x2b0
+ [<ffffffff814f4e3c>] ? do_page_fault+0x1fc/0x570
+ [<ffffffffa0057ad3>] ? __jbd2_log_start_commit+0x33/0x40 [jbd2]
+ [<ffffffffa007243c>] ? ext4_sync_file+0x11c/0x210 [ext4]
+ [<ffffffff814f2155>] ? page_fault+0x25/0x30

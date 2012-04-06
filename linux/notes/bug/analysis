@@ -1,0 +1,169 @@
+<3>BUG: soft lockup - CPU#0 stuck for 61s! [vi_config_repli:3444]
+<6>RIP: 0010:[<ffffffff810524e1>]  [<ffffffff810524e1>] finish_task_switch+0x51/0xe0
+<6>RSP: 0000:ffff88009070b758  EFLAGS: 00000246
+<6>RAX: 0000000000000000 RBX: ffff88009070b788 RCX: 00000000c0000100
+<6>RDX: 0000000000000000 RSI: ffff8800cf47c040 RDI: ffff880028215f80
+<6>RBP: ffffffff8100bbce R08: ffff88009070a000 R09: ffff8800cf483938
+<6>R10: 00000000ffffffff R11: 0000000000000000 R12: ffff880090713578
+<6>R13: ffff880028215fe8 R14: ffffffff81052185 R15: ffff88009070b6d8
+<6>FS:  00007ff0acf3c700(0000) GS:ffff880028200000(0000) knlGS:0000000000000000
+<6>CS:  0010 DS: 0000 ES: 0000 CR0: 000000008005003b
+<6>CR2: 000000000048fc67 CR3: 000000008e470000 CR4: 00000000000006f0
+<6>DR0: 0000000000000000 DR1: 0000000000000000 DR2: 0000000000000000
+<6>DR3: 0000000000000000 DR6: 00000000ffff0ff0 DR7: 0000000000000400
+<4>Call Trace:
+<4> [<ffffffff814ef647>] ? thread_return+0x3b/0x744
+<4> [<ffffffff810d5bea>] ? delayacct_end+0x8a/0xa0
+<4> [<ffffffff810d5e03>] ? __delayacct_freepages_end+0x43/0x50
+<4> [<ffffffff8111dc75>] ? do_try_to_free_pages+0x255/0x430
+<4> [<ffffffff814f026f>] ? schedule_timeout+0x13f/0x2a0
+<4> [<ffffffff81073e10>] ? process_timeout+0x0/0x10
+<4> [<ffffffff814f03ee>] ? schedule_timeout_uninterruptible+0x1e/0x20
+<4> [<ffffffff81114f5d>] ? __alloc_pages_nodemask+0x64d/0x920
+<4> [<ffffffff810d5bea>] ? delayacct_end+0x8a/0xa0
+<4> [<ffffffff811447ab>] ? alloc_pages_current+0xab/0x110
+<4> [<ffffffff81102957>] ? __page_cache_alloc+0x97/0xa0
+<4> [<ffffffff81117c47>] ? __do_page_cache_readahead+0xd7/0x1d0
+<4> [<ffffffff81117d61>] ? ra_submit+0x21/0x30
+<4> [<ffffffff81104a8d>] ? filemap_fault+0x42d/0x440
+<4> [<ffffffff8112b429>] ? __do_fault+0x59/0x530
+<4> [<ffffffff8112b99f>] ? handle_pte_fault+0x9f/0xad0
+<4> [<ffffffff8112c537>] ? handle_mm_fault+0x167/0x2b0
+<4> [<ffffffff814f4e3c>] ? do_page_fault+0x1fc/0x570
+<4> [<ffffffff8107a532>] ? recalc_sigpending+0x32/0x80
+<4> [<ffffffff8107ad64>] ? sys_rt_sigtimedwait+0x1e4/0x260
+<4> [<ffffffff81164c60>] ? vfs_write+0x140/0x1a0
+<4> [<ffffffff814f2155>] ? page_fault+0x25/0x30
+
+
+
+<3>BUG: soft lockup - CPU#0 stuck for 85s! [Owner_plane:1809]
+<6>RIP: 0010:[<ffffffff810524e1>]  [<ffffffff810524e1>] finish_task_switch+0x51/0xe0
+<6>RSP: 0000:ffff880115017758  EFLAGS: 00000246
+<6>RAX: 0000000000000000 RBX: ffff880115017788 RCX: 00000000c0000100
+<6>RDX: 0000000000000000 RSI: ffff88011a976080 RDI: ffff880028215f80
+<6>RBP: ffffffff8100bbce R08: ffff880115016000 R09: 0000000000000000
+<6>R10: 00000000ffffffff R11: 0000000000000000 R12: ffff8801150540b8
+<6>R13: ffff880028215fe8 R14: ffffffff81052185 R15: ffff8801150176d8
+<6>FS:  00007fc228f4c700(0000) GS:ffff880028200000(0000) knlGS:0000000000000000
+<6>CS:  0010 DS: 0000 ES: 0000 CR0: 000000008005003b
+<6>CR2: 000000000048fc67 CR3: 000000010eb15000 CR4: 00000000000006f0
+<6>DR0: 0000000000000000 DR1: 0000000000000000 DR2: 0000000000000000
+<6>DR3: 0000000000000000 DR6: 00000000ffff0ff0 DR7: 0000000000000400
+<4>Call Trace:
+<4> [<ffffffff814ef647>] ? thread_return+0x3b/0x744
+<4> [<ffffffff810d5bea>] ? delayacct_end+0x8a/0xa0
+<4> [<ffffffff810d5e03>] ? __delayacct_freepages_end+0x43/0x50
+<4> [<ffffffff8111dc75>] ? do_try_to_free_pages+0x255/0x430
+<4> [<ffffffff814f026f>] ? schedule_timeout+0x13f/0x2a0
+<4> [<ffffffff81073e10>] ? process_timeout+0x0/0x10
+<4> [<ffffffff814f03ee>] ? schedule_timeout_uninterruptible+0x1e/0x20
+<4> [<ffffffff81114f5d>] ? __alloc_pages_nodemask+0x64d/0x920
+<4> [<ffffffffa0075105>] ? ext4_getblk+0xc5/0x1e0 [ext4]
+<4> [<ffffffff811447ab>] ? alloc_pages_current+0xab/0x110
+<4> [<ffffffff81102957>] ? __page_cache_alloc+0x97/0xa0
+<4> [<ffffffff81117c47>] ? __do_page_cache_readahead+0xd7/0x1d0
+<4> [<ffffffff81117d61>] ? ra_submit+0x21/0x30
+<4> [<ffffffff81104a8d>] ? filemap_fault+0x42d/0x440
+<4> [<ffffffff8112b429>] ? __do_fault+0x59/0x530
+<4> [<ffffffff8112b99f>] ? handle_pte_fault+0x9f/0xad0
+<4> [<ffffffff8108cb7c>] ? enqueue_hrtimer+0x7c/0xc0
+<4> [<ffffffff8112c537>] ? handle_mm_fault+0x167/0x2b0
+<4> [<ffffffff814f4e3c>] ? do_page_fault+0x1fc/0x570
+<4> [<ffffffff814f0d96>] ? do_nanosleep+0x86/0xb0
+<4> [<ffffffff8108de76>] ? hrtimer_nanosleep+0xa6/0x130
+<4> [<ffffffff8108cc10>] ? hrtimer_wakeup+0x0/0x30
+<4> [<ffffffff8108ddc4>] ? hrtimer_start_range_ns+0x14/0x20
+<4> [<ffffffff814f2155>] ? page_fault+0x25/0x30
+
+<3>BUG: soft lockup - CPU#0 stuck for 594s! [mrib6:3327]
+<6>RIP: 0010:[<ffffffff810524e1>]  [<ffffffff810524e1>] finish_task_switch+0x51/0xe0
+<6>RSP: 0000:ffff880082d13758  EFLAGS: 00000246
+<6>RAX: 0000000000000000 RBX: ffff880082d13788 RCX: 00000000c0000100
+<6>RDX: 0000000000000000 RSI: ffff88003441aae0 RDI: ffff880028215f80
+<6>RBP: ffffffff8100bbce R08: ffff880082d12000 R09: ffff880034413938
+<6>R10: 00000000ffffffff R11: 0000000000000000 R12: ffff8800842b1578
+<6>R13: ffff880028215fe8 R14: ffffffff81052185 R15: ffff880082d136d8
+<6>FS:  00007f60c844a700(0000) GS:ffff880028200000(0000) knlGS:0000000000000000
+<6>CS:  0010 DS: 0000 ES: 0000 CR0: 000000008005003b
+<6>CR2: 000000000048fc67 CR3: 0000000088ec4000 CR4: 00000000000006f0
+<6>DR0: 0000000000000000 DR1: 0000000000000000 DR2: 0000000000000000
+<6>DR3: 0000000000000000 DR6: 00000000ffff0ff0 DR7: 0000000000000400
+<4>Call Trace:
+<4> [<ffffffff814ef647>] ? thread_return+0x3b/0x744
+<4> [<ffffffff810d5bea>] ? delayacct_end+0x8a/0xa0
+<4> [<ffffffff810d5e03>] ? __delayacct_freepages_end+0x43/0x50
+<4> [<ffffffff8111dc75>] ? do_try_to_free_pages+0x255/0x430
+<4> [<ffffffff814f026f>] ? schedule_timeout+0x13f/0x2a0
+<4> [<ffffffff81073e10>] ? process_timeout+0x0/0x10
+<4> [<ffffffff814f03ee>] ? schedule_timeout_uninterruptible+0x1e/0x20
+<4> [<ffffffff81114f5d>] ? __alloc_pages_nodemask+0x64d/0x920
+<4> [<ffffffff811447ab>] ? alloc_pages_current+0xab/0x110
+<4> [<ffffffff81102957>] ? __page_cache_alloc+0x97/0xa0
+<4> [<ffffffff81117c47>] ? __do_page_cache_readahead+0xd7/0x1d0
+<4> [<ffffffff81117d61>] ? ra_submit+0x21/0x30
+<4> [<ffffffff81104a8d>] ? filemap_fault+0x42d/0x440
+<4> [<ffffffff8112b429>] ? __do_fault+0x59/0x530
+<4> [<ffffffff8112b99f>] ? handle_pte_fault+0x9f/0xad0
+<4> [<ffffffff8112c537>] ? handle_mm_fault+0x167/0x2b0
+<4> [<ffffffff814f4e3c>] ? do_page_fault+0x1fc/0x570
+<4> [<ffffffff8107a532>] ? recalc_sigpending+0x32/0x80
+<4> [<ffffffff8107ad64>] ? sys_rt_sigtimedwait+0x1e4/0x260
+<4> [<ffffffff81164c60>] ? vfs_write+0x140/0x1a0
+<4> [<ffffffff814f2155>] ? page_fault+0x25/0x30
+
+
+
+IRQ in the middle
+SPECIAL_CASES
+
+<3>BUG: soft lockup - CPU#0 stuck for 78s! [l2vpn_mgr:3427]
+<6>RIP: 0010:[<ffffffff814f1ca7>]  [<ffffffff814f1ca7>] _spin_unlock_irqrestore+0x17/0x20
+<6>RSP: 0000:ffff880028203dd0  EFLAGS: 00000282
+<6>RAX: ffff880028215f80 RBX: ffff880028203dd0 RCX: 0000000000000001
+<6>RDX: 0000000000000001 RSI: 0000000000000282 RDI: 0000000000000282
+<6>RBP: ffffffff8100bbd3 R08: 0000030b85e1c266 R09: 0000000000000000
+<6>R10: 0000000000000000 R11: 0000000000000000 R12: ffff880028203d50
+<6>R13: ffff88008813eae0 R14: 0000000000000000 R15: ffffffff814f79fb
+<6>FS:  00007f6c05919700(0000) GS:ffff880028200000(0000) knlGS:0000000000000000
+<6>CS:  0010 DS: 0000 ES: 0000 CR0: 000000008005003b
+<6>CR2: 000000000048fc67 CR3: 000000008763b000 CR4: 00000000000006f0
+<6>DR0: 0000000000000000 DR1: 0000000000000000 DR2: 0000000000000000
+<6>DR3: 0000000000000000 DR6: 00000000ffff0ff0 DR7: 0000000000000400
+<4>Call Trace:
+<4> <IRQ>  [<ffffffff8105ad09>] ? try_to_wake_up+0xc9/0x3b0
+<4> [<ffffffff81073e10>] ? process_timeout+0x0/0x10
+<4> [<ffffffff8105b045>] ? wake_up_process+0x15/0x20
+<4> [<ffffffff81073e1e>] ? process_timeout+0xe/0x10
+<4> [<ffffffff8107539e>] ? run_timer_softirq+0x19e/0x320
+<4> [<ffffffff81028e0d>] ? lapic_next_event+0x1d/0x30
+<4> [<ffffffff8106afe7>] ? __do_softirq+0xc7/0x1e0
+<4> [<ffffffff8100c20c>] ? call_softirq+0x1c/0x30
+<4> [<ffffffff8100ddc5>] ? do_softirq+0x65/0xa0
+<4> [<ffffffff8106acfc>] ? irq_exit+0x7c/0x90
+<4> [<ffffffff814f7a00>] ? smp_apic_timer_interrupt+0x70/0x9d
+<4> [<ffffffff8100bbd3>] ? apic_timer_interrupt+0x13/0x20
+<4> <EOI>
+
+    [<ffffffff8111da28>] ? do_try_to_free_pages+0x8/0x430
+<4> [<ffffffff8107561d>] ? del_timer_sync+0x1d/0x30
+<4> [<ffffffff8111e0bb>] ? try_to_free_pages+0xab/0x120
+<4> [<ffffffff8111a680>] ? isolate_pages_global+0x0/0x410
+<4> [<ffffffff81114d5b>] ? __alloc_pages_nodemask+0x44b/0x920
+<4> [<ffffffff811447ab>] ? alloc_pages_current+0xab/0x110
+<4> [<ffffffff81102957>] ? __page_cache_alloc+0x97/0xa0
+<4> [<ffffffff81117c47>] ? __do_page_cache_readahead+0xd7/0x1d0
+<4> [<ffffffff81117d61>] ? ra_submit+0x21/0x30
+<4> [<ffffffff81104a8d>] ? filemap_fault+0x42d/0x440
+<4> [<ffffffff8112b429>] ? __do_fault+0x59/0x530
+<4> [<ffffffff8112b99f>] ? handle_pte_fault+0x9f/0xad0
+<4> [<ffffffff8108cb7c>] ? enqueue_hrtimer+0x7c/0xc0
+<4> [<ffffffff8108dba8>] ? __hrtimer_start_range_ns+0x1f8/0x3e0
+<4> [<ffffffff8112c537>] ? handle_mm_fault+0x167/0x2b0
+<4> [<ffffffff814f4e3c>] ? do_page_fault+0x1fc/0x570
+<4> [<ffffffff8107a532>] ? recalc_sigpending+0x32/0x80
+<4> [<ffffffff8107ad64>] ? sys_rt_sigtimedwait+0x1e4/0x260
+<4> [<ffffffff81164c60>] ? vfs_write+0x140/0x1a0
+<4> [<ffffffff814f2155>] ? page_fault+0x25/0x30
+
+

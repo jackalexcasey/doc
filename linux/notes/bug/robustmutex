@@ -1,0 +1,62 @@
+(gdb) dmesg
+"<3>INFO: task main:2652 blocked for more than 120 seconds.
+<3>"echo 0 > /proc/sys/kernel/hung_task_timeout_secs" disables this message.
+<6>main          D 0000000000000000     0  2652   1736 0x00000000
+<4> ffff8800d1d07cb8 0000000000000086 ffffffff81e15640 ffffffff81e15648
+<4> ffff8800d1d07fd8 ffff8800d1d17500 0000000000015f80 000000000000f598
+<4> 0000000000015f80 ffff8800d1d07fd8 0000000000015f80 ffff8800d1d07fd8
+<4>Call Trace:
+<4> [<ffffffff81009abd>] ? __switch_to+0x23d/0x2f0
+<4> [<ffffffff8109bf40>] ? exit_robust_list+0x90/0x150
+<4> [<ffffffff81066429>] exit_mm+0x79/0x120
+<4> [<ffffffff81066685>] do_exit+0x1b5/0x860
+<4> [<ffffffff81078e9b>] ? __dequeue_signal+0x1b/0x160
+<4> [<ffffffff81066d71>] do_group_exit+0x41/0xb0
+<4> [<ffffffff8107c879>] get_signal_to_deliver+0x209/0x450
+<4> [<ffffffff8100a5a4>] do_notify_resume+0xf4/0x8d0
+<4> [<ffffffff811a3521>] ? sys_epoll_wait+0x291/0x2b0
+<4> [<ffffffff8105aff0>] ? default_wake_function+0x0/0x20
+<4> [<ffffffff8100b380>] int_signal+0x12/0x17
+<3>INFO: task fib_mgr:2751 blocked for more than 120 seconds.
+<3>"echo 0 > /proc/sys/kernel/hung_task_timeout_secs" disables this message.
+<6>fib_mgr       D 0000000000000000     0  2751   1736 0x00000000
+<4> ffff8800cdff9cb8 0000000000000086 0000000700100004 0000000081f13588
+<4> ffff8800cdff9fd8 ffff8800ccdfb540 0000000000015f80 000000000000f598
+---Type <return> to continue, or q <return> to quit--- 
+<4> 0000000000015f80 ffff8800cdff9fd8 0000000000015f80 ffff8800cdff9fd8
+<4>Call Trace:
+<4> [<ffffffff8114ebcf>] ? kmem_cache_alloc+0xcf/0x190
+<4> [<ffffffff8109bf40>] ? exit_robust_list+0x90/0x150
+<4> [<ffffffff81066429>] exit_mm+0x79/0x120
+<4> [<ffffffff81066685>] do_exit+0x1b5/0x860
+<4> [<ffffffff81078e9b>] ? __dequeue_signal+0x1b/0x160
+<4> [<ffffffff81066d71>] do_group_exit+0x41/0xb0
+<4> [<ffffffff8107c879>] get_signal_to_deliver+0x209/0x450
+<4> [<ffffffff8100a5a4>] do_notify_resume+0xf4/0x8d0
+<4> [<ffffffff814165a5>] ? sys_accept4+0x1d5/0x230
+<4> [<ffffffff8141623a>] ? sys_bind+0xaa/0xc0
+<4> [<ffffffff810856a2>] ? pid_vnr+0x22/0x30
+<4> [<ffffffff8100b380>] int_signal+0x12/0x17
+<3>INFO: task fib_mgr:2752 blocked for more than 120 seconds.
+<3>"echo 0 > /proc/sys/kernel/hung_task_timeout_secs" disables this message.
+<6>fib_mgr       D 0000000000000000     0  2752   1736 0x00000000
+<4> ffff8800cccbdcb8 0000000000000086 ffff88011fe7bdf0 ffffea0001d9e618
+<4> ffff8800cccbdfd8 ffff8800ccdfaae0 0000000000015f80 000000000000f598
+<4> 0000000000015f80 ffff8800cccbdfd8 0000000000015f80 ffff8800cccbdfd8
+<4>Call Trace:
+<4> [<ffffffff81051cc8>] ? hrtick_update+0x38/0x40
+<4> [<ffffffff81009a08>] ? __switch_to+0x188/0x2f0
+---Type <return> to continue, or q <return> to quit---
+<4> [<ffffffff8109bf40>] ? exit_robust_list+0x90/0x150
+<4> [<ffffffff81066429>] exit_mm+0x79/0x120
+<4> [<ffffffff81066685>] do_exit+0x1b5/0x860
+<4> [<ffffffff81078e9b>] ? __dequeue_signal+0x1b/0x160
+<4> [<ffffffff81066d71>] do_group_exit+0x41/0xb0
+<4> [<ffffffff8107c879>] get_signal_to_deliver+0x209/0x450
+<4> [<ffffffff8100a5a4>] do_notify_resume+0xf4/0x8d0
+<4> [<ffffffff8107aa90>] ? dequeue_signal+0x60/0x150
+<4> [<ffffffff8107a532>] ? recalc_sigpending+0x32/0x80
+<4> [<ffffffff8107ad21>] ? sys_rt_sigtimedwait+0x1a1/0x260
+<4> [<ffffffff81164c60>] ? vfs_write+0x140/0x1a0
+<4> [<ffffffff8100b380>] int_signal+0x12/0x17
+<3>INFO: task fib_mgr:2756 blocked for more than 120 seconds.

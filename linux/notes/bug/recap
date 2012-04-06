@@ -1,0 +1,183 @@
+Hangs#1 is a lockup in KVM code on a 2 level nested environment;
+
+Guest
+---------------
+Host (softmmu)   <--- Lockup inside kvm mmu_notifier
+---------------
+Metal (KVM)
+
+
+Hangs#2 is a lockup in the guest during
+
+Guest			<---- Lockup inside do_try_to_free_pages
+~~~~~~~~~~~~~~
+Metal (KVM)
+
+The common point from the 2 bug is they run on Metal KVM AND some Guest MMU operation is ongoing...
+
+Kernel Lockup
+1) How is it possible that the CPU is stuck but yet it change context from 
+   one process to another? i.e. Softlock up is from different context
+
+   -Let's understand softlockup()
+   A kernel thread is created 'kthread_create(watchdog' and wake on a regular interval
+   and kick watchdog '__touch_softlockup_watchdog()' ???? two implementation 'watchdog_timer_fn'
+   	softlockup.c && watchdog.c
+	This is done by making sure a high priority task is being scheduled.  The task touches the watchdog to
+	indicate it is getting cpu time.  If it hasn't then this its a good indication some task is hogging the cpu
+	
+	-A) Softwatchdog execute in IRQ (timer context) SO It cannot be delayed UNLESS IRQ are disabled.
+
+	-A) It's not really stuck but instead it make SLOW progress
+   		and after the CPU get unstuck WD timeout gets to execute
+		-B) How come it's stuck only for one instance of a given context? 
+			In theory it would be stock in the same context for a while BUT in
+			this case the context change every time the lockup is reported...
+		-C) in Other CPU stuck problem we seen the BT changing a little bit but the main
+			loop remain. ===> This would point to a real stuck i.e CPU make progress in a thight loop
+
+- What can prevent that thread from running?
+  Another kernel thread stuck in a spinloop ( do we need to have preemption disabled ? )
+  	I think so since a std spinloop is going to be preempted
+	UNLESS it's a spinloop into a kernel thread which has higher priority.
+
+Most of the traceback are pointing toward the direct page reclaim
+	750  * If a full scan of the inactive list fails to free enough memory then we
+	1751  * are "out of memory" and something needs to be killed.
+	
+<4> [<ffffffff814ef647>] ? thread_return+0x3b/0x744
+<4> [<ffffffff810d5bea>] ? delayacct_end+0x8a/0xa0
+<4> [<ffffffff810d5e03>] ? __delayacct_freepages_end+0x43/0x50
+<4> [<ffffffff8111dc75>] ? do_try_to_free_pages+0x255/0x430    <<<< Direct page reclaim
+
+
+<4> [<ffffffff814f026f>] ? schedule_timeout+0x13f/0x2a0
+<4> [<ffffffff81073e10>] ? process_timeout+0x0/0x10
+<4> [<ffffffff814f03ee>] ? schedule_timeout_uninterruptible+0x1e/0x20 <<<<<<<<<<<<<HERE
+
+NOTE it seems like the un int timeout may come from the OOM / direct page reclaim
+How about FUSE???????
+	k oom_kill.c           pagefault_out_of_memory           595 schedule_timeout_uninterruptible(1);
+	l oom_kill.c           out_of_memory                     651 schedule_timeout_uninterruptible(1);
+	m page_alloc.c         __alloc_pages_may_oom            1737 schedule_timeout_uninterruptible(1);
+
+<4> [<ffffffff81114f5d>] ? __alloc_pages_nodemask+0x64d/0x920
+<4> [<ffffffff811447ab>] ? alloc_pages_current+0xab/0x110
+<4> [<ffffffff81102957>] ? __page_cache_alloc+0x97/0xa0
+<4> [<ffffffff81117c47>] ? __do_page_cache_readahead+0xd7/0x1d0
+<4> [<ffffffff81117d61>] ? ra_submit+0x21/0x30
+<4> [<ffffffff81104a8d>] ? filemap_fault+0x42d/0x440			<<<<< Filemap page fault
+<4> [<ffffffff8112b429>] ? __do_fault+0x59/0x530
+<4> [<ffffffff8112b99f>] ? handle_pte_fault+0x9f/0xad0
+<4> [<ffffffff8112c537>] ? handle_mm_fault+0x167/0x2b0
+<4> [<ffffffff814f4e3c>] ? do_page_fault+0x1fc/0x570
+
+
+From a file based MAPPING
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ [<ffffffff81126c31>] ? do_try_to_free_pages+0x1/0x4f0
+  <<EOE>>  [<ffffffff8112730f>] ? try_to_free_pages+0x9f/0x130
+
+   [<ffffffff81284252>] ? generic_make_request+0x1f2/0x570
+    [<ffffffff81128410>] ? isolate_pages_global+0x0/0x380
+
+	 [<ffffffff8111f0bd>] ? __alloc_pages_nodemask+0x40d/0x8b0
+	  [<ffffffff8115376a>] ? alloc_pages_current+0xaa/0x120
+	   [<ffffffff8110c947>] ? __page_cache_alloc+0x87/0x90
+	    [<ffffffff81121dbb>] ? __do_page_cache_readahead+0xdb/0x210
+		 [<ffffffff81121f11>] ? ra_submit+0x21/0x30
+		  [<ffffffff81122285>] ? ondemand_readahead+0x115/0x240
+		   [<ffffffff81122440>] ? page_cache_async_readahead+0x90/0xd0
+		    [<ffffffff810a853e>] ? is_module_text_address+0xe/0x20
+			 [<ffffffff8108aae8>] ? __kernel_text_address+0x58/0x80
+			  [<ffffffff8110d8d3>] ? filemap_fault+0x193/0x510
+			   [<ffffffff81136234>] ? __do_fault+0x54/0x510
+			    [<ffffffff811367e7>] ? handle_pte_fault+0xf7/0xb60
+				 [<ffffffff81169cdd>] ? create_object+0x1cd/0x2b0
+				  [<ffffffff812a1e96>] ? prio_tree_insert+0x256/0x2b0
+				   [<ffffffff81137428>] ? handle_mm_fault+0x1d8/0x2a0
+
+				    [<ffffffff81041319>] ? __do_page_fault+0x139/0x490
+					 [<ffffffff8113d2aa>] ? do_mmap_pgoff+0x33a/0x380
+					  [<ffffffff8154472e>] ? do_page_fault+0x3e/0xa0
+					   [<ffffffff81541af5>] ? page_fault+0x25/0x30
+
+
+
+
+
+- Because we are in a VM, what if the execution all of a sudden become very slow; Things excute as expected (sequence)
+  but the IRQ are comming at the real rate
+
+  >>> Note about emulated instruction... Can the VM be stuck waiting for a page that was paged out????
+
+
+- What can cause this type of jitter on the message???
+  Typically this will come at regular interval if we have to deal with a spinloop
+  BUT
+  Here we may have IRQ disabled OR the timestamp is screwed up
+
+- Also the traceback we have is obviously right after the WD thread got a chances to run so
+  the contention point must be in the traceback...
+
+
+Host CPU lockup converge 
+<3>BUG: soft lockup - CPU#0 stuck for 61s! [vi_config_repli:3444]
+...
+...
+<3>BUG: soft lockup - CPU#0 stuck for 78s! [l2vpn_mgr:3427]
+...
+...
+<3>BUG: soft lockup - CPU#0 stuck for 85s! [Owner_plane:1809]
+...
+...
+<3>BUG: soft lockup - CPU#0 stuck for 594s! [mrib6:3327]
+...
+...
+<3>BUG: soft lockup - CPU#0 stuck for 2150s! [ipv6_connected:3403]
+
+
+
+[khungtaskd]
+
+***** All thread enter into this state and block for log time:
+<3>INFO: task main:2546 blocked for more than 120 seconds.
+<4> [<ffffffff81051cc8>] ? hrtick_update+0x38/0x40
+<4> [<ffffffff81009a08>] ? __switch_to+0x188/0x2f0
+<4> [<ffffffff8109bf40>] ? exit_robust_list+0x90/0x150
+<4> [<ffffffff81066429>] exit_mm+0x79/0x120
+<4> [<ffffffff81066685>] do_exit+0x1b5/0x860
+<4> [<ffffffff81078e9b>] ? __dequeue_signal+0x1b/0x160
+<4> [<ffffffff81066d71>] do_group_exit+0x41/0xb0
+<4> [<ffffffff8107c879>] get_signal_to_deliver+0x209/0x450
+<4> [<ffffffff8100a5a4>] do_notify_resume+0xf4/0x8d0
+<4> [<ffffffff8107aa90>] ? dequeue_signal+0x60/0x150
+<4> [<ffffffff8107a532>] ? recalc_sigpending+0x32/0x80
+<4> [<ffffffff8107ad21>] ? sys_rt_sigtimedwait+0x1a1/0x260
+<4> [<ffffffff81164c60>] ? vfs_write+0x140/0x1a0
+<4> [<ffffffff8100b380>] int_signal+0x12/0x17
+
+
+****** Then kernel lockup
+<4> [<ffffffff814ef647>] ? thread_return+0x3b/0x744
+<4> [<ffffffff810d5bea>] ? delayacct_end+0x8a/0xa0
+<4> [<ffffffff810d5e03>] ? __delayacct_freepages_end+0x43/0x50
+<4> [<ffffffff8111dc75>] ? do_try_to_free_pages+0x255/0x430
+<4> [<ffffffff814f026f>] ? schedule_timeout+0x13f/0x2a0
+<4> [<ffffffff81073e10>] ? process_timeout+0x0/0x10
+<4> [<ffffffff814f03ee>] ? schedule_timeout_uninterruptible+0x1e/0x20
+<4> [<ffffffff81114f5d>] ? __alloc_pages_nodemask+0x64d/0x920
+<4> [<ffffffff811447ab>] ? alloc_pages_current+0xab/0x110
+<4> [<ffffffff81102957>] ? __page_cache_alloc+0x97/0xa0
+<4> [<ffffffff81117c47>] ? __do_page_cache_readahead+0xd7/0x1d0
+<4> [<ffffffff81117d61>] ? ra_submit+0x21/0x30
+<4> [<ffffffff81104a8d>] ? filemap_fault+0x42d/0x440
+<4> [<ffffffff8112b429>] ? __do_fault+0x59/0x530
+<4> [<ffffffff8112b99f>] ? handle_pte_fault+0x9f/0xad0
+<4> [<ffffffff8112c537>] ? handle_mm_fault+0x167/0x2b0
+<4> [<ffffffff814f4e3c>] ? do_page_fault+0x1fc/0x570
+<4> [<ffffffff8107a532>] ? recalc_sigpending+0x32/0x80
+<4> [<ffffffff8107ad64>] ? sys_rt_sigtimedwait+0x1e4/0x260
+<4> [<ffffffff81164c60>] ? vfs_write+0x140/0x1a0
+<4> [<ffffffff814f2155>] ? page_fault+0x25/0x30
+

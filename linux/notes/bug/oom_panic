@@ -1,0 +1,27 @@
+<0>Kernel panic - not syncing: Out of memory and no killable processes...
+<0>
+<4>Pid: 1, comm: swapper Tainted: G           ---------------- T 2.6.32-131 #1
+<4>Call Trace:
+<4> [<ffffffff81062bc5>] ? panic+0xa5/0x1b0
+<4> [<ffffffff81105cb6>] ? select_bad_process+0x36/0x110
+<4> [<ffffffff81105e2c>] ? __out_of_memory+0x9c/0xa0
+<4> [<ffffffff811061b0>] ? out_of_memory+0x160/0x1d0
+<4> [<ffffffff81115212>] ? __alloc_pages_nodemask+0x902/0x920
+<4> [<ffffffff81143c46>] ? alloc_page_interleave+0x46/0xa0
+<4> [<ffffffff81144807>] ? alloc_pages_current+0x107/0x110
+<4> [<ffffffff81102957>] ? __page_cache_alloc+0x97/0xa0
+
+<4> [<ffffffff811039dc>] ? grab_cache_page_write_begin+0x7c/0xc0
+<4> [<ffffffff81188f8e>] ? simple_write_begin+0x3e/0x80
+<4> [<ffffffff81102f09>] ? generic_file_buffered_write+0x119/0x270
+<4> [<ffffffff810691c7>] ? current_fs_time+0x27/0x30
+<4> [<ffffffff81104cf1>] ? __generic_file_aio_write+0x251/0x400
+<4> [<ffffffff81129319>] ? unmap_mapping_range+0x79/0x270
+<4> [<ffffffff81104f02>] ? generic_file_aio_write+0x62/0xc0
+---Type <return> to continue, or q <return> to quit---
+<4> [<ffffffff81163812>] ? do_sync_write+0xf2/0x130
+<4> [<ffffffff81088f20>] ? autoremove_wake_function+0x0/0x40
+<4> [<ffffffff8126dc93>] ? zlib_updatewindow+0x43/0x100
+<4> [<ffffffff8120ed46>] ? selinux_file_permission+0xf6/0x130
+<4> [<ffffffff81203156>] ? security_file_permission+0x16/0x20
+

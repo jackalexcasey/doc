@@ -1,0 +1,2754 @@
+(gdb) dmesg 0xffffffff81d71320 0 140978
+"<6>Initializing cgroup subsys cpuset
+<6>Initializing cgroup subsys cpu
+<5>Linux version 2.6.32-131 (ajaypat@sjc-ads-306:/nobackup/ajaypat/thirdparty-mar14/thirdparty/opensource/linux/o) (gcc version 4.2.1 p3 (Cisco c4.2.1-p3)) #1 SMP Wed Mar 14 14:32:00 PDT 2012
+<6>Command line: root=/dev/vda1 boardtype=RP vmtype=xr-vm console=ttyS0 crashkernel=256M@0 bigphysarea=200M quiet
+<6>KERNEL supported cpus:
+<6>  Intel GenuineIntel
+<6>  AMD AuthenticAMD
+<6>  Centaur CentaurHauls
+<6>BIOS-provided physical RAM map:
+<6> BIOS-e820: 0000000000000000 - 000000000009cc00 (usable)
+<6> BIOS-e820: 000000000009cc00 - 00000000000a0000 (reserved)
+<6> BIOS-e820: 00000000000f0000 - 0000000000100000 (reserved)
+<6> BIOS-e820: 0000000000100000 - 00000000dff7f000 (usable)
+<6> BIOS-e820: 00000000dff7f000 - 00000000f0000000 (reserved)
+<6> BIOS-e820: 00000000fffc0000 - 0000000100000000 (reserved)
+<6> BIOS-e820: 0000000100000000 - 0000000120000000 (usable)
+<6>DMI 2.4 present.
+<4>SMBIOS version 2.4 @ 0xFDB60
+<7>e820 update range: 0000000000000000 - 0000000000001000 (usable) ==> (reserved)
+---Type <return> to continue, or q <return> to quit---
+<7>e820 remove range: 00000000000a0000 - 0000000000100000 (usable)
+<6>last_pfn = 0x120000 max_arch_pfn = 0x400000000
+<7>MTRR default type: write-back
+<7>MTRR fixed ranges enabled:
+<7>  00000-9FFFF write-back
+<7>  A0000-BFFFF uncachable
+<7>  C0000-FFFFF write-protect
+<7>MTRR variable ranges enabled:
+<7>  0 base 00E0000000 mask FFE0000000 uncachable
+<7>  1 disabled
+<7>  2 disabled
+<7>  3 disabled
+<7>  4 disabled
+<7>  5 disabled
+<7>  6 disabled
+<7>  7 disabled
+<6>PAT not supported by CPU.
+<6>last_pfn = 0xdff7f max_arch_pfn = 0x400000000
+<7>initial memory mapped : 0 - 20000000
+<6>init_memory_mapping: 0000000000000000-00000000dff7f000
+<7> 0000000000 - 00dfe00000 page 2M
+<7> 00dfe00000 - 00dff7f000 page 4k
+<7>kernel direct mapping tables up to dff7f000 @ 8000-e000
+---Type <return> to continue, or q <return> to quit---
+<6>init_memory_mapping: 0000000100000000-0000000120000000
+<7> 0100000000 - 0120000000 page 2M
+<7>kernel direct mapping tables up to 120000000 @ c000-12000
+<6>RAMDISK: 31a4f000 - 37fefd93
+<4>ACPI: RSDP 00000000000fdb30 00014 (v00 BOCHS )
+<4>ACPI: RSDT 00000000dff81890 00038 (v01 BOCHS  BXPCRSDT 00000001 BXPC 00000001)
+<4>ACPI: FACP 00000000dffffe50 00074 (v01 BOCHS  BXPCFACP 00000001 BXPC 00000001)
+<4>ACPI: DSDT 00000000dff818d0 7E384 (v01   BXPC   BXDSDT 00000002 INTL 20100806)
+<4>ACPI: FACS 00000000dffffe00 00040
+<4>ACPI: SSDT 00000000dffffdc0 00037 (v01 BOCHS  BXPCSSDT 00000001 BXPC 00000001)
+<4>ACPI: APIC 00000000dffffce0 00072 (v01 BOCHS  BXPCAPIC 00000001 BXPC 00000001)
+<4>ACPI: HPET 00000000dffffca0 00038 (v01 BOCHS  BXPCHPET 00000001 BXPC 00000001)
+<4>ACPI: MCFG 00000000dffffc60 0003C (v01 BOCHS  BXPCMCFG 00000001 BXPC 00000001)
+<7>ACPI: Local APIC address 0xfee00000
+<6>No NUMA configuration found
+<6>Faking a node at 0000000000000000-0000000120000000
+---Type <return> to continue, or q <return> to quit---
+<6>Bootmem setup node 0 0000000000000000-0000000120000000
+<6>  NODE_DATA [000000000000d000 - 0000000000040fff]
+<6>  bootmap [0000000000041000 -  0000000000064fff] pages 24
+<6>(8 early reservations) ==> bootmem [0000000000 - 0120000000]
+<6>  #0 [0000000000 - 0000001000]   BIOS data page ==> [0000000000 - 0000001000]
+<6>  #1 [0000006000 - 0000008000]       TRAMPOLINE ==> [0000006000 - 0000008000]
+<6>  #2 [0001000000 - 0001f5bb24]    TEXT DATA BSS ==> [0001000000 - 0001f5bb24]
+<6>  #3 [0031a4f000 - 0037fefd93]          RAMDISK ==> [0031a4f000 - 0037fefd93]
+<6>  #4 [000009cc00 - 0000100000]    BIOS reserved ==> [000009cc00 - 0000100000]
+<6>  #5 [0001f5c000 - 0001f5c079]              BRK ==> [0001f5c000 - 0001f5c079]
+<6>  #6 [0000008000 - 000000c000]          PGTABLE ==> [0000008000 - 000000c000]
+<6>  #7 [000000c000 - 000000d000]          PGTABLE ==> [000000c000 - 000000d000]
+<6>found SMP MP-table at [ffff8800000fdb80] fdb80
+<6>Reserving 256MB of memory at 32MB for crashkernel (System RAM: 4608MB)
+<6>kvm-clock: Using msrs 12 and 11
+---Type <return> to continue, or q <return> to quit---
+<6>kvm-clock: cpu 0, msr 0:1b27f01, boot clock
+<7> [ffffea0000000000-ffffea0003ffffff] PMD -> [ffff880028600000-ffff88002bffffff] on node 0
+<4>Zone PFN ranges:
+<4>  DMA      0x00000001 -> 0x00001000
+<4>  DMA32    0x00001000 -> 0x00100000
+<4>  Normal   0x00100000 -> 0x00120000
+<4>Movable zone start PFN for each node
+<4>early_node_map[3] active PFN ranges
+<4>    0: 0x00000001 -> 0x0000009c
+<4>    0: 0x00000100 -> 0x000dff7f
+<4>    0: 0x00100000 -> 0x00120000
+<7>On node 0 totalpages: 1048346
+<7>  DMA zone: 56 pages used for memmap
+<7>  DMA zone: 107 pages reserved
+<7>  DMA zone: 3832 pages, LIFO batch:0
+<7>  DMA32 zone: 14280 pages used for memmap
+<7>  DMA32 zone: 898999 pages, LIFO batch:31
+<7>  Normal zone: 1792 pages used for memmap
+<7>  Normal zone: 129280 pages, LIFO batch:31
+<6>ACPI: PM-Timer IO Port: 0xb008
+<7>ACPI: Local APIC address 0xfee00000
+<6>ACPI: LAPIC (acpi_id[0x00] lapic_id[0x00] enabled)
+---Type <return> to continue, or q <return> to quit---
+<6>ACPI: IOAPIC (id[0x01] address[0xfec00000] gsi_base[0])
+<6>IOAPIC[0]: apic_id 1, version 17, address 0xfec00000, GSI 0-23
+<6>ACPI: INT_SRC_OVR (bus 0 bus_irq 0 global_irq 2 dfl dfl)
+<6>ACPI: INT_SRC_OVR (bus 0 bus_irq 5 global_irq 5 high level)
+<6>ACPI: INT_SRC_OVR (bus 0 bus_irq 9 global_irq 9 high level)
+<6>ACPI: INT_SRC_OVR (bus 0 bus_irq 10 global_irq 10 high level)
+<6>ACPI: INT_SRC_OVR (bus 0 bus_irq 11 global_irq 11 high level)
+<7>ACPI: IRQ0 used by override.
+<7>ACPI: IRQ2 used by override.
+<7>ACPI: IRQ5 used by override.
+<7>ACPI: IRQ9 used by override.
+<7>ACPI: IRQ10 used by override.
+<7>ACPI: IRQ11 used by override.
+<6>Using ACPI (MADT) for SMP configuration information
+<6>ACPI: HPET id: 0x8086a201 base: 0xfed00000
+<6>SMP: Allowing 1 CPUs, 0 hotplug CPUs
+<7>nr_irqs_gsi: 24
+<6>PM: Registered nosave memory: 000000000009c000 - 000000000009d000
+<6>PM: Registered nosave memory: 000000000009d000 - 00000000000a0000
+<6>PM: Registered nosave memory: 00000000000a0000 - 00000000000f0000
+<6>PM: Registered nosave memory: 00000000000f0000 - 0000000000100000
+<6>PM: Registered nosave memory: 00000000dff7f000 - 00000000f0000000
+<6>PM: Registered nosave memory: 00000000f0000000 - 00000000fffc0000
+---Type <return> to continue, or q <return> to quit---
+<6>PM: Registered nosave memory: 00000000fffc0000 - 0000000100000000
+<6>Allocating PCI resources starting at f0000000 (gap: f0000000:ffc0000)
+<6>Booting paravirtualized kernel on KVM
+<6>NR_CPUS:4096 nr_cpumask_bits:1 nr_cpu_ids:1 nr_node_ids:1
+<6>PERCPU: Embedded 30 pages/cpu @ffff880028200000 s92504 r8192 d22184 u2097152
+<6>pcpu-alloc: s92504 r8192 d22184 u2097152 alloc=1*2097152
+<6>pcpu-alloc: [0] 0 
+<6>kvm-clock: cpu 0, msr 0:28215f01, primary cpu clock
+<4>Built 1 zonelists in Node order, mobility grouping on.  Total pages: 1032111
+<4>Policy zone: Normal
+<5>Kernel command line: root=/dev/vda1 boardtype=RP vmtype=xr-vm console=ttyS0 crashkernel=256M@0 bigphysarea=200M quiet
+<6>PID hash table entries: 4096 (order: 3, 32768 bytes)
+<6>Checking aperture...
+<6>No AGP bridge found
+<6>AMD-Vi disabled by default: pass amd_iommu=on to enable
+<6>PCI-DMA: Using software bounce buffering for IO (SWIOTLB)
+<6>Placing 64MB software IO TLB between ffff88001e800000 - ffff880022800000
+<6>software IO TLB at phys 0x1e800000 - 0x22800000
+<6>Memory: 3480740k/4718592k available (5095k kernel code, 525208k absent, 712644k reserved, 6234k data, 1904k init)
+<6>Hierarchical RCU implementation.
+<6>NR_IRQS:33024 nr_irqs:256
+---Type <return> to continue, or q <return> to quit---
+<4>Console: colour dummy device 80x25
+<6>console [ttyS0] enabled
+<6>allocated 41943040 bytes of page_cgroup
+<6>please try 'cgroup_disable=memory' option if you don't want memory cgroups
+<7>hpet clockevent registered
+<6>HPET: 3 timers in total, 0 timers will be used for per-cpu timer
+<4>Detected 1399.709 MHz processor.
+<6>Calibrating delay loop (skipped) preset value.. 2799.41 BogoMIPS (lpj=1399709)
+<6>pid_max: default: 32768 minimum: 301
+<6>Security Framework initialized
+<6>SELinux:  Initializing.
+<7>SELinux:  Starting in permissive mode
+<6>Dentry cache hash table entries: 524288 (order: 10, 4194304 bytes)
+<6>Inode-cache hash table entries: 262144 (order: 9, 2097152 bytes)
+<4>Mount-cache hash table entries: 256
+<6>Initializing cgroup subsys ns
+<6>Initializing cgroup subsys cpuacct
+<6>Initializing cgroup subsys memory
+<6>Initializing cgroup subsys devices
+<6>Initializing cgroup subsys freezer
+<6>Initializing cgroup subsys net_cls
+<6>Initializing cgroup subsys blkio
+---Type <return> to continue, or q <return> to quit---
+<6>mce: CPU supports 10 MCE banks
+<6>alternatives: switching to unfair spinlock
+<6>SMP alternatives: switching to UP code
+<6>Freeing SMP alternatives: 36k freed
+<6>ACPI: Core revision 20090903
+<6>ftrace: converting mcount calls to 0f 1f 44 00 00
+<6>ftrace: allocating 22103 entries in 87 pages
+<6>Setting APIC routing to flat
+<6>..TIMER: vector=0x30 apic1=0 pin1=2 apic2=-1 pin2=-1
+<6>CPU0: Intel QEMU Virtual CPU version 0.13.0 stepping 03
+<6>Performance Events: unsupported p6 CPU model 2 no PMU driver, software events only.
+<4>NMI watchdog disabled (cpu0): hardware events not enabled
+<6>Brought up 1 CPUs
+<6>Total of 1 processors activated (2799.41 BogoMIPS).
+<7>sizeof(vma)=200 bytes
+<7>sizeof(page)=56 bytes
+<7>sizeof(inode)=592 bytes
+<7>sizeof(dentry)=192 bytes
+<7>sizeof(ext3inode)=800 bytes
+<7>sizeof(buffer_head)=104 bytes
+<7>sizeof(skbuff)=232 bytes
+<7>sizeof(task_struct)=2656 bytes
+---Type <return> to continue, or q <return> to quit---
+<6>devtmpfs: initialized
+<6>regulator: core version 0.5
+<4>Time:  4:29:58  Date: 04/20/11
+<6>NET: Registered protocol family 16
+<6>ACPI: bus type pci registered
+<5>PCI: MCFG configuration 0: base e0000000 segment 0 buses 0 - 255
+<5>PCI: MCFG area at e0000000 reserved in E820
+<6>PCI: Using MMCONFIG at e0000000 - efffffff
+<6>PCI: Using configuration type 1 for base access
+<4>bio: create slab <bio-0> at 0
+<7>ACPI: EC: Look up EC in DSDT
+<6>ACPI: Interpreter enabled
+<6>ACPI: (supports S0 S3 S4 S5)
+<6>ACPI: Using IOAPIC for interrupt routing
+<6>ACPI: No dock devices found.
+<6>ACPI: PCI Root Bridge [PCI0] (0000:00)
+<6>pci 0000:00:1f.0: quirk: region b000-b07f claimed by ICH6 ACPI/GPIO/TCO
+<7>pci 0000:00:1f.3: reg 20 io port: [0xb100-0xb11f]
+<7>pci 0000:28:03.0: reg 10 64bit mmio pref: [0xf8000000-0xf8003fff]
+<7>pci 0000:28:03.0: reg 1c 64bit mmio pref: [0xf8004000-0xf8007fff]
+<6>pci 0000:28:03.0: disabling ASPM on pre-1.1 PCIe device.  You can enable it with 'pcie_aspm=force'
+<7>pci 0000:00:18.7: bridge 32bit mmio pref: [0xf8000000-0xf80fffff]
+---Type <return> to continue, or q <return> to quit---
+<7>pci 0000:37:00.0: bridge 32bit mmio: [0x000000-0x0fffff]
+<7>pci 0000:37:00.0: bridge 64bit mmio pref: [0x000000-0x3ffffffff]
+<7>pci 0000:37:01.0: bridge 32bit mmio: [0x000000-0x0fffff]
+<7>pci 0000:37:01.0: bridge 64bit mmio pref: [0x000000-0x3ffffffff]
+<7>pci 0000:37:02.0: bridge 32bit mmio: [0x000000-0x0fffff]
+<7>pci 0000:37:02.0: bridge 64bit mmio pref: [0x000000-0x3ffffffff]
+<7>pci 0000:37:03.0: bridge 32bit mmio: [0x000000-0x0fffff]
+<7>pci 0000:37:03.0: bridge 64bit mmio pref: [0x000000-0x3ffffffff]
+<7>pci 0000:37:04.0: bridge 32bit mmio: [0x000000-0x0fffff]
+<7>pci 0000:37:04.0: bridge 64bit mmio pref: [0x000000-0x3ffffffff]
+<7>pci 0000:37:05.0: bridge 32bit mmio: [0x000000-0x0fffff]
+<7>pci 0000:37:05.0: bridge 64bit mmio pref: [0x000000-0x3ffffffff]
+<7>pci 0000:37:06.0: bridge 32bit mmio: [0x000000-0x0fffff]
+<7>pci 0000:37:06.0: bridge 64bit mmio pref: [0x000000-0x3ffffffff]
+<7>pci 0000:37:07.0: bridge 32bit mmio: [0x000000-0x0fffff]
+<7>pci 0000:37:07.0: bridge 64bit mmio pref: [0x000000-0x3ffffffff]
+<7>pci 0000:37:08.0: bridge 32bit mmio: [0x000000-0x0fffff]
+<7>pci 0000:37:08.0: bridge 64bit mmio pref: [0x000000-0x3ffffffff]
+<7>pci 0000:37:09.0: bridge 32bit mmio: [0x000000-0x0fffff]
+<7>pci 0000:37:09.0: bridge 64bit mmio pref: [0x000000-0x3ffffffff]
+<7>pci 0000:37:0a.0: bridge 32bit mmio: [0x000000-0x0fffff]
+<7>pci 0000:37:0a.0: bridge 64bit mmio pref: [0x000000-0x3ffffffff]
+<7>pci 0000:37:0b.0: bridge 32bit mmio: [0x000000-0x0fffff]
+---Type <return> to continue, or q <return> to quit---
+<7>pci 0000:37:0b.0: bridge 64bit mmio pref: [0x000000-0x3ffffffff]
+<7>pci 0000:37:0c.0: bridge 32bit mmio: [0x000000-0x0fffff]
+<7>pci 0000:37:0c.0: bridge 64bit mmio pref: [0x000000-0x3ffffffff]
+<7>pci 0000:37:0d.0: bridge 32bit mmio: [0x000000-0x0fffff]
+<7>pci 0000:37:0d.0: bridge 64bit mmio pref: [0x000000-0x3ffffffff]
+<7>pci 0000:37:0e.0: bridge 32bit mmio: [0x000000-0x0fffff]
+<7>pci 0000:37:0e.0: bridge 64bit mmio pref: [0x000000-0x3ffffffff]
+<7>pci 0000:37:0f.0: bridge 32bit mmio: [0x000000-0x0fffff]
+<7>pci 0000:37:0f.0: bridge 64bit mmio pref: [0x000000-0x3ffffffff]
+<7>pci 0000:48:00.0: bridge 32bit mmio: [0x000000-0x0fffff]
+<7>pci 0000:48:00.0: bridge 64bit mmio pref: [0x000000-0x3ffffffff]
+<7>pci 0000:48:01.0: bridge 32bit mmio: [0x000000-0x0fffff]
+<7>pci 0000:48:01.0: bridge 64bit mmio pref: [0x000000-0x3ffffffff]
+<7>pci 0000:48:02.0: bridge 32bit mmio: [0x000000-0x0fffff]
+<7>pci 0000:48:02.0: bridge 64bit mmio pref: [0x000000-0x3ffffffff]
+<7>pci 0000:48:03.0: bridge 32bit mmio: [0x000000-0x0fffff]
+<7>pci 0000:48:03.0: bridge 64bit mmio pref: [0x000000-0x3ffffffff]
+<7>pci 0000:48:04.0: bridge 32bit mmio: [0x000000-0x0fffff]
+<7>pci 0000:48:04.0: bridge 64bit mmio pref: [0x000000-0x3ffffffff]
+<7>pci 0000:48:05.0: bridge 32bit mmio: [0x000000-0x0fffff]
+<7>pci 0000:48:05.0: bridge 64bit mmio pref: [0x000000-0x3ffffffff]
+<7>pci 0000:48:06.0: bridge 32bit mmio: [0x000000-0x0fffff]
+<7>pci 0000:48:06.0: bridge 64bit mmio pref: [0x000000-0x3ffffffff]
+---Type <return> to continue, or q <return> to quit---
+<7>pci 0000:48:07.0: bridge 32bit mmio: [0x000000-0x0fffff]
+<7>pci 0000:48:07.0: bridge 64bit mmio pref: [0x000000-0x3ffffffff]
+<7>pci 0000:48:08.0: bridge 32bit mmio: [0x000000-0x0fffff]
+<7>pci 0000:48:08.0: bridge 64bit mmio pref: [0x000000-0x3ffffffff]
+<7>pci 0000:48:09.0: bridge 32bit mmio: [0x000000-0x0fffff]
+<7>pci 0000:48:09.0: bridge 64bit mmio pref: [0x000000-0x3ffffffff]
+<7>pci 0000:48:0a.0: bridge 32bit mmio: [0x000000-0x0fffff]
+<7>pci 0000:48:0a.0: bridge 64bit mmio pref: [0x000000-0x3ffffffff]
+<7>pci 0000:48:0b.0: bridge 32bit mmio: [0x000000-0x0fffff]
+<7>pci 0000:48:0b.0: bridge 64bit mmio pref: [0x000000-0x3ffffffff]
+<7>pci 0000:48:0c.0: bridge 32bit mmio: [0x000000-0x0fffff]
+<7>pci 0000:48:0c.0: bridge 64bit mmio pref: [0x000000-0x3ffffffff]
+<7>pci 0000:48:0d.0: bridge 32bit mmio: [0x000000-0x0fffff]
+<7>pci 0000:48:0d.0: bridge 64bit mmio pref: [0x000000-0x3ffffffff]
+<7>pci 0000:48:0e.0: bridge 32bit mmio: [0x000000-0x0fffff]
+<7>pci 0000:48:0e.0: bridge 64bit mmio pref: [0x000000-0x3ffffffff]
+<7>pci 0000:48:0f.0: bridge 32bit mmio: [0x000000-0x0fffff]
+<7>pci 0000:48:0f.0: bridge 64bit mmio pref: [0x000000-0x3ffffffff]
+<7>pci 0000:59:00.0: bridge 32bit mmio: [0x000000-0x0fffff]
+<7>pci 0000:59:00.0: bridge 64bit mmio pref: [0x000000-0x3ffffffff]
+<7>pci 0000:59:01.0: bridge 32bit mmio: [0x000000-0x0fffff]
+<7>pci 0000:59:01.0: bridge 64bit mmio pref: [0x000000-0x3ffffffff]
+<7>pci 0000:59:02.0: bridge 32bit mmio: [0x000000-0x0fffff]
+---Type <return> to continue, or q <return> to quit---
+<7>pci 0000:59:02.0: bridge 64bit mmio pref: [0x000000-0x3ffffffff]
+<7>pci 0000:59:03.0: bridge 32bit mmio: [0x000000-0x0fffff]
+<7>pci 0000:59:03.0: bridge 64bit mmio pref: [0x000000-0x3ffffffff]
+<7>pci 0000:59:04.0: bridge 32bit mmio: [0x000000-0x0fffff]
+<7>pci 0000:59:04.0: bridge 64bit mmio pref: [0x000000-0x3ffffffff]
+<7>pci 0000:59:05.0: bridge 32bit mmio: [0x000000-0x0fffff]
+<7>pci 0000:59:05.0: bridge 64bit mmio pref: [0x000000-0x3ffffffff]
+<7>pci 0000:59:06.0: bridge 32bit mmio: [0x000000-0x0fffff]
+<7>pci 0000:59:06.0: bridge 64bit mmio pref: [0x000000-0x3ffffffff]
+<7>pci 0000:59:07.0: bridge 32bit mmio: [0x000000-0x0fffff]
+<7>pci 0000:59:07.0: bridge 64bit mmio pref: [0x000000-0x3ffffffff]
+<7>pci 0000:59:08.0: bridge 32bit mmio: [0x000000-0x0fffff]
+<7>pci 0000:59:08.0: bridge 64bit mmio pref: [0x000000-0x3ffffffff]
+<7>pci 0000:59:09.0: bridge 32bit mmio: [0x000000-0x0fffff]
+<7>pci 0000:59:09.0: bridge 64bit mmio pref: [0x000000-0x3ffffffff]
+<7>pci 0000:59:0a.0: bridge 32bit mmio: [0x000000-0x0fffff]
+<7>pci 0000:59:0a.0: bridge 64bit mmio pref: [0x000000-0x3ffffffff]
+<7>pci 0000:59:0b.0: bridge 32bit mmio: [0x000000-0x0fffff]
+<7>pci 0000:59:0b.0: bridge 64bit mmio pref: [0x000000-0x3ffffffff]
+<7>pci 0000:59:0c.0: bridge 32bit mmio: [0x000000-0x0fffff]
+<7>pci 0000:59:0c.0: bridge 64bit mmio pref: [0x000000-0x3ffffffff]
+<7>pci 0000:59:0d.0: bridge 32bit mmio: [0x000000-0x0fffff]
+<7>pci 0000:59:0d.0: bridge 64bit mmio pref: [0x000000-0x3ffffffff]
+---Type <return> to continue, or q <return> to quit---
+<7>pci 0000:59:0e.0: bridge 32bit mmio: [0x000000-0x0fffff]
+<7>pci 0000:59:0e.0: bridge 64bit mmio pref: [0x000000-0x3ffffffff]
+<7>pci 0000:59:0f.0: bridge 32bit mmio: [0x000000-0x0fffff]
+<7>pci 0000:59:0f.0: bridge 64bit mmio pref: [0x000000-0x3ffffffff]
+<7>pci 0000:c0:00.0: reg 20 io port: [0xc000-0xc00f]
+<7>pci 0000:c0:01.0: reg 20 io port: [0xc020-0xc03f]
+<7>pci 0000:c0:02.0: reg 10 io port: [0xc040-0xc07f]
+<7>pci 0000:c0:02.0: reg 14 32bit mmio: [0xf0000000-0xf0000fff]
+<7>pci 0000:c0:03.0: reg 10 32bit mmio: [0xf0001000-0xf00010ff]
+<7>pci 0000:c0:03.0: reg 14 32bit mmio: [0xf0002000-0xf0002fff]
+<7>pci 0000:c0:03.0: reg 18 32bit mmio: [0xf0100000-0xf01fffff]
+<7>pci 0000:c0:04.0: reg 10 io port: [0xc080-0xc09f]
+<6>pci 0000:00:1e.0: transparent bridge
+<7>pci 0000:00:1e.0: bridge io port: [0xc000-0xcfff]
+<7>pci 0000:00:1e.0: bridge 32bit mmio: [0xf0000000-0xf01fffff]
+<7>ACPI: PCI Interrupt Routing Table [\_SB_.PCI0._PRT]
+<7>ACPI: PCI Interrupt Routing Table [\_SB_.PCI0.PRP0._PRT]
+<7>ACPI: PCI Interrupt Routing Table [\_SB_.PCI0.PRP1._PRT]
+<7>ACPI: PCI Interrupt Routing Table [\_SB_.PCI0.PRP2._PRT]
+<7>ACPI: PCI Interrupt Routing Table [\_SB_.PCI0.PRP3._PRT]
+<7>ACPI: PCI Interrupt Routing Table [\_SB_.PCI0.PRP4._PRT]
+<7>ACPI: PCI Interrupt Routing Table [\_SB_.PCI0.PRP5._PRT]
+<7>ACPI: PCI Interrupt Routing Table [\_SB_.PCI0.PRP6._PRT]
+---Type <return> to continue, or q <return> to quit---
+<7>ACPI: PCI Interrupt Routing Table [\_SB_.PCI0.PRP7._PRT]
+<7>ACPI: PCI Interrupt Routing Table [\_SB_.PCI0.PRP7.PUP0._PRT]
+<7>ACPI: PCI Interrupt Routing Table [\_SB_.PCI0.PRP7.PUP0.PDP0._PRT]
+<7>ACPI: PCI Interrupt Routing Table [\_SB_.PCI0.PRP7.PUP0.PDP1._PRT]
+<7>ACPI: PCI Interrupt Routing Table [\_SB_.PCI0.PRP7.PUP0.PDP2._PRT]
+<7>ACPI: PCI Interrupt Routing Table [\_SB_.PCI0.PRP7.PUP0.PDP3._PRT]
+<7>ACPI: PCI Interrupt Routing Table [\_SB_.PCI0.PRP7.PUP0.PDP4._PRT]
+<7>ACPI: PCI Interrupt Routing Table [\_SB_.PCI0.PRP7.PUP0.PDP5._PRT]
+<7>ACPI: PCI Interrupt Routing Table [\_SB_.PCI0.PRP7.PUP0.PDP6._PRT]
+<7>ACPI: PCI Interrupt Routing Table [\_SB_.PCI0.PRP7.PUP0.PDP7._PRT]
+<7>ACPI: PCI Interrupt Routing Table [\_SB_.PCI0.PRP7.PUP0.PDP8._PRT]
+<7>ACPI: PCI Interrupt Routing Table [\_SB_.PCI0.PRP7.PUP0.PDP9._PRT]
+<7>ACPI: PCI Interrupt Routing Table [\_SB_.PCI0.PRP7.PUP0.PDPA._PRT]
+<7>ACPI: PCI Interrupt Routing Table [\_SB_.PCI0.PRP7.PUP0.PDPB._PRT]
+<7>ACPI: PCI Interrupt Routing Table [\_SB_.PCI0.PRP7.PUP0.PDPC._PRT]
+<7>ACPI: PCI Interrupt Routing Table [\_SB_.PCI0.PRP7.PUP0.PDPD._PRT]
+<7>ACPI: PCI Interrupt Routing Table [\_SB_.PCI0.PRP7.PUP0.PDPE._PRT]
+<7>ACPI: PCI Interrupt Routing Table [\_SB_.PCI0.PRP7.PUP0.PDPF._PRT]
+<7>ACPI: PCI Interrupt Routing Table [\_SB_.PCI0.PRP7.PUP1._PRT]
+<7>ACPI: PCI Interrupt Routing Table [\_SB_.PCI0.PRP7.PUP1.PDP0._PRT]
+<7>ACPI: PCI Interrupt Routing Table [\_SB_.PCI0.PRP7.PUP1.PDP1._PRT]
+<7>ACPI: PCI Interrupt Routing Table [\_SB_.PCI0.PRP7.PUP1.PDP2._PRT]
+<7>ACPI: PCI Interrupt Routing Table [\_SB_.PCI0.PRP7.PUP1.PDP3._PRT]
+---Type <return> to continue, or q <return> to quit---
+<7>ACPI: PCI Interrupt Routing Table [\_SB_.PCI0.PRP7.PUP1.PDP4._PRT]
+<7>ACPI: PCI Interrupt Routing Table [\_SB_.PCI0.PRP7.PUP1.PDP5._PRT]
+<7>ACPI: PCI Interrupt Routing Table [\_SB_.PCI0.PRP7.PUP1.PDP6._PRT]
+<7>ACPI: PCI Interrupt Routing Table [\_SB_.PCI0.PRP7.PUP1.PDP7._PRT]
+<7>ACPI: PCI Interrupt Routing Table [\_SB_.PCI0.PRP7.PUP1.PDP8._PRT]
+<7>ACPI: PCI Interrupt Routing Table [\_SB_.PCI0.PRP7.PUP1.PDP9._PRT]
+<7>ACPI: PCI Interrupt Routing Table [\_SB_.PCI0.PRP7.PUP1.PDPA._PRT]
+<7>ACPI: PCI Interrupt Routing Table [\_SB_.PCI0.PRP7.PUP1.PDPB._PRT]
+<7>ACPI: PCI Interrupt Routing Table [\_SB_.PCI0.PRP7.PUP1.PDPC._PRT]
+<7>ACPI: PCI Interrupt Routing Table [\_SB_.PCI0.PRP7.PUP1.PDPD._PRT]
+<7>ACPI: PCI Interrupt Routing Table [\_SB_.PCI0.PRP7.PUP1.PDPE._PRT]
+<7>ACPI: PCI Interrupt Routing Table [\_SB_.PCI0.PRP7.PUP1.PDPF._PRT]
+<7>ACPI: PCI Interrupt Routing Table [\_SB_.PCI0.PRP7.PUP2._PRT]
+<7>ACPI: PCI Interrupt Routing Table [\_SB_.PCI0.PRP7.PUP2.PDP0._PRT]
+<7>ACPI: PCI Interrupt Routing Table [\_SB_.PCI0.PRP7.PUP2.PDP1._PRT]
+<7>ACPI: PCI Interrupt Routing Table [\_SB_.PCI0.PRP7.PUP2.PDP2._PRT]
+<7>ACPI: PCI Interrupt Routing Table [\_SB_.PCI0.PRP7.PUP2.PDP3._PRT]
+<7>ACPI: PCI Interrupt Routing Table [\_SB_.PCI0.PRP7.PUP2.PDP4._PRT]
+<7>ACPI: PCI Interrupt Routing Table [\_SB_.PCI0.PRP7.PUP2.PDP5._PRT]
+<7>ACPI: PCI Interrupt Routing Table [\_SB_.PCI0.PRP7.PUP2.PDP6._PRT]
+<7>ACPI: PCI Interrupt Routing Table [\_SB_.PCI0.PRP7.PUP2.PDP7._PRT]
+<7>ACPI: PCI Interrupt Routing Table [\_SB_.PCI0.PRP7.PUP2.PDP8._PRT]
+<7>ACPI: PCI Interrupt Routing Table [\_SB_.PCI0.PRP7.PUP2.PDP9._PRT]
+---Type <return> to continue, or q <return> to quit---
+<7>ACPI: PCI Interrupt Routing Table [\_SB_.PCI0.PRP7.PUP2.PDPA._PRT]
+<7>ACPI: PCI Interrupt Routing Table [\_SB_.PCI0.PRP7.PUP2.PDPB._PRT]
+<7>ACPI: PCI Interrupt Routing Table [\_SB_.PCI0.PRP7.PUP2.PDPC._PRT]
+<7>ACPI: PCI Interrupt Routing Table [\_SB_.PCI0.PRP7.PUP2.PDPD._PRT]
+<7>ACPI: PCI Interrupt Routing Table [\_SB_.PCI0.PRP7.PUP2.PDPE._PRT]
+<7>ACPI: PCI Interrupt Routing Table [\_SB_.PCI0.PRP7.PUP2.PDPF._PRT]
+<7>ACPI: PCI Interrupt Routing Table [\_SB_.PCI0.PCI9._PRT]
+<6>ACPI: PCI Interrupt Link [LNKA] (IRQs 5 *10 11)
+<6>ACPI: PCI Interrupt Link [LNKB] (IRQs 5 *10 11)
+<6>ACPI: PCI Interrupt Link [LNKC] (IRQs 5 10 *11)
+<6>ACPI: PCI Interrupt Link [LNKD] (IRQs 5 10 *11)
+<6>ACPI: PCI Interrupt Link [LNKE] (IRQs 5 10 11) *0, disabled.
+<6>ACPI: PCI Interrupt Link [LNKF] (IRQs 5 10 11) *0, disabled.
+<6>ACPI: PCI Interrupt Link [LNKG] (IRQs 5 10 11) *0, disabled.
+<6>ACPI: PCI Interrupt Link [LNKH] (IRQs 5 10 11) *0, disabled.
+<6>HEST: Table is not found!
+<6>vgaarb: loaded
+<5>SCSI subsystem initialized
+<7>libata version 3.00 loaded.
+<6>usbcore: registered new interface driver usbfs
+<6>usbcore: registered new interface driver hub
+<6>usbcore: registered new device driver usb
+<6>PCI: Using ACPI for IRQ routing
+---Type <return> to continue, or q <return> to quit---
+<7>PCI: old code would have set cacheline size to 32 bytes, but clflush_size = 64
+<7>PCI: pci_cache_line_size set to 64 bytes
+<6>NetLabel: Initializing
+<6>NetLabel:  domain hash size = 128
+<6>NetLabel:  protocols = UNLABELED CIPSOv4
+<6>NetLabel:  unlabeled traffic allowed by default
+<6>hpet0: at MMIO 0xfed00000, IRQs 2, 8, 0
+<6>hpet0: 3 comparators, 64-bit 100.000000 MHz counter
+<6>Switching to clocksource kvm-clock
+<4>TECH PREVIEW: kernel may not be fully supported.
+<4>Please review provided documentation for limitations.
+<4>Disabling lock debugging due to kernel taint
+<5>Slow work thread pool: Starting up
+<5>Slow work thread pool: Ready
+<5>FS-Cache: Loaded
+<6>pnp: PnP ACPI init
+<6>ACPI: bus type pnp registered
+<6>pnp: PnP ACPI: found 6 devices
+<6>ACPI: ACPI bus type pnp unregistered
+<6>system 00:00: ioport range 0xae00-0xae0b has been reserved
+<6>system 00:00: ioport range 0xae0c-0xae0c has been reserved
+<7>PCI: max bus depth: 3 pci_try_num: 4
+---Type <return> to continue, or q <return> to quit---
+<6>pci 0000:00:04.0: PCI bridge to [bus 20-20]
+<6>pci 0000:00:04.0:   bridge window [0xd000-0xdfff]
+<6>pci 0000:00:04.0:   bridge window [0xf4f00000-0xf50fffff]
+<6>pci 0000:00:04.0:   bridge window [0xf5100000-0xf52fffff]
+<6>pci 0000:00:18.0: PCI bridge to [bus 21-21]
+<6>pci 0000:00:18.0:   bridge window [0x9000-0x9fff]
+<6>pci 0000:00:18.0:   bridge window [0xf4b00000-0xf4cfffff]
+<6>pci 0000:00:18.0:   bridge window [0xf4d00000-0xf4efffff]
+<6>pci 0000:00:18.1: PCI bridge to [bus 22-22]
+<6>pci 0000:00:18.1:   bridge window [0x8000-0x8fff]
+<6>pci 0000:00:18.1:   bridge window [0xf4700000-0xf48fffff]
+<6>pci 0000:00:18.1:   bridge window [0xf4900000-0xf4afffff]
+<6>pci 0000:00:18.2: PCI bridge to [bus 23-23]
+<6>pci 0000:00:18.2:   bridge window [0x7000-0x7fff]
+<6>pci 0000:00:18.2:   bridge window [0xf4300000-0xf44fffff]
+<6>pci 0000:00:18.2:   bridge window [0xf4500000-0xf46fffff]
+<6>pci 0000:00:18.3: PCI bridge to [bus 24-24]
+<6>pci 0000:00:18.3:   bridge window [0x6000-0x6fff]
+<6>pci 0000:00:18.3:   bridge window [0xf3f00000-0xf40fffff]
+<6>pci 0000:00:18.3:   bridge window [0xf4100000-0xf42fffff]
+<6>pci 0000:00:18.4: PCI bridge to [bus 25-25]
+<6>pci 0000:00:18.4:   bridge window [0x5000-0x5fff]
+<6>pci 0000:00:18.4:   bridge window [0xf3b00000-0xf3cfffff]
+---Type <return> to continue, or q <return> to quit---
+<6>pci 0000:00:18.4:   bridge window [0xf3d00000-0xf3efffff]
+<6>pci 0000:00:18.5: PCI bridge to [bus 26-26]
+<6>pci 0000:00:18.5:   bridge window [0x4000-0x4fff]
+<6>pci 0000:00:18.5:   bridge window [0xf3700000-0xf38fffff]
+<6>pci 0000:00:18.5:   bridge window [0xf3900000-0xf3afffff]
+<6>pci 0000:00:18.6: PCI bridge to [bus 27-27]
+<6>pci 0000:00:18.6:   bridge window [0x3000-0x3fff]
+<6>pci 0000:00:18.6:   bridge window [0xf3300000-0xf34fffff]
+<6>pci 0000:00:18.6:   bridge window [0xf3500000-0xf36fffff]
+<6>pci 0000:00:18.7: PCI bridge to [bus 28-28]
+<6>pci 0000:00:18.7:   bridge window [0x2000-0x2fff]
+<6>pci 0000:00:18.7:   bridge window [0xf0200000-0xf02fffff]
+<6>pci 0000:00:18.7:   bridge window [0xf8000000-0xf80fffff]
+<6>pci 0000:37:0f.0: BAR 14: can't allocate I/O resource [0x1000-0x1fff]
+<6>pci 0000:37:0e.0: BAR 14: can't allocate I/O resource [0x1000-0x1fff]
+<6>pci 0000:37:0d.0: BAR 14: can't allocate I/O resource [0x1000-0x1fff]
+<6>pci 0000:37:0c.0: BAR 14: can't allocate I/O resource [0x1000-0x1fff]
+<6>pci 0000:37:0b.0: BAR 14: can't allocate I/O resource [0x1000-0x1fff]
+<6>pci 0000:37:0a.0: BAR 14: can't allocate I/O resource [0x1000-0x1fff]
+<6>pci 0000:37:09.0: BAR 14: can't allocate I/O resource [0x1000-0x1fff]
+<6>pci 0000:37:08.0: BAR 14: can't allocate I/O resource [0x1000-0x1fff]
+<6>pci 0000:37:07.0: BAR 14: can't allocate I/O resource [0x1000-0x1fff]
+<6>pci 0000:37:06.0: BAR 14: can't allocate I/O resource [0x1000-0x1fff]
+---Type <return> to continue, or q <return> to quit---
+<6>pci 0000:37:05.0: BAR 14: can't allocate I/O resource [0x1000-0x1fff]
+<6>pci 0000:37:04.0: BAR 14: can't allocate I/O resource [0x1000-0x1fff]
+<6>pci 0000:37:03.0: BAR 14: can't allocate I/O resource [0x1000-0x1fff]
+<6>pci 0000:37:02.0: BAR 14: can't allocate I/O resource [0x1000-0x1fff]
+<6>pci 0000:37:01.0: BAR 14: can't allocate I/O resource [0x1000-0x1fff]
+<6>pci 0000:37:00.0: BAR 14: can't allocate I/O resource [0x1000-0x1fff]
+<6>pci 0000:37:00.0: PCI bridge to [bus 38-38]
+<6>pci 0000:37:00.0:   bridge window [io  disabled]
+<6>pci 0000:37:00.0:   bridge window [0xf0300000-0xf03fffff]
+<6>pci 0000:37:00.0:   bridge window [0x400000000-0x7ffffffff]
+<6>pci 0000:37:01.0: PCI bridge to [bus 39-39]
+<6>pci 0000:37:01.0:   bridge window [io  disabled]
+<6>pci 0000:37:01.0:   bridge window [0xf0400000-0xf04fffff]
+<6>pci 0000:37:01.0:   bridge window [0x800000000-0xbffffffff]
+<6>pci 0000:37:02.0: PCI bridge to [bus 3a-3a]
+<6>pci 0000:37:02.0:   bridge window [io  disabled]
+<6>pci 0000:37:02.0:   bridge window [0xf0500000-0xf05fffff]
+<6>pci 0000:37:02.0:   bridge window [0xc00000000-0xfffffffff]
+<6>pci 0000:37:03.0: PCI bridge to [bus 3b-3b]
+<6>pci 0000:37:03.0:   bridge window [io  disabled]
+<6>pci 0000:37:03.0:   bridge window [0xf0600000-0xf06fffff]
+<6>pci 0000:37:03.0:   bridge window [0x1000000000-0x13ffffffff]
+<6>pci 0000:37:04.0: PCI bridge to [bus 3c-3c]
+---Type <return> to continue, or q <return> to quit---
+<6>pci 0000:37:04.0:   bridge window [io  disabled]
+<6>pci 0000:37:04.0:   bridge window [0xf0700000-0xf07fffff]
+<6>pci 0000:37:04.0:   bridge window [0x1400000000-0x17ffffffff]
+<6>pci 0000:37:05.0: PCI bridge to [bus 3d-3d]
+<6>pci 0000:37:05.0:   bridge window [io  disabled]
+<6>pci 0000:37:05.0:   bridge window [0xf0800000-0xf08fffff]
+<6>pci 0000:37:05.0:   bridge window [0x1800000000-0x1bffffffff]
+<6>pci 0000:37:06.0: PCI bridge to [bus 3e-3e]
+<6>pci 0000:37:06.0:   bridge window [io  disabled]
+<6>pci 0000:37:06.0:   bridge window [0xf0900000-0xf09fffff]
+<6>pci 0000:37:06.0:   bridge window [0x1c00000000-0x1fffffffff]
+<6>pci 0000:37:07.0: PCI bridge to [bus 3f-3f]
+<6>pci 0000:37:07.0:   bridge window [io  disabled]
+<6>pci 0000:37:07.0:   bridge window [0xf0a00000-0xf0afffff]
+<6>pci 0000:37:07.0:   bridge window [0x2000000000-0x23ffffffff]
+<6>pci 0000:37:08.0: PCI bridge to [bus 40-40]
+<6>pci 0000:37:08.0:   bridge window [io  disabled]
+<6>pci 0000:37:08.0:   bridge window [0xf0b00000-0xf0bfffff]
+<6>pci 0000:37:08.0:   bridge window [0x2400000000-0x27ffffffff]
+<6>pci 0000:37:09.0: PCI bridge to [bus 41-41]
+<6>pci 0000:37:09.0:   bridge window [io  disabled]
+<6>pci 0000:37:09.0:   bridge window [0xf0c00000-0xf0cfffff]
+<6>pci 0000:37:09.0:   bridge window [0x2800000000-0x2bffffffff]
+---Type <return> to continue, or q <return> to quit---
+<6>pci 0000:37:0a.0: PCI bridge to [bus 42-42]
+<6>pci 0000:37:0a.0:   bridge window [io  disabled]
+<6>pci 0000:37:0a.0:   bridge window [0xf0d00000-0xf0dfffff]
+<6>pci 0000:37:0a.0:   bridge window [0x2c00000000-0x2fffffffff]
+<6>pci 0000:37:0b.0: PCI bridge to [bus 43-43]
+<6>pci 0000:37:0b.0:   bridge window [io  disabled]
+<6>pci 0000:37:0b.0:   bridge window [0xf0e00000-0xf0efffff]
+<6>pci 0000:37:0b.0:   bridge window [0x3000000000-0x33ffffffff]
+<6>pci 0000:37:0c.0: PCI bridge to [bus 44-44]
+<6>pci 0000:37:0c.0:   bridge window [io  disabled]
+<6>pci 0000:37:0c.0:   bridge window [0xf0f00000-0xf0ffffff]
+<6>pci 0000:37:0c.0:   bridge window [0x3400000000-0x37ffffffff]
+<6>pci 0000:37:0d.0: PCI bridge to [bus 45-45]
+<6>pci 0000:37:0d.0:   bridge window [io  disabled]
+<6>pci 0000:37:0d.0:   bridge window [0xf1000000-0xf10fffff]
+<6>pci 0000:37:0d.0:   bridge window [0x3800000000-0x3bffffffff]
+<6>pci 0000:37:0e.0: PCI bridge to [bus 46-46]
+<6>pci 0000:37:0e.0:   bridge window [io  disabled]
+<6>pci 0000:37:0e.0:   bridge window [0xf1100000-0xf11fffff]
+<6>pci 0000:37:0e.0:   bridge window [0x3c00000000-0x3fffffffff]
+<6>pci 0000:37:0f.0: PCI bridge to [bus 47-47]
+<6>pci 0000:37:0f.0:   bridge window [io  disabled]
+<6>pci 0000:37:0f.0:   bridge window [0xf1200000-0xf12fffff]
+---Type <return> to continue, or q <return> to quit---
+<6>pci 0000:37:0f.0:   bridge window [0x4000000000-0x43ffffffff]
+<6>pci 0000:36:00.0: PCI bridge to [bus 37-47]
+<6>pci 0000:36:00.0:   bridge window [io  disabled]
+<6>pci 0000:36:00.0:   bridge window [0xf0300000-0xf12fffff]
+<6>pci 0000:36:00.0:   bridge window [0x400000000-0x43ffffffff]
+<6>pci 0000:48:0f.0: BAR 14: can't allocate I/O resource [0x1000-0x1fff]
+<6>pci 0000:48:0e.0: BAR 14: can't allocate I/O resource [0x1000-0x1fff]
+<6>pci 0000:48:0d.0: BAR 14: can't allocate I/O resource [0x1000-0x1fff]
+<6>pci 0000:48:0c.0: BAR 14: can't allocate I/O resource [0x1000-0x1fff]
+<6>pci 0000:48:0b.0: BAR 14: can't allocate I/O resource [0x1000-0x1fff]
+<6>pci 0000:48:0a.0: BAR 14: can't allocate I/O resource [0x1000-0x1fff]
+<6>pci 0000:48:09.0: BAR 14: can't allocate I/O resource [0x1000-0x1fff]
+<6>pci 0000:48:08.0: BAR 14: can't allocate I/O resource [0x1000-0x1fff]
+<6>pci 0000:48:07.0: BAR 14: can't allocate I/O resource [0x1000-0x1fff]
+<6>pci 0000:48:06.0: BAR 14: can't allocate I/O resource [0x1000-0x1fff]
+<6>pci 0000:48:05.0: BAR 14: can't allocate I/O resource [0x1000-0x1fff]
+<6>pci 0000:48:04.0: BAR 14: can't allocate I/O resource [0x1000-0x1fff]
+<6>pci 0000:48:03.0: BAR 14: can't allocate I/O resource [0x1000-0x1fff]
+<6>pci 0000:48:02.0: BAR 14: can't allocate I/O resource [0x1000-0x1fff]
+<6>pci 0000:48:01.0: BAR 14: can't allocate I/O resource [0x1000-0x1fff]
+<6>pci 0000:48:00.0: BAR 14: can't allocate I/O resource [0x1000-0x1fff]
+<6>pci 0000:48:00.0: PCI bridge to [bus 49-49]
+<6>pci 0000:48:00.0:   bridge window [io  disabled]
+---Type <return> to continue, or q <return> to quit---
+<6>pci 0000:48:00.0:   bridge window [0xf1300000-0xf13fffff]
+<6>pci 0000:48:00.0:   bridge window [0x4400000000-0x47ffffffff]
+<6>pci 0000:48:01.0: PCI bridge to [bus 4a-4a]
+<6>pci 0000:48:01.0:   bridge window [io  disabled]
+<6>pci 0000:48:01.0:   bridge window [0xf1400000-0xf14fffff]
+<6>pci 0000:48:01.0:   bridge window [0x4800000000-0x4bffffffff]
+<6>pci 0000:48:02.0: PCI bridge to [bus 4b-4b]
+<6>pci 0000:48:02.0:   bridge window [io  disabled]
+<6>pci 0000:48:02.0:   bridge window [0xf1500000-0xf15fffff]
+<6>pci 0000:48:02.0:   bridge window [0x4c00000000-0x4fffffffff]
+<6>pci 0000:48:03.0: PCI bridge to [bus 4c-4c]
+<6>pci 0000:48:03.0:   bridge window [io  disabled]
+<6>pci 0000:48:03.0:   bridge window [0xf1600000-0xf16fffff]
+<6>pci 0000:48:03.0:   bridge window [0x5000000000-0x53ffffffff]
+<6>pci 0000:48:04.0: PCI bridge to [bus 4d-4d]
+<6>pci 0000:48:04.0:   bridge window [io  disabled]
+<6>pci 0000:48:04.0:   bridge window [0xf1700000-0xf17fffff]
+<6>pci 0000:48:04.0:   bridge window [0x5400000000-0x57ffffffff]
+<6>pci 0000:48:05.0: PCI bridge to [bus 4e-4e]
+<6>pci 0000:48:05.0:   bridge window [io  disabled]
+<6>pci 0000:48:05.0:   bridge window [0xf1800000-0xf18fffff]
+<6>pci 0000:48:05.0:   bridge window [0x5800000000-0x5bffffffff]
+<6>pci 0000:48:06.0: PCI bridge to [bus 4f-4f]
+---Type <return> to continue, or q <return> to quit---
+<6>pci 0000:48:06.0:   bridge window [io  disabled]
+<6>pci 0000:48:06.0:   bridge window [0xf1900000-0xf19fffff]
+<6>pci 0000:48:06.0:   bridge window [0x5c00000000-0x5fffffffff]
+<6>pci 0000:48:07.0: PCI bridge to [bus 50-50]
+<6>pci 0000:48:07.0:   bridge window [io  disabled]
+<6>pci 0000:48:07.0:   bridge window [0xf1a00000-0xf1afffff]
+<6>pci 0000:48:07.0:   bridge window [0x6000000000-0x63ffffffff]
+<6>pci 0000:48:08.0: PCI bridge to [bus 51-51]
+<6>pci 0000:48:08.0:   bridge window [io  disabled]
+<6>pci 0000:48:08.0:   bridge window [0xf1b00000-0xf1bfffff]
+<6>pci 0000:48:08.0:   bridge window [0x6400000000-0x67ffffffff]
+<6>pci 0000:48:09.0: PCI bridge to [bus 52-52]
+<6>pci 0000:48:09.0:   bridge window [io  disabled]
+<6>pci 0000:48:09.0:   bridge window [0xf1c00000-0xf1cfffff]
+<6>pci 0000:48:09.0:   bridge window [0x6800000000-0x6bffffffff]
+<6>pci 0000:48:0a.0: PCI bridge to [bus 53-53]
+<6>pci 0000:48:0a.0:   bridge window [io  disabled]
+<6>pci 0000:48:0a.0:   bridge window [0xf1d00000-0xf1dfffff]
+<6>pci 0000:48:0a.0:   bridge window [0x6c00000000-0x6fffffffff]
+<6>pci 0000:48:0b.0: PCI bridge to [bus 54-54]
+<6>pci 0000:48:0b.0:   bridge window [io  disabled]
+<6>pci 0000:48:0b.0:   bridge window [0xf1e00000-0xf1efffff]
+<6>pci 0000:48:0b.0:   bridge window [0x7000000000-0x73ffffffff]
+---Type <return> to continue, or q <return> to quit---
+<6>pci 0000:48:0c.0: PCI bridge to [bus 55-55]
+<6>pci 0000:48:0c.0:   bridge window [io  disabled]
+<6>pci 0000:48:0c.0:   bridge window [0xf1f00000-0xf1ffffff]
+<6>pci 0000:48:0c.0:   bridge window [0x7400000000-0x77ffffffff]
+<6>pci 0000:48:0d.0: PCI bridge to [bus 56-56]
+<6>pci 0000:48:0d.0:   bridge window [io  disabled]
+<6>pci 0000:48:0d.0:   bridge window [0xf2000000-0xf20fffff]
+<6>pci 0000:48:0d.0:   bridge window [0x7800000000-0x7bffffffff]
+<6>pci 0000:48:0e.0: PCI bridge to [bus 57-57]
+<6>pci 0000:48:0e.0:   bridge window [io  disabled]
+<6>pci 0000:48:0e.0:   bridge window [0xf2100000-0xf21fffff]
+<6>pci 0000:48:0e.0:   bridge window [0x7c00000000-0x7fffffffff]
+<6>pci 0000:48:0f.0: PCI bridge to [bus 58-58]
+<6>pci 0000:48:0f.0:   bridge window [io  disabled]
+<6>pci 0000:48:0f.0:   bridge window [0xf2200000-0xf22fffff]
+<6>pci 0000:48:0f.0:   bridge window [0x8000000000-0x83ffffffff]
+<6>pci 0000:36:00.1: PCI bridge to [bus 48-58]
+<6>pci 0000:36:00.1:   bridge window [io  disabled]
+<6>pci 0000:36:00.1:   bridge window [0xf1300000-0xf22fffff]
+<6>pci 0000:36:00.1:   bridge window [0x4400000000-0x83ffffffff]
+<6>pci 0000:59:0f.0: BAR 14: can't allocate I/O resource [0x1000-0x1fff]
+<6>pci 0000:59:0e.0: BAR 14: can't allocate I/O resource [0x1000-0x1fff]
+<6>pci 0000:59:0d.0: BAR 14: can't allocate I/O resource [0x1000-0x1fff]
+---Type <return> to continue, or q <return> to quit---
+<6>pci 0000:59:0c.0: BAR 14: can't allocate I/O resource [0x1000-0x1fff]
+<6>pci 0000:59:0b.0: BAR 14: can't allocate I/O resource [0x1000-0x1fff]
+<6>pci 0000:59:0a.0: BAR 14: can't allocate I/O resource [0x1000-0x1fff]
+<6>pci 0000:59:09.0: BAR 14: can't allocate I/O resource [0x1000-0x1fff]
+<6>pci 0000:59:08.0: BAR 14: can't allocate I/O resource [0x1000-0x1fff]
+<6>pci 0000:59:07.0: BAR 14: can't allocate I/O resource [0x1000-0x1fff]
+<6>pci 0000:59:06.0: BAR 14: can't allocate I/O resource [0x1000-0x1fff]
+<6>pci 0000:59:05.0: BAR 14: can't allocate I/O resource [0x1000-0x1fff]
+<6>pci 0000:59:04.0: BAR 14: can't allocate I/O resource [0x1000-0x1fff]
+<6>pci 0000:59:03.0: BAR 14: can't allocate I/O resource [0x1000-0x1fff]
+<6>pci 0000:59:02.0: BAR 14: can't allocate I/O resource [0x1000-0x1fff]
+<6>pci 0000:59:01.0: BAR 14: can't allocate I/O resource [0x1000-0x1fff]
+<6>pci 0000:59:00.0: BAR 14: can't allocate I/O resource [0x1000-0x1fff]
+<6>pci 0000:59:00.0: PCI bridge to [bus 5a-5a]
+<6>pci 0000:59:00.0:   bridge window [io  disabled]
+<6>pci 0000:59:00.0:   bridge window [0xf2300000-0xf23fffff]
+<6>pci 0000:59:00.0:   bridge window [0x8400000000-0x87ffffffff]
+<6>pci 0000:59:01.0: PCI bridge to [bus 5b-5b]
+<6>pci 0000:59:01.0:   bridge window [io  disabled]
+<6>pci 0000:59:01.0:   bridge window [0xf2400000-0xf24fffff]
+<6>pci 0000:59:01.0:   bridge window [0x8800000000-0x8bffffffff]
+<6>pci 0000:59:02.0: PCI bridge to [bus 5c-5c]
+<6>pci 0000:59:02.0:   bridge window [io  disabled]
+---Type <return> to continue, or q <return> to quit---
+<6>pci 0000:59:02.0:   bridge window [0xf2500000-0xf25fffff]
+<6>pci 0000:59:02.0:   bridge window [0x8c00000000-0x8fffffffff]
+<6>pci 0000:59:03.0: PCI bridge to [bus 5d-5d]
+<6>pci 0000:59:03.0:   bridge window [io  disabled]
+<6>pci 0000:59:03.0:   bridge window [0xf2600000-0xf26fffff]
+<6>pci 0000:59:03.0:   bridge window [0x9000000000-0x93ffffffff]
+<6>pci 0000:59:04.0: PCI bridge to [bus 5e-5e]
+<6>pci 0000:59:04.0:   bridge window [io  disabled]
+<6>pci 0000:59:04.0:   bridge window [0xf2700000-0xf27fffff]
+<6>pci 0000:59:04.0:   bridge window [0x9400000000-0x97ffffffff]
+<6>pci 0000:59:05.0: PCI bridge to [bus 5f-5f]
+<6>pci 0000:59:05.0:   bridge window [io  disabled]
+<6>pci 0000:59:05.0:   bridge window [0xf2800000-0xf28fffff]
+<6>pci 0000:59:05.0:   bridge window [0x9800000000-0x9bffffffff]
+<6>pci 0000:59:06.0: PCI bridge to [bus 60-60]
+<6>pci 0000:59:06.0:   bridge window [io  disabled]
+<6>pci 0000:59:06.0:   bridge window [0xf2900000-0xf29fffff]
+<6>pci 0000:59:06.0:   bridge window [0x9c00000000-0x9fffffffff]
+<6>pci 0000:59:07.0: PCI bridge to [bus 61-61]
+<6>pci 0000:59:07.0:   bridge window [io  disabled]
+<6>pci 0000:59:07.0:   bridge window [0xf2a00000-0xf2afffff]
+<6>pci 0000:59:07.0:   bridge window [0xa000000000-0xa3ffffffff]
+<6>pci 0000:59:08.0: PCI bridge to [bus 62-62]
+---Type <return> to continue, or q <return> to quit---
+<6>pci 0000:59:08.0:   bridge window [io  disabled]
+<6>pci 0000:59:08.0:   bridge window [0xf2b00000-0xf2bfffff]
+<6>pci 0000:59:08.0:   bridge window [0xa400000000-0xa7ffffffff]
+<6>pci 0000:59:09.0: PCI bridge to [bus 63-63]
+<6>pci 0000:59:09.0:   bridge window [io  disabled]
+<6>pci 0000:59:09.0:   bridge window [0xf2c00000-0xf2cfffff]
+<6>pci 0000:59:09.0:   bridge window [0xa800000000-0xabffffffff]
+<6>pci 0000:59:0a.0: PCI bridge to [bus 64-64]
+<6>pci 0000:59:0a.0:   bridge window [io  disabled]
+<6>pci 0000:59:0a.0:   bridge window [0xf2d00000-0xf2dfffff]
+<6>pci 0000:59:0a.0:   bridge window [0xac00000000-0xafffffffff]
+<6>pci 0000:59:0b.0: PCI bridge to [bus 65-65]
+<6>pci 0000:59:0b.0:   bridge window [io  disabled]
+<6>pci 0000:59:0b.0:   bridge window [0xf2e00000-0xf2efffff]
+<6>pci 0000:59:0b.0:   bridge window [0xb000000000-0xb3ffffffff]
+<6>pci 0000:59:0c.0: PCI bridge to [bus 66-66]
+<6>pci 0000:59:0c.0:   bridge window [io  disabled]
+<6>pci 0000:59:0c.0:   bridge window [0xf2f00000-0xf2ffffff]
+<6>pci 0000:59:0c.0:   bridge window [0xb400000000-0xb7ffffffff]
+<6>pci 0000:59:0d.0: PCI bridge to [bus 67-67]
+<6>pci 0000:59:0d.0:   bridge window [io  disabled]
+<6>pci 0000:59:0d.0:   bridge window [0xf3000000-0xf30fffff]
+<6>pci 0000:59:0d.0:   bridge window [0xb800000000-0xbbffffffff]
+---Type <return> to continue, or q <return> to quit---
+<6>pci 0000:59:0e.0: PCI bridge to [bus 68-68]
+<6>pci 0000:59:0e.0:   bridge window [io  disabled]
+<6>pci 0000:59:0e.0:   bridge window [0xf3100000-0xf31fffff]
+<6>pci 0000:59:0e.0:   bridge window [0xbc00000000-0xbfffffffff]
+<6>pci 0000:59:0f.0: PCI bridge to [bus 69-69]
+<6>pci 0000:59:0f.0:   bridge window [io  disabled]
+<6>pci 0000:59:0f.0:   bridge window [0xf3200000-0xf32fffff]
+<6>pci 0000:59:0f.0:   bridge window [0xc000000000-0xc3ffffffff]
+<6>pci 0000:36:00.2: PCI bridge to [bus 59-69]
+<6>pci 0000:36:00.2:   bridge window [io  disabled]
+<6>pci 0000:36:00.2:   bridge window [0xf2300000-0xf32fffff]
+<6>pci 0000:36:00.2:   bridge window [0x8400000000-0xc3ffffffff]
+<6>pci 0000:00:19.0: PCI bridge to [bus 36-bf]
+<6>pci 0000:00:19.0:   bridge window [0x1000-0x1fff]
+<6>pci 0000:00:19.0:   bridge window [0xf0300000-0xf32fffff]
+<6>pci 0000:00:19.0:   bridge window [0x400000000-0xc3ffffffff]
+<6>pci 0000:00:1e.0: PCI bridge to [bus c0-c0]
+<6>pci 0000:00:1e.0:   bridge window [0xc000-0xcfff]
+<6>pci 0000:00:1e.0:   bridge window [0xf0000000-0xf01fffff]
+<6>pci 0000:00:1e.0:   bridge window [mem pref disabled]
+<6>pci 0000:00:04.0: PCIe errors handled by OS.
+<6>pci 0000:00:04.0: ACPI _OSC control granted for 0x1d
+<7>pci 0000:00:04.0: setting latency timer to 64
+---Type <return> to continue, or q <return> to quit---
+<6>pci 0000:00:18.0: PCIe errors handled by OS.
+<6>pci 0000:00:18.0: ACPI _OSC control granted for 0x1d
+<7>pci 0000:00:18.0: setting latency timer to 64
+<6>pci 0000:00:18.1: PCIe errors handled by OS.
+<6>pci 0000:00:18.1: ACPI _OSC control granted for 0x1d
+<7>pci 0000:00:18.1: setting latency timer to 64
+<6>pci 0000:00:18.2: PCIe errors handled by OS.
+<6>pci 0000:00:18.2: ACPI _OSC control granted for 0x1d
+<7>pci 0000:00:18.2: setting latency timer to 64
+<6>pci 0000:00:18.3: PCIe errors handled by OS.
+<6>pci 0000:00:18.3: ACPI _OSC control granted for 0x1d
+<7>pci 0000:00:18.3: setting latency timer to 64
+<6>pci 0000:00:18.4: PCIe errors handled by OS.
+<6>pci 0000:00:18.4: ACPI _OSC control granted for 0x1d
+<7>pci 0000:00:18.4: setting latency timer to 64
+<6>pci 0000:00:18.5: PCIe errors handled by OS.
+<6>pci 0000:00:18.5: ACPI _OSC control granted for 0x1d
+<7>pci 0000:00:18.5: setting latency timer to 64
+<6>pci 0000:00:18.6: PCIe errors handled by OS.
+<6>pci 0000:00:18.6: ACPI _OSC control granted for 0x1d
+<7>pci 0000:00:18.6: setting latency timer to 64
+<6>pci 0000:00:18.7: PCIe errors handled by OS.
+<6>pci 0000:00:18.7: ACPI _OSC control granted for 0x1d
+---Type <return> to continue, or q <return> to quit---
+<7>pci 0000:00:18.7: setting latency timer to 64
+<6>pci 0000:00:19.0: PCIe errors handled by OS.
+<6>pci 0000:00:19.0: ACPI _OSC control granted for 0x1d
+<7>pci 0000:00:19.0: setting latency timer to 64
+<6>pci 0000:36:00.0: PCIe errors handled by OS.
+<6>pci 0000:36:00.0: ACPI _OSC control granted for 0x1d
+<7>pci 0000:36:00.0: setting latency timer to 64
+<6>pci 0000:37:00.0: PCIe errors handled by OS.
+<6>pci 0000:37:00.0: ACPI _OSC control granted for 0x1d
+<7>pci 0000:37:00.0: setting latency timer to 64
+<6>pci 0000:37:01.0: PCIe errors handled by OS.
+<6>pci 0000:37:01.0: ACPI _OSC control granted for 0x1d
+<7>pci 0000:37:01.0: setting latency timer to 64
+<6>pci 0000:37:02.0: PCIe errors handled by OS.
+<6>pci 0000:37:02.0: ACPI _OSC control granted for 0x1d
+<7>pci 0000:37:02.0: setting latency timer to 64
+<6>pci 0000:37:03.0: PCIe errors handled by OS.
+<6>pci 0000:37:03.0: ACPI _OSC control granted for 0x1d
+<7>pci 0000:37:03.0: setting latency timer to 64
+<6>pci 0000:37:04.0: PCIe errors handled by OS.
+<6>pci 0000:37:04.0: ACPI _OSC control granted for 0x1d
+<7>pci 0000:37:04.0: setting latency timer to 64
+<6>pci 0000:37:05.0: PCIe errors handled by OS.
+---Type <return> to continue, or q <return> to quit---
+<6>pci 0000:37:05.0: ACPI _OSC control granted for 0x1d
+<7>pci 0000:37:05.0: setting latency timer to 64
+<6>pci 0000:37:06.0: PCIe errors handled by OS.
+<6>pci 0000:37:06.0: ACPI _OSC control granted for 0x1d
+<7>pci 0000:37:06.0: setting latency timer to 64
+<6>pci 0000:37:07.0: PCIe errors handled by OS.
+<6>pci 0000:37:07.0: ACPI _OSC control granted for 0x1d
+<7>pci 0000:37:07.0: setting latency timer to 64
+<6>pci 0000:37:08.0: PCIe errors handled by OS.
+<6>pci 0000:37:08.0: ACPI _OSC control granted for 0x1d
+<7>pci 0000:37:08.0: setting latency timer to 64
+<6>pci 0000:37:09.0: PCIe errors handled by OS.
+<6>pci 0000:37:09.0: ACPI _OSC control granted for 0x1d
+<7>pci 0000:37:09.0: setting latency timer to 64
+<6>pci 0000:37:0a.0: PCIe errors handled by OS.
+<6>pci 0000:37:0a.0: ACPI _OSC control granted for 0x1d
+<7>pci 0000:37:0a.0: setting latency timer to 64
+<6>pci 0000:37:0b.0: PCIe errors handled by OS.
+<6>pci 0000:37:0b.0: ACPI _OSC control granted for 0x1d
+<7>pci 0000:37:0b.0: setting latency timer to 64
+<6>pci 0000:37:0c.0: PCIe errors handled by OS.
+<6>pci 0000:37:0c.0: ACPI _OSC control granted for 0x1d
+<7>pci 0000:37:0c.0: setting latency timer to 64
+---Type <return> to continue, or q <return> to quit---
+<6>pci 0000:37:0d.0: PCIe errors handled by OS.
+<6>pci 0000:37:0d.0: ACPI _OSC control granted for 0x1d
+<7>pci 0000:37:0d.0: setting latency timer to 64
+<6>pci 0000:37:0e.0: PCIe errors handled by OS.
+<6>pci 0000:37:0e.0: ACPI _OSC control granted for 0x1d
+<7>pci 0000:37:0e.0: setting latency timer to 64
+<6>pci 0000:37:0f.0: PCIe errors handled by OS.
+<6>pci 0000:37:0f.0: ACPI _OSC control granted for 0x1d
+<7>pci 0000:37:0f.0: setting latency timer to 64
+<6>pci 0000:36:00.1: PCIe errors handled by OS.
+<6>pci 0000:36:00.1: ACPI _OSC control granted for 0x1d
+<7>pci 0000:36:00.1: setting latency timer to 64
+<6>pci 0000:48:00.0: PCIe errors handled by OS.
+<6>pci 0000:48:00.0: ACPI _OSC control granted for 0x1d
+<7>pci 0000:48:00.0: setting latency timer to 64
+<6>pci 0000:48:01.0: PCIe errors handled by OS.
+<6>pci 0000:48:01.0: ACPI _OSC control granted for 0x1d
+<7>pci 0000:48:01.0: setting latency timer to 64
+<6>pci 0000:48:02.0: PCIe errors handled by OS.
+<6>pci 0000:48:02.0: ACPI _OSC control granted for 0x1d
+<7>pci 0000:48:02.0: setting latency timer to 64
+<6>pci 0000:48:03.0: PCIe errors handled by OS.
+<6>pci 0000:48:03.0: ACPI _OSC control granted for 0x1d
+---Type <return> to continue, or q <return> to quit---
+<7>pci 0000:48:03.0: setting latency timer to 64
+<6>pci 0000:48:04.0: PCIe errors handled by OS.
+<6>pci 0000:48:04.0: ACPI _OSC control granted for 0x1d
+<7>pci 0000:48:04.0: setting latency timer to 64
+<6>pci 0000:48:05.0: PCIe errors handled by OS.
+<6>pci 0000:48:05.0: ACPI _OSC control granted for 0x1d
+<7>pci 0000:48:05.0: setting latency timer to 64
+<6>pci 0000:48:06.0: PCIe errors handled by OS.
+<6>pci 0000:48:06.0: ACPI _OSC control granted for 0x1d
+<7>pci 0000:48:06.0: setting latency timer to 64
+<6>pci 0000:48:07.0: PCIe errors handled by OS.
+<6>pci 0000:48:07.0: ACPI _OSC control granted for 0x1d
+<7>pci 0000:48:07.0: setting latency timer to 64
+<6>pci 0000:48:08.0: PCIe errors handled by OS.
+<6>pci 0000:48:08.0: ACPI _OSC control granted for 0x1d
+<7>pci 0000:48:08.0: setting latency timer to 64
+<6>pci 0000:48:09.0: PCIe errors handled by OS.
+<6>pci 0000:48:09.0: ACPI _OSC control granted for 0x1d
+<7>pci 0000:48:09.0: setting latency timer to 64
+<6>pci 0000:48:0a.0: PCIe errors handled by OS.
+<6>pci 0000:48:0a.0: ACPI _OSC control granted for 0x1d
+<7>pci 0000:48:0a.0: setting latency timer to 64
+<6>pci 0000:48:0b.0: PCIe errors handled by OS.
+---Type <return> to continue, or q <return> to quit---
+<6>pci 0000:48:0b.0: ACPI _OSC control granted for 0x1d
+<7>pci 0000:48:0b.0: setting latency timer to 64
+<6>pci 0000:48:0c.0: PCIe errors handled by OS.
+<6>pci 0000:48:0c.0: ACPI _OSC control granted for 0x1d
+<7>pci 0000:48:0c.0: setting latency timer to 64
+<6>pci 0000:48:0d.0: PCIe errors handled by OS.
+<6>pci 0000:48:0d.0: ACPI _OSC control granted for 0x1d
+<7>pci 0000:48:0d.0: setting latency timer to 64
+<6>pci 0000:48:0e.0: PCIe errors handled by OS.
+<6>pci 0000:48:0e.0: ACPI _OSC control granted for 0x1d
+<7>pci 0000:48:0e.0: setting latency timer to 64
+<6>pci 0000:48:0f.0: PCIe errors handled by OS.
+<6>pci 0000:48:0f.0: ACPI _OSC control granted for 0x1d
+<7>pci 0000:48:0f.0: setting latency timer to 64
+<6>pci 0000:36:00.2: PCIe errors handled by OS.
+<6>pci 0000:36:00.2: ACPI _OSC control granted for 0x1d
+<7>pci 0000:36:00.2: setting latency timer to 64
+<6>pci 0000:59:00.0: PCIe errors handled by OS.
+<6>pci 0000:59:00.0: ACPI _OSC control granted for 0x1d
+<7>pci 0000:59:00.0: setting latency timer to 64
+<6>pci 0000:59:01.0: PCIe errors handled by OS.
+<6>pci 0000:59:01.0: ACPI _OSC control granted for 0x1d
+<7>pci 0000:59:01.0: setting latency timer to 64
+---Type <return> to continue, or q <return> to quit---
+<6>pci 0000:59:02.0: PCIe errors handled by OS.
+<6>pci 0000:59:02.0: ACPI _OSC control granted for 0x1d
+<7>pci 0000:59:02.0: setting latency timer to 64
+<6>pci 0000:59:03.0: PCIe errors handled by OS.
+<6>pci 0000:59:03.0: ACPI _OSC control granted for 0x1d
+<7>pci 0000:59:03.0: setting latency timer to 64
+<6>pci 0000:59:04.0: PCIe errors handled by OS.
+<6>pci 0000:59:04.0: ACPI _OSC control granted for 0x1d
+<7>pci 0000:59:04.0: setting latency timer to 64
+<6>pci 0000:59:05.0: PCIe errors handled by OS.
+<6>pci 0000:59:05.0: ACPI _OSC control granted for 0x1d
+<7>pci 0000:59:05.0: setting latency timer to 64
+<6>pci 0000:59:06.0: PCIe errors handled by OS.
+<6>pci 0000:59:06.0: ACPI _OSC control granted for 0x1d
+<7>pci 0000:59:06.0: setting latency timer to 64
+<6>pci 0000:59:07.0: PCIe errors handled by OS.
+<6>pci 0000:59:07.0: ACPI _OSC control granted for 0x1d
+<7>pci 0000:59:07.0: setting latency timer to 64
+<6>pci 0000:59:08.0: PCIe errors handled by OS.
+<6>pci 0000:59:08.0: ACPI _OSC control granted for 0x1d
+<7>pci 0000:59:08.0: setting latency timer to 64
+<6>pci 0000:59:09.0: PCIe errors handled by OS.
+<6>pci 0000:59:09.0: ACPI _OSC control granted for 0x1d
+---Type <return> to continue, or q <return> to quit---
+<7>pci 0000:59:09.0: setting latency timer to 64
+<6>pci 0000:59:0a.0: PCIe errors handled by OS.
+<6>pci 0000:59:0a.0: ACPI _OSC control granted for 0x1d
+<7>pci 0000:59:0a.0: setting latency timer to 64
+<6>pci 0000:59:0b.0: PCIe errors handled by OS.
+<6>pci 0000:59:0b.0: ACPI _OSC control granted for 0x1d
+<7>pci 0000:59:0b.0: setting latency timer to 64
+<6>pci 0000:59:0c.0: PCIe errors handled by OS.
+<6>pci 0000:59:0c.0: ACPI _OSC control granted for 0x1d
+<7>pci 0000:59:0c.0: setting latency timer to 64
+<6>pci 0000:59:0d.0: PCIe errors handled by OS.
+<6>pci 0000:59:0d.0: ACPI _OSC control granted for 0x1d
+<7>pci 0000:59:0d.0: setting latency timer to 64
+<6>pci 0000:59:0e.0: PCIe errors handled by OS.
+<6>pci 0000:59:0e.0: ACPI _OSC control granted for 0x1d
+<7>pci 0000:59:0e.0: setting latency timer to 64
+<6>pci 0000:59:0f.0: PCIe errors handled by OS.
+<6>pci 0000:59:0f.0: ACPI _OSC control granted for 0x1d
+<7>pci 0000:59:0f.0: setting latency timer to 64
+<7>pci 0000:00:1e.0: setting latency timer to 64
+<7>pci_bus 0000:00: resource 0 [0x00-0xffff]
+<7>pci_bus 0000:00: resource 1 [0x000000-0xffffffffffffffff]
+<7>pci_bus 0000:20: resource 0 [0xd000-0xdfff]
+---Type <return> to continue, or q <return> to quit---
+<7>pci_bus 0000:20: resource 1 [0xf4f00000-0xf50fffff]
+<7>pci_bus 0000:20: resource 2 [0xf5100000-0xf52fffff]
+<7>pci_bus 0000:21: resource 0 [0x9000-0x9fff]
+<7>pci_bus 0000:21: resource 1 [0xf4b00000-0xf4cfffff]
+<7>pci_bus 0000:21: resource 2 [0xf4d00000-0xf4efffff]
+<7>pci_bus 0000:22: resource 0 [0x8000-0x8fff]
+<7>pci_bus 0000:22: resource 1 [0xf4700000-0xf48fffff]
+<7>pci_bus 0000:22: resource 2 [0xf4900000-0xf4afffff]
+<7>pci_bus 0000:23: resource 0 [0x7000-0x7fff]
+<7>pci_bus 0000:23: resource 1 [0xf4300000-0xf44fffff]
+<7>pci_bus 0000:23: resource 2 [0xf4500000-0xf46fffff]
+<7>pci_bus 0000:24: resource 0 [0x6000-0x6fff]
+<7>pci_bus 0000:24: resource 1 [0xf3f00000-0xf40fffff]
+<7>pci_bus 0000:24: resource 2 [0xf4100000-0xf42fffff]
+<7>pci_bus 0000:25: resource 0 [0x5000-0x5fff]
+<7>pci_bus 0000:25: resource 1 [0xf3b00000-0xf3cfffff]
+<7>pci_bus 0000:25: resource 2 [0xf3d00000-0xf3efffff]
+<7>pci_bus 0000:26: resource 0 [0x4000-0x4fff]
+<7>pci_bus 0000:26: resource 1 [0xf3700000-0xf38fffff]
+<7>pci_bus 0000:26: resource 2 [0xf3900000-0xf3afffff]
+<7>pci_bus 0000:27: resource 0 [0x3000-0x3fff]
+<7>pci_bus 0000:27: resource 1 [0xf3300000-0xf34fffff]
+<7>pci_bus 0000:27: resource 2 [0xf3500000-0xf36fffff]
+---Type <return> to continue, or q <return> to quit---
+<7>pci_bus 0000:28: resource 0 [0x2000-0x2fff]
+<7>pci_bus 0000:28: resource 1 [0xf0200000-0xf02fffff]
+<7>pci_bus 0000:28: resource 2 [0xf8000000-0xf80fffff]
+<7>pci_bus 0000:36: resource 0 [0x1000-0x1fff]
+<7>pci_bus 0000:36: resource 1 [0xf0300000-0xf32fffff]
+<7>pci_bus 0000:36: resource 2 [0x400000000-0xc3ffffffff]
+<7>pci_bus 0000:37: resource 1 [0xf0300000-0xf12fffff]
+<7>pci_bus 0000:37: resource 2 [0x400000000-0x43ffffffff]
+<7>pci_bus 0000:38: resource 1 [0xf0300000-0xf03fffff]
+<7>pci_bus 0000:38: resource 2 [0x400000000-0x7ffffffff]
+<7>pci_bus 0000:39: resource 1 [0xf0400000-0xf04fffff]
+<7>pci_bus 0000:39: resource 2 [0x800000000-0xbffffffff]
+<7>pci_bus 0000:3a: resource 1 [0xf0500000-0xf05fffff]
+<7>pci_bus 0000:3a: resource 2 [0xc00000000-0xfffffffff]
+<7>pci_bus 0000:3b: resource 1 [0xf0600000-0xf06fffff]
+<7>pci_bus 0000:3b: resource 2 [0x1000000000-0x13ffffffff]
+<7>pci_bus 0000:3c: resource 1 [0xf0700000-0xf07fffff]
+<7>pci_bus 0000:3c: resource 2 [0x1400000000-0x17ffffffff]
+<7>pci_bus 0000:3d: resource 1 [0xf0800000-0xf08fffff]
+<7>pci_bus 0000:3d: resource 2 [0x1800000000-0x1bffffffff]
+<7>pci_bus 0000:3e: resource 1 [0xf0900000-0xf09fffff]
+<7>pci_bus 0000:3e: resource 2 [0x1c00000000-0x1fffffffff]
+<7>pci_bus 0000:3f: resource 1 [0xf0a00000-0xf0afffff]
+---Type <return> to continue, or q <return> to quit---
+<7>pci_bus 0000:3f: resource 2 [0x2000000000-0x23ffffffff]
+<7>pci_bus 0000:40: resource 1 [0xf0b00000-0xf0bfffff]
+<7>pci_bus 0000:40: resource 2 [0x2400000000-0x27ffffffff]
+<7>pci_bus 0000:41: resource 1 [0xf0c00000-0xf0cfffff]
+<7>pci_bus 0000:41: resource 2 [0x2800000000-0x2bffffffff]
+<7>pci_bus 0000:42: resource 1 [0xf0d00000-0xf0dfffff]
+<7>pci_bus 0000:42: resource 2 [0x2c00000000-0x2fffffffff]
+<7>pci_bus 0000:43: resource 1 [0xf0e00000-0xf0efffff]
+<7>pci_bus 0000:43: resource 2 [0x3000000000-0x33ffffffff]
+<7>pci_bus 0000:44: resource 1 [0xf0f00000-0xf0ffffff]
+<7>pci_bus 0000:44: resource 2 [0x3400000000-0x37ffffffff]
+<7>pci_bus 0000:45: resource 1 [0xf1000000-0xf10fffff]
+<7>pci_bus 0000:45: resource 2 [0x3800000000-0x3bffffffff]
+<7>pci_bus 0000:46: resource 1 [0xf1100000-0xf11fffff]
+<7>pci_bus 0000:46: resource 2 [0x3c00000000-0x3fffffffff]
+<7>pci_bus 0000:47: resource 1 [0xf1200000-0xf12fffff]
+<7>pci_bus 0000:47: resource 2 [0x4000000000-0x43ffffffff]
+<7>pci_bus 0000:48: resource 1 [0xf1300000-0xf22fffff]
+<7>pci_bus 0000:48: resource 2 [0x4400000000-0x83ffffffff]
+<7>pci_bus 0000:49: resource 1 [0xf1300000-0xf13fffff]
+<7>pci_bus 0000:49: resource 2 [0x4400000000-0x47ffffffff]
+<7>pci_bus 0000:4a: resource 1 [0xf1400000-0xf14fffff]
+<7>pci_bus 0000:4a: resource 2 [0x4800000000-0x4bffffffff]
+---Type <return> to continue, or q <return> to quit---
+<7>pci_bus 0000:4b: resource 1 [0xf1500000-0xf15fffff]
+<7>pci_bus 0000:4b: resource 2 [0x4c00000000-0x4fffffffff]
+<7>pci_bus 0000:4c: resource 1 [0xf1600000-0xf16fffff]
+<7>pci_bus 0000:4c: resource 2 [0x5000000000-0x53ffffffff]
+<7>pci_bus 0000:4d: resource 1 [0xf1700000-0xf17fffff]
+<7>pci_bus 0000:4d: resource 2 [0x5400000000-0x57ffffffff]
+<7>pci_bus 0000:4e: resource 1 [0xf1800000-0xf18fffff]
+<7>pci_bus 0000:4e: resource 2 [0x5800000000-0x5bffffffff]
+<7>pci_bus 0000:4f: resource 1 [0xf1900000-0xf19fffff]
+<7>pci_bus 0000:4f: resource 2 [0x5c00000000-0x5fffffffff]
+<7>pci_bus 0000:50: resource 1 [0xf1a00000-0xf1afffff]
+<7>pci_bus 0000:50: resource 2 [0x6000000000-0x63ffffffff]
+<7>pci_bus 0000:51: resource 1 [0xf1b00000-0xf1bfffff]
+<7>pci_bus 0000:51: resource 2 [0x6400000000-0x67ffffffff]
+<7>pci_bus 0000:52: resource 1 [0xf1c00000-0xf1cfffff]
+<7>pci_bus 0000:52: resource 2 [0x6800000000-0x6bffffffff]
+<7>pci_bus 0000:53: resource 1 [0xf1d00000-0xf1dfffff]
+<7>pci_bus 0000:53: resource 2 [0x6c00000000-0x6fffffffff]
+<7>pci_bus 0000:54: resource 1 [0xf1e00000-0xf1efffff]
+<7>pci_bus 0000:54: resource 2 [0x7000000000-0x73ffffffff]
+<7>pci_bus 0000:55: resource 1 [0xf1f00000-0xf1ffffff]
+<7>pci_bus 0000:55: resource 2 [0x7400000000-0x77ffffffff]
+<7>pci_bus 0000:56: resource 1 [0xf2000000-0xf20fffff]
+---Type <return> to continue, or q <return> to quit---
+<7>pci_bus 0000:56: resource 2 [0x7800000000-0x7bffffffff]
+<7>pci_bus 0000:57: resource 1 [0xf2100000-0xf21fffff]
+<7>pci_bus 0000:57: resource 2 [0x7c00000000-0x7fffffffff]
+<7>pci_bus 0000:58: resource 1 [0xf2200000-0xf22fffff]
+<7>pci_bus 0000:58: resource 2 [0x8000000000-0x83ffffffff]
+<7>pci_bus 0000:59: resource 1 [0xf2300000-0xf32fffff]
+<7>pci_bus 0000:59: resource 2 [0x8400000000-0xc3ffffffff]
+<7>pci_bus 0000:5a: resource 1 [0xf2300000-0xf23fffff]
+<7>pci_bus 0000:5a: resource 2 [0x8400000000-0x87ffffffff]
+<7>pci_bus 0000:5b: resource 1 [0xf2400000-0xf24fffff]
+<7>pci_bus 0000:5b: resource 2 [0x8800000000-0x8bffffffff]
+<7>pci_bus 0000:5c: resource 1 [0xf2500000-0xf25fffff]
+<7>pci_bus 0000:5c: resource 2 [0x8c00000000-0x8fffffffff]
+<7>pci_bus 0000:5d: resource 1 [0xf2600000-0xf26fffff]
+<7>pci_bus 0000:5d: resource 2 [0x9000000000-0x93ffffffff]
+<7>pci_bus 0000:5e: resource 1 [0xf2700000-0xf27fffff]
+<7>pci_bus 0000:5e: resource 2 [0x9400000000-0x97ffffffff]
+<7>pci_bus 0000:5f: resource 1 [0xf2800000-0xf28fffff]
+<7>pci_bus 0000:5f: resource 2 [0x9800000000-0x9bffffffff]
+<7>pci_bus 0000:60: resource 1 [0xf2900000-0xf29fffff]
+<7>pci_bus 0000:60: resource 2 [0x9c00000000-0x9fffffffff]
+<7>pci_bus 0000:61: resource 1 [0xf2a00000-0xf2afffff]
+<7>pci_bus 0000:61: resource 2 [0xa000000000-0xa3ffffffff]
+---Type <return> to continue, or q <return> to quit---
+<7>pci_bus 0000:62: resource 1 [0xf2b00000-0xf2bfffff]
+<7>pci_bus 0000:62: resource 2 [0xa400000000-0xa7ffffffff]
+<7>pci_bus 0000:63: resource 1 [0xf2c00000-0xf2cfffff]
+<7>pci_bus 0000:63: resource 2 [0xa800000000-0xabffffffff]
+<7>pci_bus 0000:64: resource 1 [0xf2d00000-0xf2dfffff]
+<7>pci_bus 0000:64: resource 2 [0xac00000000-0xafffffffff]
+<7>pci_bus 0000:65: resource 1 [0xf2e00000-0xf2efffff]
+<7>pci_bus 0000:65: resource 2 [0xb000000000-0xb3ffffffff]
+<7>pci_bus 0000:66: resource 1 [0xf2f00000-0xf2ffffff]
+<7>pci_bus 0000:66: resource 2 [0xb400000000-0xb7ffffffff]
+<7>pci_bus 0000:67: resource 1 [0xf3000000-0xf30fffff]
+<7>pci_bus 0000:67: resource 2 [0xb800000000-0xbbffffffff]
+<7>pci_bus 0000:68: resource 1 [0xf3100000-0xf31fffff]
+<7>pci_bus 0000:68: resource 2 [0xbc00000000-0xbfffffffff]
+<7>pci_bus 0000:69: resource 1 [0xf3200000-0xf32fffff]
+<7>pci_bus 0000:69: resource 2 [0xc000000000-0xc3ffffffff]
+<7>pci_bus 0000:c0: resource 0 [0xc000-0xcfff]
+<7>pci_bus 0000:c0: resource 1 [0xf0000000-0xf01fffff]
+<7>pci_bus 0000:c0: resource 3 [0x00-0xffff]
+<7>pci_bus 0000:c0: resource 4 [0x000000-0xffffffffffffffff]
+<6>NET: Registered protocol family 2
+<6>IP route cache hash table entries: 131072 (order: 8, 1048576 bytes)
+<6>TCP established hash table entries: 524288 (order: 11, 8388608 bytes)
+---Type <return> to continue, or q <return> to quit---
+<6>TCP bind hash table entries: 65536 (order: 8, 1048576 bytes)
+<6>TCP: Hash tables configured (established 524288 bind 65536)
+<6>TCP reno registered
+<6>NET: Registered protocol family 1
+<6>Trying to unpack rootfs image as initramfs...
+<6>Freeing initrd memory: 104067k freed
+<6>audit: initializing netlink socket (disabled)
+<5>type=2000 audit(1303273802.023:1): initialized
+<6>HugeTLB registered 2 MB page size, pre-allocated 0 pages
+<6>bigphysarea: Allocated 51200 pages at 0xffff880012000000.
+<6>bigphysarea high: Allocated 0 pages at 0x(null).
+<6>bigphysarea, Iommu not found
+<6>bigphysarea: Register with Platform Devices
+<5>VFS: Disk quotas dquot_6.5.2
+<4>Dquot-cache hash table entries: 512 (order 0, 4096 bytes)
+<6>msgmni has been set to 7001
+<7>SELinux:  Registering netfilter hooks
+<6>alg: No test for stdrng (krng)
+<4>ksign: Installing public key data
+<4>Loading keyring
+<4>- Added public key 2C7CFB07860E81D0
+<4>  - key was been created 4441904 seconds in future
+<4>- User ID: Red Hat, Inc. (Kernel Module GPG key)
+---Type <return> to continue, or q <return> to quit---
+<4>- Added public key D4A26C9CCD09BEDA
+<4>- User ID: Red Hat Enterprise Linux Driver Update Program <secalert@redhat.com>
+<6>Block layer SCSI generic (bsg) driver version 0.4 loaded (major 252)
+<6>io scheduler noop registered
+<6>io scheduler anticipatory registered
+<6>io scheduler deadline registered
+<6>io scheduler cfq registered (default)
+<7>pcieport 0000:00:04.0: setting latency timer to 64
+<7>  alloc irq_desc for 24 on node -1
+<7>  alloc kstat_irqs on node -1
+<7>pcieport 0000:00:04.0: irq 24 for MSI/MSI-X
+<7>pcieport 0000:00:18.0: setting latency timer to 64
+<7>  alloc irq_desc for 25 on node -1
+<7>  alloc kstat_irqs on node -1
+<7>pcieport 0000:00:18.0: irq 25 for MSI/MSI-X
+<7>pcieport 0000:00:18.1: setting latency timer to 64
+<7>  alloc irq_desc for 26 on node -1
+<7>  alloc kstat_irqs on node -1
+<7>pcieport 0000:00:18.1: irq 26 for MSI/MSI-X
+<7>pcieport 0000:00:18.2: setting latency timer to 64
+<7>  alloc irq_desc for 27 on node -1
+<7>  alloc kstat_irqs on node -1
+---Type <return> to continue, or q <return> to quit---
+<7>pcieport 0000:00:18.2: irq 27 for MSI/MSI-X
+<7>pcieport 0000:00:18.3: setting latency timer to 64
+<7>  alloc irq_desc for 28 on node -1
+<7>  alloc kstat_irqs on node -1
+<7>pcieport 0000:00:18.3: irq 28 for MSI/MSI-X
+<7>pcieport 0000:00:18.4: setting latency timer to 64
+<7>  alloc irq_desc for 29 on node -1
+<7>  alloc kstat_irqs on node -1
+<7>pcieport 0000:00:18.4: irq 29 for MSI/MSI-X
+<7>pcieport 0000:00:18.5: setting latency timer to 64
+<7>  alloc irq_desc for 30 on node -1
+<7>  alloc kstat_irqs on node -1
+<7>pcieport 0000:00:18.5: irq 30 for MSI/MSI-X
+<7>pcieport 0000:00:18.6: setting latency timer to 64
+<7>  alloc irq_desc for 31 on node -1
+<7>  alloc kstat_irqs on node -1
+<7>pcieport 0000:00:18.6: irq 31 for MSI/MSI-X
+<7>pcieport 0000:00:18.7: setting latency timer to 64
+<7>  alloc irq_desc for 32 on node -1
+<7>  alloc kstat_irqs on node -1
+<7>pcieport 0000:00:18.7: irq 32 for MSI/MSI-X
+<7>pcieport 0000:00:19.0: setting latency timer to 64
+<7>  alloc irq_desc for 33 on node -1
+---Type <return> to continue, or q <return> to quit---
+<7>  alloc kstat_irqs on node -1
+<7>pcieport 0000:00:19.0: irq 33 for MSI/MSI-X
+<7>pcieport 0000:36:00.0: setting latency timer to 64
+<7>  alloc irq_desc for 34 on node -1
+<7>  alloc kstat_irqs on node -1
+<7>pcieport 0000:36:00.0: irq 34 for MSI/MSI-X
+<7>pcieport 0000:36:00.1: setting latency timer to 64
+<7>  alloc irq_desc for 35 on node -1
+<7>  alloc kstat_irqs on node -1
+<7>pcieport 0000:36:00.1: irq 35 for MSI/MSI-X
+<7>pcieport 0000:36:00.2: setting latency timer to 64
+<7>  alloc irq_desc for 36 on node -1
+<7>  alloc kstat_irqs on node -1
+<7>pcieport 0000:36:00.2: irq 36 for MSI/MSI-X
+<7>pcieport 0000:37:00.0: setting latency timer to 64
+<7>  alloc irq_desc for 37 on node -1
+<7>  alloc kstat_irqs on node -1
+<7>pcieport 0000:37:00.0: irq 37 for MSI/MSI-X
+<7>pcieport 0000:37:01.0: setting latency timer to 64
+<7>  alloc irq_desc for 38 on node -1
+<7>  alloc kstat_irqs on node -1
+<7>pcieport 0000:37:01.0: irq 38 for MSI/MSI-X
+<7>pcieport 0000:37:02.0: setting latency timer to 64
+---Type <return> to continue, or q <return> to quit---
+<7>  alloc irq_desc for 39 on node -1
+<7>  alloc kstat_irqs on node -1
+<7>pcieport 0000:37:02.0: irq 39 for MSI/MSI-X
+<7>pcieport 0000:37:03.0: setting latency timer to 64
+<7>  alloc irq_desc for 40 on node -1
+<7>  alloc kstat_irqs on node -1
+<7>pcieport 0000:37:03.0: irq 40 for MSI/MSI-X
+<7>pcieport 0000:37:04.0: setting latency timer to 64
+<7>  alloc irq_desc for 41 on node -1
+<7>  alloc kstat_irqs on node -1
+<7>pcieport 0000:37:04.0: irq 41 for MSI/MSI-X
+<7>pcieport 0000:37:05.0: setting latency timer to 64
+<7>  alloc irq_desc for 42 on node -1
+<7>  alloc kstat_irqs on node -1
+<7>pcieport 0000:37:05.0: irq 42 for MSI/MSI-X
+<7>pcieport 0000:37:06.0: setting latency timer to 64
+<7>  alloc irq_desc for 43 on node -1
+<7>  alloc kstat_irqs on node -1
+<7>pcieport 0000:37:06.0: irq 43 for MSI/MSI-X
+<7>pcieport 0000:37:07.0: setting latency timer to 64
+<7>  alloc irq_desc for 44 on node -1
+<7>  alloc kstat_irqs on node -1
+<7>pcieport 0000:37:07.0: irq 44 for MSI/MSI-X
+---Type <return> to continue, or q <return> to quit---
+<7>pcieport 0000:37:08.0: setting latency timer to 64
+<7>  alloc irq_desc for 45 on node -1
+<7>  alloc kstat_irqs on node -1
+<7>pcieport 0000:37:08.0: irq 45 for MSI/MSI-X
+<7>pcieport 0000:37:09.0: setting latency timer to 64
+<7>  alloc irq_desc for 46 on node -1
+<7>  alloc kstat_irqs on node -1
+<7>pcieport 0000:37:09.0: irq 46 for MSI/MSI-X
+<7>pcieport 0000:37:0a.0: setting latency timer to 64
+<7>  alloc irq_desc for 47 on node -1
+<7>  alloc kstat_irqs on node -1
+<7>pcieport 0000:37:0a.0: irq 47 for MSI/MSI-X
+<7>pcieport 0000:37:0b.0: setting latency timer to 64
+<7>  alloc irq_desc for 48 on node -1
+<7>  alloc kstat_irqs on node -1
+<7>pcieport 0000:37:0b.0: irq 48 for MSI/MSI-X
+<7>pcieport 0000:37:0c.0: setting latency timer to 64
+<7>  alloc irq_desc for 49 on node -1
+<7>  alloc kstat_irqs on node -1
+<7>pcieport 0000:37:0c.0: irq 49 for MSI/MSI-X
+<7>pcieport 0000:37:0d.0: setting latency timer to 64
+<7>  alloc irq_desc for 50 on node -1
+<7>  alloc kstat_irqs on node -1
+---Type <return> to continue, or q <return> to quit---
+<7>pcieport 0000:37:0d.0: irq 50 for MSI/MSI-X
+<7>pcieport 0000:37:0e.0: setting latency timer to 64
+<7>  alloc irq_desc for 51 on node -1
+<7>  alloc kstat_irqs on node -1
+<7>pcieport 0000:37:0e.0: irq 51 for MSI/MSI-X
+<7>pcieport 0000:37:0f.0: setting latency timer to 64
+<7>  alloc irq_desc for 52 on node -1
+<7>  alloc kstat_irqs on node -1
+<7>pcieport 0000:37:0f.0: irq 52 for MSI/MSI-X
+<7>pcieport 0000:48:00.0: setting latency timer to 64
+<7>  alloc irq_desc for 53 on node -1
+<7>  alloc kstat_irqs on node -1
+<7>pcieport 0000:48:00.0: irq 53 for MSI/MSI-X
+<7>pcieport 0000:48:01.0: setting latency timer to 64
+<7>  alloc irq_desc for 54 on node -1
+<7>  alloc kstat_irqs on node -1
+<7>pcieport 0000:48:01.0: irq 54 for MSI/MSI-X
+<7>pcieport 0000:48:02.0: setting latency timer to 64
+<7>  alloc irq_desc for 55 on node -1
+<7>  alloc kstat_irqs on node -1
+<7>pcieport 0000:48:02.0: irq 55 for MSI/MSI-X
+<7>pcieport 0000:48:03.0: setting latency timer to 64
+<7>  alloc irq_desc for 56 on node -1
+---Type <return> to continue, or q <return> to quit---
+<7>  alloc kstat_irqs on node -1
+<7>pcieport 0000:48:03.0: irq 56 for MSI/MSI-X
+<7>pcieport 0000:48:04.0: setting latency timer to 64
+<7>  alloc irq_desc for 57 on node -1
+<7>  alloc kstat_irqs on node -1
+<7>pcieport 0000:48:04.0: irq 57 for MSI/MSI-X
+<7>pcieport 0000:48:05.0: setting latency timer to 64
+<7>  alloc irq_desc for 58 on node -1
+<7>  alloc kstat_irqs on node -1
+<7>pcieport 0000:48:05.0: irq 58 for MSI/MSI-X
+<7>pcieport 0000:48:06.0: setting latency timer to 64
+<7>  alloc irq_desc for 59 on node -1
+<7>  alloc kstat_irqs on node -1
+<7>pcieport 0000:48:06.0: irq 59 for MSI/MSI-X
+<7>pcieport 0000:48:07.0: setting latency timer to 64
+<7>  alloc irq_desc for 60 on node -1
+<7>  alloc kstat_irqs on node -1
+<7>pcieport 0000:48:07.0: irq 60 for MSI/MSI-X
+<7>pcieport 0000:48:08.0: setting latency timer to 64
+<7>  alloc irq_desc for 61 on node -1
+<7>  alloc kstat_irqs on node -1
+<7>pcieport 0000:48:08.0: irq 61 for MSI/MSI-X
+<7>pcieport 0000:48:09.0: setting latency timer to 64
+---Type <return> to continue, or q <return> to quit---
+<7>  alloc irq_desc for 62 on node -1
+<7>  alloc kstat_irqs on node -1
+<7>pcieport 0000:48:09.0: irq 62 for MSI/MSI-X
+<7>pcieport 0000:48:0a.0: setting latency timer to 64
+<7>  alloc irq_desc for 63 on node -1
+<7>  alloc kstat_irqs on node -1
+<7>pcieport 0000:48:0a.0: irq 63 for MSI/MSI-X
+<7>pcieport 0000:48:0b.0: setting latency timer to 64
+<7>  alloc irq_desc for 64 on node -1
+<7>  alloc kstat_irqs on node -1
+<7>pcieport 0000:48:0b.0: irq 64 for MSI/MSI-X
+<7>pcieport 0000:48:0c.0: setting latency timer to 64
+<7>  alloc irq_desc for 65 on node -1
+<7>  alloc kstat_irqs on node -1
+<7>pcieport 0000:48:0c.0: irq 65 for MSI/MSI-X
+<7>pcieport 0000:48:0d.0: setting latency timer to 64
+<7>  alloc irq_desc for 66 on node -1
+<7>  alloc kstat_irqs on node -1
+<7>pcieport 0000:48:0d.0: irq 66 for MSI/MSI-X
+<7>pcieport 0000:48:0e.0: setting latency timer to 64
+<7>  alloc irq_desc for 67 on node -1
+<7>  alloc kstat_irqs on node -1
+<7>pcieport 0000:48:0e.0: irq 67 for MSI/MSI-X
+---Type <return> to continue, or q <return> to quit---
+<7>pcieport 0000:48:0f.0: setting latency timer to 64
+<7>  alloc irq_desc for 68 on node -1
+<7>  alloc kstat_irqs on node -1
+<7>pcieport 0000:48:0f.0: irq 68 for MSI/MSI-X
+<7>pcieport 0000:59:00.0: setting latency timer to 64
+<7>  alloc irq_desc for 69 on node -1
+<7>  alloc kstat_irqs on node -1
+<7>pcieport 0000:59:00.0: irq 69 for MSI/MSI-X
+<7>pcieport 0000:59:01.0: setting latency timer to 64
+<7>  alloc irq_desc for 70 on node -1
+<7>  alloc kstat_irqs on node -1
+<7>pcieport 0000:59:01.0: irq 70 for MSI/MSI-X
+<7>pcieport 0000:59:02.0: setting latency timer to 64
+<7>  alloc irq_desc for 71 on node -1
+<7>  alloc kstat_irqs on node -1
+<7>pcieport 0000:59:02.0: irq 71 for MSI/MSI-X
+<7>pcieport 0000:59:03.0: setting latency timer to 64
+<7>  alloc irq_desc for 72 on node -1
+<7>  alloc kstat_irqs on node -1
+<7>pcieport 0000:59:03.0: irq 72 for MSI/MSI-X
+<7>pcieport 0000:59:04.0: setting latency timer to 64
+<7>  alloc irq_desc for 73 on node -1
+<7>  alloc kstat_irqs on node -1
+---Type <return> to continue, or q <return> to quit---
+<7>pcieport 0000:59:04.0: irq 73 for MSI/MSI-X
+<7>pcieport 0000:59:05.0: setting latency timer to 64
+<7>  alloc irq_desc for 74 on node -1
+<7>  alloc kstat_irqs on node -1
+<7>pcieport 0000:59:05.0: irq 74 for MSI/MSI-X
+<7>pcieport 0000:59:06.0: setting latency timer to 64
+<7>  alloc irq_desc for 75 on node -1
+<7>  alloc kstat_irqs on node -1
+<7>pcieport 0000:59:06.0: irq 75 for MSI/MSI-X
+<7>pcieport 0000:59:07.0: setting latency timer to 64
+<7>  alloc irq_desc for 76 on node -1
+<7>  alloc kstat_irqs on node -1
+<7>pcieport 0000:59:07.0: irq 76 for MSI/MSI-X
+<7>pcieport 0000:59:08.0: setting latency timer to 64
+<7>  alloc irq_desc for 77 on node -1
+<7>  alloc kstat_irqs on node -1
+<7>pcieport 0000:59:08.0: irq 77 for MSI/MSI-X
+<7>pcieport 0000:59:09.0: setting latency timer to 64
+<7>  alloc irq_desc for 78 on node -1
+<7>  alloc kstat_irqs on node -1
+<7>pcieport 0000:59:09.0: irq 78 for MSI/MSI-X
+<7>pcieport 0000:59:0a.0: setting latency timer to 64
+<7>  alloc irq_desc for 79 on node -1
+---Type <return> to continue, or q <return> to quit---
+<7>  alloc kstat_irqs on node -1
+<7>pcieport 0000:59:0a.0: irq 79 for MSI/MSI-X
+<7>pcieport 0000:59:0b.0: setting latency timer to 64
+<7>  alloc irq_desc for 80 on node -1
+<7>  alloc kstat_irqs on node -1
+<7>pcieport 0000:59:0b.0: irq 80 for MSI/MSI-X
+<7>pcieport 0000:59:0c.0: setting latency timer to 64
+<7>  alloc irq_desc for 81 on node -1
+<7>  alloc kstat_irqs on node -1
+<7>pcieport 0000:59:0c.0: irq 81 for MSI/MSI-X
+<7>pcieport 0000:59:0d.0: setting latency timer to 64
+<7>  alloc irq_desc for 82 on node -1
+<7>  alloc kstat_irqs on node -1
+<7>pcieport 0000:59:0d.0: irq 82 for MSI/MSI-X
+<7>pcieport 0000:59:0e.0: setting latency timer to 64
+<7>  alloc irq_desc for 83 on node -1
+<7>  alloc kstat_irqs on node -1
+<7>pcieport 0000:59:0e.0: irq 83 for MSI/MSI-X
+<7>pcieport 0000:59:0f.0: setting latency timer to 64
+<7>  alloc irq_desc for 84 on node -1
+<7>  alloc kstat_irqs on node -1
+<7>pcieport 0000:59:0f.0: irq 84 for MSI/MSI-X
+<7>aer 0000:00:04.0:pcieffffffc2: service driver aer loaded
+---Type <return> to continue, or q <return> to quit---
+<7>aer 0000:00:18.0:pcieffffffc2: service driver aer loaded
+<7>aer 0000:00:18.1:pcieffffffc2: service driver aer loaded
+<7>aer 0000:00:18.2:pcieffffffc2: service driver aer loaded
+<7>aer 0000:00:18.3:pcieffffffc2: service driver aer loaded
+<7>aer 0000:00:18.4:pcieffffffc2: service driver aer loaded
+<7>aer 0000:00:18.5:pcieffffffc2: service driver aer loaded
+<7>aer 0000:00:18.6:pcieffffffc2: service driver aer loaded
+<7>aer 0000:00:18.7:pcieffffffc2: service driver aer loaded
+<7>aer 0000:00:19.0:pcieffffffc2: service driver aer loaded
+<6>pci_hotplug: PCI Hot Plug PCI Core version: 0.5
+<6>pciehp 0000:00:04.0:pcieffffffc4: HPC vendor_id 8086 device_id 3420 ss_vid 0 ss_did 0
+<7>pciehp 0000:00:04.0:pcieffffffc4: service driver pciehp loaded
+<6>pciehp 0000:00:18.0:pcieffffffc4: HPC vendor_id 8086 device_id 3420 ss_vid 0 ss_did 0
+<7>pciehp 0000:00:18.0:pcieffffffc4: service driver pciehp loaded
+<6>pciehp 0000:00:18.1:pcieffffffc4: HPC vendor_id 8086 device_id 3420 ss_vid 0 ss_did 0
+<7>pciehp 0000:00:18.1:pcieffffffc4: service driver pciehp loaded
+<6>pciehp 0000:00:18.2:pcieffffffc4: HPC vendor_id 8086 device_id 3420 ss_vid 0 ss_did 0
+<7>pciehp 0000:00:18.2:pcieffffffc4: service driver pciehp loaded
+<6>pciehp 0000:00:18.3:pcieffffffc4: HPC vendor_id 8086 device_id 3420 ss_vid 0 ---Type <return> to continue, or q <return> to quit---
+ss_did 0
+<7>pciehp 0000:00:18.3:pcieffffffc4: service driver pciehp loaded
+<6>pciehp 0000:00:18.4:pcieffffffc4: HPC vendor_id 8086 device_id 3420 ss_vid 0 ss_did 0
+<7>pciehp 0000:00:18.4:pcieffffffc4: service driver pciehp loaded
+<6>pciehp 0000:00:18.5:pcieffffffc4: HPC vendor_id 8086 device_id 3420 ss_vid 0 ss_did 0
+<7>pciehp 0000:00:18.5:pcieffffffc4: service driver pciehp loaded
+<6>pciehp 0000:00:18.6:pcieffffffc4: HPC vendor_id 8086 device_id 3420 ss_vid 0 ss_did 0
+<7>pciehp 0000:00:18.6:pcieffffffc4: service driver pciehp loaded
+<6>pciehp 0000:00:18.7:pcieffffffc4: HPC vendor_id 8086 device_id 3420 ss_vid 0 ss_did 0
+<7>pciehp 0000:00:18.7:pcieffffffc4: service driver pciehp loaded
+<6>pciehp 0000:00:19.0:pcieffffffc4: HPC vendor_id 8086 device_id 3420 ss_vid 0 ss_did 0
+<7>pciehp 0000:00:19.0:pcieffffffc4: service driver pciehp loaded
+<6>pciehp 0000:37:00.0:pcieffffffc4: HPC vendor_id 104c device_id 8233 ss_vid 0 ss_did 0
+<7>pciehp 0000:37:00.0:pcieffffffc4: service driver pciehp loaded
+<6>pciehp 0000:37:01.0:pcieffffffc4: HPC vendor_id 104c device_id 8233 ss_vid 0 ss_did 0
+<7>pciehp 0000:37:01.0:pcieffffffc4: service driver pciehp loaded
+---Type <return> to continue, or q <return> to quit---
+<6>pciehp 0000:37:02.0:pcieffffffc4: HPC vendor_id 104c device_id 8233 ss_vid 0 ss_did 0
+<7>pciehp 0000:37:02.0:pcieffffffc4: service driver pciehp loaded
+<6>pciehp 0000:37:03.0:pcieffffffc4: HPC vendor_id 104c device_id 8233 ss_vid 0 ss_did 0
+<7>pciehp 0000:37:03.0:pcieffffffc4: service driver pciehp loaded
+<6>pciehp 0000:37:04.0:pcieffffffc4: HPC vendor_id 104c device_id 8233 ss_vid 0 ss_did 0
+<7>pciehp 0000:37:04.0:pcieffffffc4: service driver pciehp loaded
+<6>pciehp 0000:37:05.0:pcieffffffc4: HPC vendor_id 104c device_id 8233 ss_vid 0 ss_did 0
+<7>pciehp 0000:37:05.0:pcieffffffc4: service driver pciehp loaded
+<6>pciehp 0000:37:06.0:pcieffffffc4: HPC vendor_id 104c device_id 8233 ss_vid 0 ss_did 0
+<7>pciehp 0000:37:06.0:pcieffffffc4: service driver pciehp loaded
+<6>pciehp 0000:37:07.0:pcieffffffc4: HPC vendor_id 104c device_id 8233 ss_vid 0 ss_did 0
+<7>pciehp 0000:37:07.0:pcieffffffc4: service driver pciehp loaded
+<6>pciehp 0000:37:08.0:pcieffffffc4: HPC vendor_id 104c device_id 8233 ss_vid 0 ss_did 0
+<7>pciehp 0000:37:08.0:pcieffffffc4: service driver pciehp loaded
+<6>pciehp 0000:37:09.0:pcieffffffc4: HPC vendor_id 104c device_id 8233 ss_vid 0 ss_did 0
+---Type <return> to continue, or q <return> to quit---
+<7>pciehp 0000:37:09.0:pcieffffffc4: service driver pciehp loaded
+<6>pciehp 0000:37:0a.0:pcieffffffc4: HPC vendor_id 104c device_id 8233 ss_vid 0 ss_did 0
+<7>pciehp 0000:37:0a.0:pcieffffffc4: service driver pciehp loaded
+<6>pciehp 0000:37:0b.0:pcieffffffc4: HPC vendor_id 104c device_id 8233 ss_vid 0 ss_did 0
+<7>pciehp 0000:37:0b.0:pcieffffffc4: service driver pciehp loaded
+<6>pciehp 0000:37:0c.0:pcieffffffc4: HPC vendor_id 104c device_id 8233 ss_vid 0 ss_did 0
+<7>pciehp 0000:37:0c.0:pcieffffffc4: service driver pciehp loaded
+<6>pciehp 0000:37:0d.0:pcieffffffc4: HPC vendor_id 104c device_id 8233 ss_vid 0 ss_did 0
+<7>pciehp 0000:37:0d.0:pcieffffffc4: service driver pciehp loaded
+<6>pciehp 0000:37:0e.0:pcieffffffc4: HPC vendor_id 104c device_id 8233 ss_vid 0 ss_did 0
+<7>pciehp 0000:37:0e.0:pcieffffffc4: service driver pciehp loaded
+<6>pciehp 0000:37:0f.0:pcieffffffc4: HPC vendor_id 104c device_id 8233 ss_vid 0 ss_did 0
+<7>pciehp 0000:37:0f.0:pcieffffffc4: service driver pciehp loaded
+<6>pciehp 0000:48:00.0:pcieffffffc4: HPC vendor_id 104c device_id 8233 ss_vid 0 ss_did 0
+<7>pciehp 0000:48:00.0:pcieffffffc4: service driver pciehp loaded
+<6>pciehp 0000:48:01.0:pcieffffffc4: HPC vendor_id 104c device_id 8233 ss_vid 0 ---Type <return> to continue, or q <return> to quit---
+ss_did 0
+<7>pciehp 0000:48:01.0:pcieffffffc4: service driver pciehp loaded
+<6>pciehp 0000:48:02.0:pcieffffffc4: HPC vendor_id 104c device_id 8233 ss_vid 0 ss_did 0
+<7>pciehp 0000:48:02.0:pcieffffffc4: service driver pciehp loaded
+<6>pciehp 0000:48:03.0:pcieffffffc4: HPC vendor_id 104c device_id 8233 ss_vid 0 ss_did 0
+<7>pciehp 0000:48:03.0:pcieffffffc4: service driver pciehp loaded
+<6>pciehp 0000:48:04.0:pcieffffffc4: HPC vendor_id 104c device_id 8233 ss_vid 0 ss_did 0
+<7>pciehp 0000:48:04.0:pcieffffffc4: service driver pciehp loaded
+<6>pciehp 0000:48:05.0:pcieffffffc4: HPC vendor_id 104c device_id 8233 ss_vid 0 ss_did 0
+<7>pciehp 0000:48:05.0:pcieffffffc4: service driver pciehp loaded
+<6>pciehp 0000:48:06.0:pcieffffffc4: HPC vendor_id 104c device_id 8233 ss_vid 0 ss_did 0
+<7>pciehp 0000:48:06.0:pcieffffffc4: service driver pciehp loaded
+<6>pciehp 0000:48:07.0:pcieffffffc4: HPC vendor_id 104c device_id 8233 ss_vid 0 ss_did 0
+<7>pciehp 0000:48:07.0:pcieffffffc4: service driver pciehp loaded
+<6>pciehp 0000:48:08.0:pcieffffffc4: HPC vendor_id 104c device_id 8233 ss_vid 0 ss_did 0
+<7>pciehp 0000:48:08.0:pcieffffffc4: service driver pciehp loaded
+---Type <return> to continue, or q <return> to quit---
+<6>pciehp 0000:48:09.0:pcieffffffc4: HPC vendor_id 104c device_id 8233 ss_vid 0 ss_did 0
+<7>pciehp 0000:48:09.0:pcieffffffc4: service driver pciehp loaded
+<6>pciehp 0000:48:0a.0:pcieffffffc4: HPC vendor_id 104c device_id 8233 ss_vid 0 ss_did 0
+<7>pciehp 0000:48:0a.0:pcieffffffc4: service driver pciehp loaded
+<6>pciehp 0000:48:0b.0:pcieffffffc4: HPC vendor_id 104c device_id 8233 ss_vid 0 ss_did 0
+<7>pciehp 0000:48:0b.0:pcieffffffc4: service driver pciehp loaded
+<6>pciehp 0000:48:0c.0:pcieffffffc4: HPC vendor_id 104c device_id 8233 ss_vid 0 ss_did 0
+<7>pciehp 0000:48:0c.0:pcieffffffc4: service driver pciehp loaded
+<6>pciehp 0000:48:0d.0:pcieffffffc4: HPC vendor_id 104c device_id 8233 ss_vid 0 ss_did 0
+<7>pciehp 0000:48:0d.0:pcieffffffc4: service driver pciehp loaded
+<6>pciehp 0000:48:0e.0:pcieffffffc4: HPC vendor_id 104c device_id 8233 ss_vid 0 ss_did 0
+<7>pciehp 0000:48:0e.0:pcieffffffc4: service driver pciehp loaded
+
+<6>pciehp 0000:48:0f.0:pcieffffffc4: HPC vendor_id 104c device_id 8233 ss_vid 0 ss_did 0
+<7>pciehp 0000:48:0f.0:pcieffffffc4: service driver pciehp loaded
+<6>pciehp 0000:59:00.0:pcieffffffc4: HPC vendor_id 104c device_id 8233 ss_vid 0 ss_did 0
+---Type <return> to continue, or q <return> to quit---
+<7>pciehp 0000:59:00.0:pcieffffffc4: service driver pciehp loaded
+<6>pciehp 0000:59:01.0:pcieffffffc4: HPC vendor_id 104c device_id 8233 ss_vid 0 ss_did 0
+<7>pciehp 0000:59:01.0:pcieffffffc4: service driver pciehp loaded
+<6>pciehp 0000:59:02.0:pcieffffffc4: HPC vendor_id 104c device_id 8233 ss_vid 0 ss_did 0
+<7>pciehp 0000:59:02.0:pcieffffffc4: service driver pciehp loaded
+<6>pciehp 0000:59:03.0:pcieffffffc4: HPC vendor_id 104c device_id 8233 ss_vid 0 ss_did 0
+<7>pciehp 0000:59:03.0:pcieffffffc4: service driver pciehp loaded
+<6>pciehp 0000:59:04.0:pcieffffffc4: HPC vendor_id 104c device_id 8233 ss_vid 0 ss_did 0
+<7>pciehp 0000:59:04.0:pcieffffffc4: service driver pciehp loaded
+<6>pciehp 0000:59:05.0:pcieffffffc4: HPC vendor_id 104c device_id 8233 ss_vid 0 ss_did 0
+<7>pciehp 0000:59:05.0:pcieffffffc4: service driver pciehp loaded
+<6>pciehp 0000:59:06.0:pcieffffffc4: HPC vendor_id 104c device_id 8233 ss_vid 0 ss_did 0
+
+<7>pciehp 0000:59:06.0:pcieffffffc4: service driver pciehp loaded
+<6>pciehp 0000:59:07.0:pcieffffffc4: HPC vendor_id 104c device_id 8233 ss_vid 0 ss_did 0
+<7>pciehp 0000:59:07.0:pcieffffffc4: service driver pciehp loaded
+<6>pciehp 0000:59:08.0:pcieffffffc4: HPC vendor_id 104c device_id 8233 ss_vid 0 ---Type <return> to continue, or q <return> to quit---
+ss_did 0
+<7>pciehp 0000:59:08.0:pcieffffffc4: service driver pciehp loaded
+<6>pciehp 0000:59:09.0:pcieffffffc4: HPC vendor_id 104c device_id 8233 ss_vid 0 ss_did 0
+<7>pciehp 0000:59:09.0:pcieffffffc4: service driver pciehp loaded
+<6>pciehp 0000:59:0a.0:pcieffffffc4: HPC vendor_id 104c device_id 8233 ss_vid 0 ss_did 0
+<7>pciehp 0000:59:0a.0:pcieffffffc4: service driver pciehp loaded
+<6>pciehp 0000:59:0b.0:pcieffffffc4: HPC vendor_id 104c device_id 8233 ss_vid 0 ss_did 0
+<7>pciehp 0000:59:0b.0:pcieffffffc4: service driver pciehp loaded
+<6>pciehp 0000:59:0c.0:pcieffffffc4: HPC vendor_id 104c device_id 8233 ss_vid 0 ss_did 0
+<7>pciehp 0000:59:0c.0:pcieffffffc4: service driver pciehp loaded
+<6>pciehp 0000:59:0d.0:pcieffffffc4: HPC vendor_id 104c device_id 8233 ss_vid 0 ss_did 0
+<7>pciehp 0000:59:0d.0:pcieffffffc4: service driver pciehp loaded
+<6>pciehp 0000:59:0e.0:pcieffffffc4: HPC vendor_id 104c device_id 8233 ss_vid 0 ss_did 0
+<7>pciehp 0000:59:0e.0:pcieffffffc4: service driver pciehp loaded
+<6>pciehp 0000:59:0f.0:pcieffffffc4: HPC vendor_id 104c device_id 8233 ss_vid 0 ss_did 0
+<7>pciehp 0000:59:0f.0:pcieffffffc4: service driver pciehp loaded
+
+---Type <return> to continue, or q <return> to quit---
+<6>pciehp: PCI Express Hot Plug Controller Driver version: 0.4
+<6>acpiphp: ACPI Hot Plug PCI Controller Driver version: 0.5
+<6>acpiphp: Slot [0-1] registered
+<6>acpiphp: Slot [1-1] registered
+<6>acpiphp: Slot [2-1] registered
+<6>acpiphp: Slot [3-1] registered
+<6>acpiphp: Slot [4-1] registered
+<6>acpiphp: Slot [5-1] registered
+<6>acpiphp: Slot [6-1] registered
+<6>acpiphp: Slot [7-1] registered
+<6>acpiphp: Slot [8-1] registered
+<6>acpiphp: Slot [9-1] registered
+<6>acpiphp: Slot [10-1] registered
+<6>acpiphp: Slot [11-1] registered
+<6>acpiphp: Slot [12-1] registered
+<6>acpiphp: Slot [13-1] registered
+<6>acpiphp: Slot [14-1] registered
+<6>acpiphp: Slot [15-1] registered
+<6>acpiphp: Slot [16-1] registered
+<6>acpiphp: Slot [17-1] registered
+<6>acpiphp: Slot [18-1] registered
+<6>acpiphp: Slot [19-1] registered
+<6>acpiphp: Slot [20-1] registered
+---Type <return> to continue, or q <return> to quit---
+<6>acpiphp: Slot [21-1] registered
+<6>acpiphp: Slot [22-1] registered
+<6>acpiphp: Slot [23-1] registered
+<6>acpiphp: Slot [24-1] registered
+<6>acpiphp: Slot [25-1] registered
+<6>acpiphp: Slot [26-1] registered
+<6>acpiphp: Slot [27-1] registered
+<6>acpiphp: Slot [28-1] registered
+<6>acpiphp: Slot [29-1] registered
+<6>acpiphp: Slot [30-1] registered
+<6>acpiphp: Slot [31-1] registered
+<4>pci-stub: invalid id string ""
+<6>input: Power Button as /devices/LNXSYSTM:00/LNXPWRBN:00/input/input0
+<6>ACPI: Power Button [PWRF]
+<7>ACPI: acpi_idle registered with cpuidle
+<6>processor LNXCPU:00: registered as cooling_device0
+<6>ERST: Table is not found!
+<6>Non-volatile memory driver v1.3
+<6>Linux agpgart interface v0.103
+<6>crash memory driver: version 1.1
+<6>Serial: 8250/16550 driver, 4 ports, IRQ sharing enabled
+<6>serial8250: ttyS0 at I/O 0x3f8 (irq = 4) is a 16550A
+<6>serial8250: ttyS1 at I/O 0x2f8 (irq = 3) is a 16550A
+---Type <return> to continue, or q <return> to quit---
+<6>brd: module loaded
+<6>loop: module loaded
+<6>input: Macintosh mouse button emulation as /devices/virtual/input/input1
+<6>megaraid cmm: 2.20.2.7 (Release Date: Sun Jul 16 00:01:03 EST 2006)
+<6>megasas: 00.00.05.34-rc1 Thu. Feb. 24 17:00:00 PDT 2011
+<6>Fixed MDIO Bus: probed
+<6>ehci_hcd: USB 2.0 'Enhanced' Host Controller (EHCI) Driver
+<6>ohci_hcd: USB 1.1 'Open' Host Controller (OHCI) Driver
+<6>uhci_hcd: USB Universal Host Controller Interface driver
+<7>  alloc irq_desc for 16 on node -1
+<7>  alloc kstat_irqs on node -1
+<6>uhci_hcd 0000:c0:01.0: PCI INT D -> GSI 16 (level, low) -> IRQ 16
+<7>uhci_hcd 0000:c0:01.0: setting latency timer to 64
+<6>uhci_hcd 0000:c0:01.0: UHCI Host Controller
+<6>uhci_hcd 0000:c0:01.0: new USB bus registered, assigned bus number 1
+<6>uhci_hcd 0000:c0:01.0: irq 16, io base 0x0000c020
+<6>usb usb1: New USB device found, idVendor=1d6b, idProduct=0001
+<6>usb usb1: New USB device strings: Mfr=3, Product=2, SerialNumber=1
+<6>usb usb1: Product: UHCI Host Controller
+<6>usb usb1: Manufacturer: Linux 2.6.32-131 uhci_hcd
+<6>usb usb1: SerialNumber: 0000:c0:01.0
+<6>usb usb1: configuration #1 chosen from 1 choice
+<6>hub 1-0:1.0: USB hub found
+---Type <return> to continue, or q <return> to quit---
+<6>hub 1-0:1.0: 2 ports detected
+<6>usbcore: registered new interface driver usbserial
+<6>USB Serial support registered for generic
+<6>usbcore: registered new interface driver usbserial_generic
+<6>usbserial: USB Serial Driver core
+<6>PNP: PS/2 Controller [PNP0303:KBD,PNP0f13:MOU] at 0x60,0x64 irq 1,12
+<6>serio: i8042 KBD port at 0x60,0x64 irq 1
+<6>serio: i8042 AUX port at 0x60,0x64 irq 12
+<6>mice: PS/2 mouse device common for all mice
+<6>input: AT Translated Set 2 keyboard as /devices/platform/i8042/serio0/input/input2
+<6>rtc_cmos 00:03: rtc core: registered rtc_cmos as rtc0
+<6>rtc0: alarms up to one day, 114 bytes nvram, hpet irqs
+<6>cpuidle: using governor ladder
+<6>cpuidle: using governor menu
+<6>usbcore: registered new interface driver hiddev
+<6>usbcore: registered new interface driver usbhid
+<6>usbhid: v2.6:USB HID core driver
+<4>u32 classifier
+<4>    Actions configured 
+<4>nf_conntrack version 0.5.0 (16384 buckets, 65536 max)
+<6>IPv4 over IPv4 tunneling driver
+<6>ip_tables: (C) 2000-2006 Netfilter Core Team
+---Type <return> to continue, or q <return> to quit---
+<6>TCP cubic registered
+<6>Initializing XFRM netlink socket
+<6>NET: Registered protocol family 17
+<7>PM: Resume from disk failed.
+<4>registered taskstats version 1
+<4>  Magic number: 7:836:464
+<6>rtc_cmos 00:03: setting system clock to 2011-04-20 04:30:02 UTC (1303273802)
+<6>Initalizing network drop monitor service
+<6>Freeing unused kernel memory: 1904k freed
+<6>Write protecting the kernel read-only data: 10240k
+<6>Freeing unused kernel memory: 1028k freed
+<6>Freeing unused kernel memory: 1764k freed
+<6>usb 1-1: new full speed USB device using uhci_hcd and address 2
+<7>  alloc irq_desc for 18 on node -1
+<7>  alloc kstat_irqs on node -1
+<6>i801_smbus 0000:00:1f.3: PCI INT A -> GSI 18 (level, low) -> IRQ 18
+<6>input: ImExPS/2 Generic Explorer Mouse as /devices/platform/i8042/serio1/input/input3
+<6>usb 1-1: New USB device found, idVendor=0000, idProduct=0000
+<6>usb 1-1: New USB device strings: Mfr=1, Product=2, SerialNumber=3
+<6>usb 1-1: Product: QEMU USB HARDDRIVE
+<6>usb 1-1: Manufacturer: QEMU 0.13.0
+<6>usb 1-1: SerialNumber: 1
+---Type <return> to continue, or q <return> to quit---
+<6>usb 1-1: configuration #1 chosen from 1 choice
+<6>virtio-pci 0000:c0:02.0: PCI INT A -> GSI 18 (level, low) -> IRQ 18
+<6>virtio-pci 0000:c0:04.0: PCI INT A -> GSI 16 (level, low) -> IRQ 16
+<7>ata_piix 0000:c0:00.0: version 2.13
+<7>ata_piix 0000:c0:00.0: setting latency timer to 64
+<6>scsi0 : ata_piix
+<6>scsi1 : ata_piix
+<6>ata1: PATA max MWDMA2 cmd 0x1f0 ctl 0x3f6 bmdma 0xc000 irq 14
+<6>ata2: PATA max MWDMA2 cmd 0x170 ctl 0x376 bmdma 0xc008 irq 15
+<6>Initializing USB Mass Storage driver...
+<6>scsi2 : SCSI emulation for USB Mass Storage devices
+<6>usbcore: registered new interface driver usb-storage
+<6>USB Mass Storage support registered.
+<7>usb-storage: device found at 2
+<7>usb-storage: waiting for device to settle before scanning
+<7>  alloc irq_desc for 85 on node -1
+<7>  alloc kstat_irqs on node -1
+<7>virtio-pci 0000:c0:02.0: irq 85 for MSI/MSI-X
+<7>  alloc irq_desc for 86 on node -1
+<7>  alloc kstat_irqs on node -1
+<7>virtio-pci 0000:c0:02.0: irq 86 for MSI/MSI-X
+<6> vda: vda1 vda2 vda3 vda4
+<6>EXT4-fs (vda1): mounted filesystem with ordered data mode
+---Type <return> to continue, or q <return> to quit---
+<6>udev: starting version 147
+<6>ixgbevf: Intel(R) 82599 Virtual Function - version 1.0.19-k0
+<6>Copyright (c) 2009 - 2010 Intel Corporation.
+<7>ixgbevf 0000:28:03.0: setting latency timer to 64
+<7>  alloc irq_desc for 87 on node -1
+<7>  alloc kstat_irqs on node -1
+<7>ixgbevf 0000:28:03.0: irq 87 for MSI/MSI-X
+<7>  alloc irq_desc for 88 on node -1
+<7>  alloc kstat_irqs on node -1
+<7>ixgbevf 0000:28:03.0: irq 88 for MSI/MSI-X
+<7>  alloc irq_desc for 89 on node -1
+<7>  alloc kstat_irqs on node -1
+<7>ixgbevf 0000:28:03.0: irq 89 for MSI/MSI-X
+<6>udev: renamed network interface eth0 to eth-vf1
+<6>802.1Q VLAN Support v1.8 Ben Greear <greearb@candelatech.com>
+<6>All bugs added by David S. Miller <davem@redhat.com>
+<6>8021q: adding VLAN 0 to HW filter on device eth-vf1
+<6>EXT4-fs (vda2): mounted filesystem with ordered data mode
+<6>EXT4-fs (vda3): mounted filesystem with ordered data mode
+<6>EXT4-fs (vda4): mounted filesystem with ordered data mode
+<6>kjournald starting.  Commit interval 5 seconds
+<6>EXT3-fs (ram7): using internal journal
+<6>EXT3-fs (ram7): mounted filesystem with ordered data mode
+---Type <return> to continue, or q <return> to quit---
+<7>usb-storage: device scan complete
+<5>scsi 2:0:0:0: Direct-Access     QEMU     QEMU HARDDISK    0.13 PQ: 0 ANSI: 5
+<5>sd 2:0:0:0: [sda] 16 512-byte logical blocks: (8.19 kB/8.00 KiB)
+<6>Adding 14444k swap on /mnt/ram7/swapfile.  Priority:-1 extents:62 across:16044k 
+<5>sd 2:0:0:0: [sda] Write Protect is off
+<7>sd 2:0:0:0: [sda] Mode Sense: 1f 00 00 08
+<3>sd 2:0:0:0: [sda] Assuming drive cache: write through
+<3>sd 2:0:0:0: [sda] Assuming drive cache: write through
+<6> sda:
+<6>device-mapper: uevent: version 1.0.3
+<6>device-mapper: ioctl: 4.20.6-ioctl (2011-02-02) initialised: dm-devel@redhat.com
+<4> unknown partition table
+<3>sd 2:0:0:0: [sda] Assuming drive cache: write through
+<5>sd 2:0:0:0: [sda] Attached SCSI disk
+<5>sd 2:0:0:0: Attached scsi generic sg0 type 0
+<6>NET: Registered protocol family 10
+<6>lo: Disabled Privacy Extensions
+<6>tunl0: Disabled Privacy Extensions
+<6>lo1: Disabled Privacy Extensions
+<6>tunl0: Disabled Privacy Extensions
+<6>lo2: Disabled Privacy Extensions
+---Type <return> to continue, or q <return> to quit---
+<6>tunl0: Disabled Privacy Extensions
+<6>lo3: Disabled Privacy Extensions
+<6>tunl0: Disabled Privacy Extensions
+<6>lo4: Disabled Privacy Extensions
+<6>tunl0: Disabled Privacy Extensions
+<6>lo5: Disabled Privacy Extensions
+<6>tunl0: Disabled Privacy Extensions
+<6>lo6: Disabled Privacy Extensions
+<6>tunl0: Disabled Privacy Extensions
+<6>lo7: Disabled Privacy Extensions
+<6>tunl0: Disabled Privacy Extensions
+<6>lo8: Disabled Privacy Extensions
+<6>tunl0: Disabled Privacy Extensions
+<6>lo9: Disabled Privacy Extensions
+<6>tunl0: Disabled Privacy Extensions
+<6>lo10: Disabled Privacy Extensions
+<6>tunl0: Disabled Privacy Extensions
+<6>lo11: Disabled Privacy Extensions
+<6>tunl0: Disabled Privacy Extensions
+<6>lo12: Disabled Privacy Extensions
+<6>tunl0: Disabled Privacy Extensions
+<6>lo13: Disabled Privacy Extensions
+<6>tunl0: Disabled Privacy Extensions
+---Type <return> to continue, or q <return> to quit---
+<6>lo14: Disabled Privacy Extensions
+<6>tunl0: Disabled Privacy Extensions
+<6>lo15: Disabled Privacy Extensions
+<6>tunl0: Disabled Privacy Extensions
+<4>EXT4-fs warning (device vda2): release_blocks_on_commit: discard not supported, disabling
+<4>EXT4-fs warning (device vda1): release_blocks_on_commit: discard not supported, disabling
+<6>lo: Disabled Privacy Extensions
+<6>tunl0: Disabled Privacy Extensions
+<7>eth-vf1: no IPv6 routers present
+<7>eth-vf1.3073: no IPv6 routers present
+<7>eth-vf1.3076: no IPv6 routers present
+<7>eth-vf1.3074: no IPv6 routers present
+<7>eth-vf1.3075: no IPv6 routers present
+<6>ADDRCONF(NETDEV_CHANGE): eth-vf1: link becomes ready
+<6>device eth-vf1 entered promiscuous mode
+<6>fuse init (API version 7.13)
+<6>device eth-vf1.3074 entered promiscuous mode
+<4>EXT4-fs warning (device vda3): release_blocks_on_commit: discard not supported, disabling
+<6>sysldr[1911]: segfault at 2d0 ip 00007f2f2ff11ae0 sp 00007fff7e09caa8 error 4 in libpthread-2.12.so[7f2f2ff05000+18000]
+---Type <return> to continue, or q <return> to quit---
+<6>device eth-vf1.514 entered promiscuous mode
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+---Type <return> to continue, or q <return> to quit---
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+---Type <return> to continue, or q <return> to quit---
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+---Type <return> to continue, or q <return> to quit---
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+---Type <return> to continue, or q <return> to quit---
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<6>ipv4[3014]: segfault at 1 ip 00007f44efc2bb29 sp 00007f44c840d810 error 6 in libinfra.so[7f44efbce000+8b000]
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+---Type <return> to continue, or q <return> to quit---
+<7>IPv6 addrconf: prefix with wrong length 48
+<4>EXT4-fs warning (device vda4): release_blocks_on_commit: discard not supported, disabling
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<6>ipv4[10289]: segfault at 1 ip 00007ffc34c65595 sp 00007ffc0b609890 error 6 in libinfra.so[7ffc34c09000+8b000]
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<6>ipv6[12649]: segfault at 1 ip 00007f1f17782595 sp 00007f1ee9fb8890 error 6 in libinfra.so[7f1f17726000+8b000]
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+---Type <return> to continue, or q <return> to quit---
+<6>mpls_lsd[2735]: segfault at 7f8dacdaa390 ip 00007f5da132e7a8 sp 00007f5d86a047c0 error 4 in libaipc.so[7f5da12e5000+54000]
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<6>bcdl ctrl bcdls[26542]: segfault at 50 ip 00007f627d9cdbc1 sp 00007f62534e81e0 error 4 in libinfra.so[7f627d960000+8b000]
+<6>afm response - [2168]: segfault at 7048 ip 00007f10a851c125 sp 00007f1097a23060 error 4 in libaipc.so[7f10a8507000+54000]
+<6>domain_services[27015]: segfault at 7f62ca3f94c8 ip 00007f62dd4b164f sp 00007f62c81f88d0 error 4 in libmbp.so[7f62dd4a8000+c000]
+<6>ipv4_io[2663]: segfault at 108 ip 00007f1897d8f97c sp 00007f1873ec4970 error 6 in libinfra.so[7f1897d5d000+8b000]
+<6>sysdb_mc[27001]: segfault at 1 ip 00007fb47bd45f68 sp 00007fb467828d00 error 6 in libinfra.so[7fb47bceb000+8b000]
+<7>IPv6 addrconf: prefix with wrong length 48
+---Type <return> to continue, or q <return> to quit---
+<3>INFO: task main:2546 blocked for more than 120 seconds.
+<3>"echo 0 > /proc/sys/kernel/hung_task_timeout_secs" disables this message.
+<6>main          D 0000000000000000     0  2546   1726 0x00000000
+<4> ffff8800d6e75cb8 0000000000000082 00000000ffffffea 00000000ffffffff
+<4> ffff8800d6e75fd8 ffff8800d6e69540 0000000000015f80 000000000000f598
+<4> 0000000000015f80 ffff8800d6e75fd8 0000000000015f80 ffff8800d6e75fd8
+<4>Call Trace:
+<4> [<ffffffff8109ce72>] ? do_futex+0x232/0xd90
+<4> [<ffffffff8104cc70>] ? __enqueue_entity+0x80/0x90
+<4> [<ffffffff8109bf40>] ? exit_robust_list+0x90/0x150
+<4> [<ffffffff81066429>] exit_mm+0x79/0x120
+<4> [<ffffffff81066685>] do_exit+0x1b5/0x860
+<4> [<ffffffff8120b6d6>] ? inode_has_perm+0x76/0xd0
+<4> [<ffffffff81078e9b>] ? __dequeue_signal+0x1b/0x160
+<4> [<ffffffff81066d71>] do_group_exit+0x41/0xb0
+<4> [<ffffffff8107c879>] get_signal_to_deliver+0x209/0x450
+<4> [<ffffffff8100a5a4>] do_notify_resume+0xf4/0x8d0
+<4> [<ffffffff81034d7b>] ? pvclock_clocksource_read+0x4b/0xd0
+<4> [<ffffffff8109da50>] ? sys_futex+0x80/0x140
+<4> [<ffffffff810942dc>] ? ktime_get_ts+0xac/0xf0
+<4> [<ffffffff8100b380>] int_signal+0x12/0x17
+<3>INFO: task ipv4_io:2661 blocked for more than 120 seconds.
+<3>"echo 0 > /proc/sys/kernel/hung_task_timeout_secs" disables this message.
+---Type <return> to continue, or q <return> to quit---
+<6>ipv4_io       D 0000000000000000     0  2661   1726 0x00000000
+<4> ffff8800cc3d7cb8 0000000000000082 0000000000000002 ffff8800cc3d7c80
+<4> ffff8800cc3d7fd8 ffff8800cc3d5500 0000000000015f80 000000000000f598
+<4> 0000000000015f80 ffff8800cc3d7fd8 0000000000015f80 ffff8800cc3d7fd8
+<4>Call Trace:
+<4> [<ffffffff8109bf40>] ? exit_robust_list+0x90/0x150
+<4> [<ffffffff81066429>] exit_mm+0x79/0x120
+<4> [<ffffffff81066685>] do_exit+0x1b5/0x860
+<4> [<ffffffff81078e9b>] ? __dequeue_signal+0x1b/0x160
+<4> [<ffffffff81066d71>] do_group_exit+0x41/0xb0
+<4> [<ffffffff8107c879>] get_signal_to_deliver+0x209/0x450
+<4> [<ffffffff8100a5a4>] do_notify_resume+0xf4/0x8d0
+<4> [<ffffffff814165a5>] ? sys_accept4+0x1d5/0x230
+<4> [<ffffffff81061ce6>] ? do_fork+0x146/0x410
+<4> [<ffffffff810856a2>] ? pid_vnr+0x22/0x30
+<4> [<ffffffff8100b380>] int_signal+0x12/0x17
+<3>INFO: task ipv4_io:2662 blocked for more than 120 seconds.
+<3>"echo 0 > /proc/sys/kernel/hung_task_timeout_secs" disables this message.
+<6>ipv4_io       D 0000000000000000     0  2662   1726 0x00000000
+<4> ffff8800cc3d9cb8 0000000000000082 ffff88011fe7bdf0 ffffea0002751708
+<4> ffff8800cc3d9fd8 ffff8800cc3d4aa0 0000000000015f80 000000000000f598
+<4> 0000000000015f80 ffff8800cc3d9fd8 0000000000015f80 ffff8800cc3d9fd8
+<4>Call Trace:
+---Type <return> to continue, or q <return> to quit---
+<4> [<ffffffff81051cc8>] ? hrtick_update+0x38/0x40
+<4> [<ffffffff81009a08>] ? __switch_to+0x188/0x2f0
+<4> [<ffffffff8109bf40>] ? exit_robust_list+0x90/0x150
+<4> [<ffffffff81066429>] exit_mm+0x79/0x120
+<4> [<ffffffff81066685>] do_exit+0x1b5/0x860
+<4> [<ffffffff81078e9b>] ? __dequeue_signal+0x1b/0x160
+<4> [<ffffffff81066d71>] do_group_exit+0x41/0xb0
+<4> [<ffffffff8107c879>] get_signal_to_deliver+0x209/0x450
+<4> [<ffffffff8100a5a4>] do_notify_resume+0xf4/0x8d0
+<4> [<ffffffff8107aa90>] ? dequeue_signal+0x60/0x150
+<4> [<ffffffff8107a532>] ? recalc_sigpending+0x32/0x80
+<4> [<ffffffff8107ad21>] ? sys_rt_sigtimedwait+0x1a1/0x260
+<4> [<ffffffff81164c60>] ? vfs_write+0x140/0x1a0
+<4> [<ffffffff8100b380>] int_signal+0x12/0x17
+<3>INFO: task ipv4_io:2668 blocked for more than 120 seconds.
+<3>"echo 0 > /proc/sys/kernel/hung_task_timeout_secs" disables this message.
+<6>ipv4_io       D 0000000000000000     0  2668   1726 0x00000000
+<4> ffff8800cc3efcb8 0000000000000082 ffff8800cc3efb48 ffffffff8109a869
+<4> ffff8800cc3effd8 ffff8800cc2fa040 0000000000015f80 000000000000f598
+<4> 0000000000015f80 ffff8800cc3effd8 0000000000015f80 ffff8800cc3effd8
+<4>Call Trace:
+<4> [<ffffffff8109a869>] ? drop_futex_key_refs+0x49/0x80
+<4> [<ffffffff8109ce72>] ? do_futex+0x232/0xd90
+---Type <return> to continue, or q <return> to quit---
+<4> [<ffffffff811037de>] ? find_get_page+0x1e/0x80
+<4> [<ffffffff8110473e>] ? filemap_fault+0xde/0x440
+<4> [<ffffffff8109bf40>] ? exit_robust_list+0x90/0x150
+<4> [<ffffffff81066429>] exit_mm+0x79/0x120
+<4> [<ffffffff81066685>] do_exit+0x1b5/0x860
+<4> [<ffffffff8112b99f>] ? handle_pte_fault+0x9f/0xad0
+<4> [<ffffffff81078e9b>] ? __dequeue_signal+0x1b/0x160
+<4> [<ffffffff81066d71>] do_group_exit+0x41/0xb0
+<4> [<ffffffff8107c879>] get_signal_to_deliver+0x209/0x450
+<4> [<ffffffff8100a5a4>] do_notify_resume+0xf4/0x8d0
+<4> [<ffffffff8109da50>] ? sys_futex+0x80/0x140
+<4> [<ffffffff8100b380>] int_signal+0x12/0x17
+<3>INFO: task main:2853 blocked for more than 120 seconds.
+<3>"echo 0 > /proc/sys/kernel/hung_task_timeout_secs" disables this message.
+<6>main          D 0000000000000000     0  2853   1726 0x00000000
+<4> ffff8800c5de7cb8 0000000000000082 00000000ffffffea 00000000ffffffff
+<4> ffff8800c5de7fd8 ffff8800c5de5500 0000000000015f80 000000000000f598
+<4> 0000000000015f80 ffff8800c5de7fd8 0000000000015f80 ffff8800c5de7fd8
+<4>Call Trace:
+<4> [<ffffffff81055a28>] ? dequeue_entity+0xa8/0x160
+<4> [<ffffffff81009abd>] ? __switch_to+0x23d/0x2f0
+<4> [<ffffffff8109bf40>] ? exit_robust_list+0x90/0x150
+<4> [<ffffffff81066429>] exit_mm+0x79/0x120
+---Type <return> to continue, or q <return> to quit---
+<4> [<ffffffff81066685>] do_exit+0x1b5/0x860
+<4> [<ffffffff81078e9b>] ? __dequeue_signal+0x1b/0x160
+<4> [<ffffffff81066d71>] do_group_exit+0x41/0xb0
+<4> [<ffffffff8107c879>] get_signal_to_deliver+0x209/0x450
+<4> [<ffffffff8100a5a4>] do_notify_resume+0xf4/0x8d0
+<4> [<ffffffff811a321e>] ? ep_scan_ready_list+0x13e/0x190
+<4> [<ffffffff811a3521>] ? sys_epoll_wait+0x291/0x2b0
+<4> [<ffffffff8105aff0>] ? default_wake_function+0x0/0x20
+<4> [<ffffffff8100b380>] int_signal+0x12/0x17
+<3>INFO: task main:2855 blocked for more than 120 seconds.
+<3>"echo 0 > /proc/sys/kernel/hung_task_timeout_secs" disables this message.
+<6>main          D 0000000000000000     0  2855   1726 0x00000000
+<4> ffff8800c5de9cb8 0000000000000082 00000000ffffffea 00000000ffffffff
+<4> ffff8800c5de9fd8 ffff8800c5de4aa0 0000000000015f80 000000000000f598
+<4> 0000000000015f80 ffff8800c5de9fd8 0000000000015f80 ffff8800c5de9fd8
+<4>Call Trace:
+<4> [<ffffffff8109ce72>] ? do_futex+0x232/0xd90
+<4> [<ffffffff81009abd>] ? __switch_to+0x23d/0x2f0
+<4> [<ffffffff8109bf40>] ? exit_robust_list+0x90/0x150
+<4> [<ffffffff81066429>] exit_mm+0x79/0x120
+<4> [<ffffffff81066685>] do_exit+0x1b5/0x860
+<4> [<ffffffff81078e9b>] ? __dequeue_signal+0x1b/0x160
+<4> [<ffffffff81066d71>] do_group_exit+0x41/0xb0
+---Type <return> to continue, or q <return> to quit---
+<4> [<ffffffff8107c879>] get_signal_to_deliver+0x209/0x450
+<4> [<ffffffff8100a5a4>] do_notify_resume+0xf4/0x8d0
+<4> [<ffffffff81034d7b>] ? pvclock_clocksource_read+0x4b/0xd0
+<4> [<ffffffff8109da50>] ? sys_futex+0x80/0x140
+<4> [<ffffffff810942dc>] ? ktime_get_ts+0xac/0xf0
+<4> [<ffffffff8100b380>] int_signal+0x12/0x17
+<3>INFO: task main:2867 blocked for more than 120 seconds.
+<3>"echo 0 > /proc/sys/kernel/hung_task_timeout_secs" disables this message.
+<6>main          D 0000000000000000     0  2867   1726 0x00000000
+<4> ffff8800c5e73cb8 0000000000000082 0000000600000002 ffff88000001dd80
+<4> ffff8800c5e73fd8 ffff8800c5e6eaa0 0000000000015f80 000000000000f598
+<4> 0000000000015f80 ffff8800c5e73fd8 0000000000015f80 ffff8800c5e73fd8
+<4>Call Trace:
+<4> [<ffffffff81009abd>] ? __switch_to+0x23d/0x2f0
+<4> [<ffffffff8109bf40>] ? exit_robust_list+0x90/0x150
+<4> [<ffffffff81066429>] exit_mm+0x79/0x120
+<4> [<ffffffff81066685>] do_exit+0x1b5/0x860
+<4> [<ffffffff81078e9b>] ? __dequeue_signal+0x1b/0x160
+<4> [<ffffffff81066d71>] do_group_exit+0x41/0xb0
+<4> [<ffffffff8107c879>] get_signal_to_deliver+0x209/0x450
+<4> [<ffffffff8100a5a4>] do_notify_resume+0xf4/0x8d0
+<4> [<ffffffff811a3521>] ? sys_epoll_wait+0x291/0x2b0
+<4> [<ffffffff8105aff0>] ? default_wake_function+0x0/0x20
+---Type <return> to continue, or q <return> to quit---
+<4> [<ffffffff8100b380>] int_signal+0x12/0x17
+<3>INFO: task ea_main:2871 blocked for more than 120 seconds.
+<3>"echo 0 > /proc/sys/kernel/hung_task_timeout_secs" disables this message.
+<6>ea_main       D 0000000000000000     0  2871   1726 0x00000000
+<4> ffff8800c5e9bcb8 0000000000000082 0000000000000001 0000000000000286
+<4> ffff8800c5e9bfd8 ffff8800c5e94080 0000000000015f80 000000000000f598
+<4> 0000000000015f80 ffff8800c5e9bfd8 0000000000015f80 ffff8800c5e9bfd8
+<4>Call Trace:
+<4> [<ffffffff81055a28>] ? dequeue_entity+0xa8/0x160
+<4> [<ffffffff81009abd>] ? __switch_to+0x23d/0x2f0
+<4> [<ffffffff8109bf40>] ? exit_robust_list+0x90/0x150
+<4> [<ffffffff81066429>] exit_mm+0x79/0x120
+<4> [<ffffffff81066685>] do_exit+0x1b5/0x860
+<4> [<ffffffff81078e9b>] ? __dequeue_signal+0x1b/0x160
+<4> [<ffffffff81066d71>] do_group_exit+0x41/0xb0
+<4> [<ffffffff8107c879>] get_signal_to_deliver+0x209/0x450
+<4> [<ffffffff8100a5a4>] do_notify_resume+0xf4/0x8d0
+<4> [<ffffffff811a3521>] ? sys_epoll_wait+0x291/0x2b0
+<4> [<ffffffff8105aff0>] ? default_wake_function+0x0/0x20
+<4> [<ffffffff8100b380>] int_signal+0x12/0x17
+<3>INFO: task ea_main:2892 blocked for more than 120 seconds.
+<3>"echo 0 > /proc/sys/kernel/hung_task_timeout_secs" disables this message.
+<6>ea_main       D 0000000000000000     0  2892   1726 0x00000000
+---Type <return> to continue, or q <return> to quit---
+<4> ffff8800c5fa1cb8 0000000000000082 00000000ffffffea 00000000ffffffff
+<4> ffff8800c5fa1fd8 ffff8800bf86e040 0000000000015f80 000000000000f598
+<4> 0000000000015f80 ffff8800c5fa1fd8 0000000000015f80 ffff8800c5fa1fd8
+<4>Call Trace:
+<4> [<ffffffff81055a28>] ? dequeue_entity+0xa8/0x160
+<4> [<ffffffff81009abd>] ? __switch_to+0x23d/0x2f0
+<4> [<ffffffff8109bf40>] ? exit_robust_list+0x90/0x150
+<4> [<ffffffff81066429>] exit_mm+0x79/0x120
+<4> [<ffffffff81066685>] do_exit+0x1b5/0x860
+<4> [<ffffffff81078e9b>] ? __dequeue_signal+0x1b/0x160
+<4> [<ffffffff81066d71>] do_group_exit+0x41/0xb0
+<4> [<ffffffff8107c879>] get_signal_to_deliver+0x209/0x450
+<4> [<ffffffff8100a5a4>] do_notify_resume+0xf4/0x8d0
+<4> [<ffffffff811a321e>] ? ep_scan_ready_list+0x13e/0x190
+<4> [<ffffffff811a3521>] ? sys_epoll_wait+0x291/0x2b0
+<4> [<ffffffff8105aff0>] ? default_wake_function+0x0/0x20
+<4> [<ffffffff8100b380>] int_signal+0x12/0x17
+<3>INFO: task ea_async:2894 blocked for more than 120 seconds.
+<3>"echo 0 > /proc/sys/kernel/hung_task_timeout_secs" disables this message.
+<6>ea_async      D 0000000000000000     0  2894   1726 0x00000000
+<4> ffff8800c5fb1cb8 0000000000000082 0000000000100000 00000000c5fb1be8
+<4> ffff8800c5fb1fd8 ffff8800c5fc4ae0 0000000000015f80 000000000000f598
+<4> 0000000000015f80 ffff8800c5fb1fd8 0000000000015f80 ffff8800c5fb1fd8
+---Type <return> to continue, or q <return> to quit---
+<4>Call Trace:
+<4> [<ffffffff81055a28>] ? dequeue_entity+0xa8/0x160
+<4> [<ffffffff81009abd>] ? __switch_to+0x23d/0x2f0
+<4> [<ffffffff8109bf40>] ? exit_robust_list+0x90/0x150
+<4> [<ffffffff81066429>] exit_mm+0x79/0x120
+<4> [<ffffffff81066685>] do_exit+0x1b5/0x860
+<4> [<ffffffff81078e9b>] ? __dequeue_signal+0x1b/0x160
+<4> [<ffffffff81066d71>] do_group_exit+0x41/0xb0
+<4> [<ffffffff8107c879>] get_signal_to_deliver+0x209/0x450
+<4> [<ffffffff8100a5a4>] do_notify_resume+0xf4/0x8d0
+<4> [<ffffffff811a321e>] ? ep_scan_ready_list+0x13e/0x190
+<4> [<ffffffff811a3521>] ? sys_epoll_wait+0x291/0x2b0
+<4> [<ffffffff8105aff0>] ? default_wake_function+0x0/0x20
+<4> [<ffffffff8100b380>] int_signal+0x12/0x17
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+---Type <return> to continue, or q <return> to quit---
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+---Type <return> to continue, or q <return> to quit---
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+---Type <return> to continue, or q <return> to quit---
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+---Type <return> to continue, or q <return> to quit---
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+---Type <return> to continue, or q <return> to quit---
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+---Type <return> to continue, or q <return> to quit---
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+---Type <return> to continue, or q <return> to quit---
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+---Type <return> to continue, or q <return> to quit---
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+---Type <return> to continue, or q <return> to quit---
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+---Type <return> to continue, or q <return> to quit---
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+---Type <return> to continue, or q <return> to quit---
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+---Type <return> to continue, or q <return> to quit---
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+---Type <return> to continue, or q <return> to quit---
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+---Type <return> to continue, or q <return> to quit---
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+---Type <return> to continue, or q <return> to quit---
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+---Type <return> to continue, or q <return> to quit---
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<3>BUG: soft lockup - CPU#0 stuck for 61s! [vi_config_repli:3444]
+<4>Modules linked in: fuse ipv6 sg dm_mod sd_mod crc_t10dif ext3 jbd 8021q garp stp llc ixgbevf mdio ext4 jbd2 virtio_balloon virtio_blk usb_storage ata_piix virtio_pci virtio_ring virtio i2c_i801 i2c_core [last unloaded: scsi_wait_scan]
+<6>CPU 0:
+<4>Modules linked in: fuse ipv6 sg dm_mod sd_mod crc_t10dif ext3 jbd 8021q garp stp llc ixgbevf mdio ext4 jbd2 virtio_balloon virtio_blk usb_storage ata_piix virtio_pci virtio_ring virtio i2c_i801 i2c_core [last unloaded: scsi_wait_scan]
+<6>Pid: 3444, comm: vi_config_repli Tainted: G           ---------------- T 2.6.32-131 #1 Bochs
+<6>RIP: 0010:[<ffffffff810524e1>]  [<ffffffff810524e1>] finish_task_switch+0x51/0xe0
+---Type <return> to continue, or q <return> to quit---
+<6>RSP: 0000:ffff88009070b758  EFLAGS: 00000246
+<6>RAX: 0000000000000000 RBX: ffff88009070b788 RCX: 00000000c0000100
+<6>RDX: 0000000000000000 RSI: ffff8800cf47c040 RDI: ffff880028215f80
+<6>RBP: ffffffff8100bbce R08: ffff88009070a000 R09: ffff8800cf483938
+<6>R10: 00000000ffffffff R11: 0000000000000000 R12: ffff880090713578
+<6>R13: ffff880028215fe8 R14: ffffffff81052185 R15: ffff88009070b6d8
+<6>FS:  00007ff0acf3c700(0000) GS:ffff880028200000(0000) knlGS:0000000000000000
+<6>CS:  0010 DS: 0000 ES: 0000 CR0: 000000008005003b
+<6>CR2: 000000000048fc67 CR3: 000000008e470000 CR4: 00000000000006f0
+<6>DR0: 0000000000000000 DR1: 0000000000000000 DR2: 0000000000000000
+<6>DR3: 0000000000000000 DR6: 00000000ffff0ff0 DR7: 0000000000000400
+<4>Call Trace:
+<4> [<ffffffff814ef647>] ? thread_return+0x3b/0x744
+<4> [<ffffffff810d5bea>] ? delayacct_end+0x8a/0xa0
+<4> [<ffffffff810d5e03>] ? __delayacct_freepages_end+0x43/0x50
+<4> [<ffffffff8111dc75>] ? do_try_to_free_pages+0x255/0x430
+<4> [<ffffffff814f026f>] ? schedule_timeout+0x13f/0x2a0
+<4> [<ffffffff81073e10>] ? process_timeout+0x0/0x10
+<4> [<ffffffff814f03ee>] ? schedule_timeout_uninterruptible+0x1e/0x20
+<4> [<ffffffff81114f5d>] ? __alloc_pages_nodemask+0x64d/0x920
+<4> [<ffffffff810d5bea>] ? delayacct_end+0x8a/0xa0
+<4> [<ffffffff811447ab>] ? alloc_pages_current+0xab/0x110
+<4> [<ffffffff81102957>] ? __page_cache_alloc+0x97/0xa0
+---Type <return> to continue, or q <return> to quit---
+<4> [<ffffffff81117c47>] ? __do_page_cache_readahead+0xd7/0x1d0
+<4> [<ffffffff81117d61>] ? ra_submit+0x21/0x30
+<4> [<ffffffff81104a8d>] ? filemap_fault+0x42d/0x440
+<4> [<ffffffff8112b429>] ? __do_fault+0x59/0x530
+<4> [<ffffffff8112b99f>] ? handle_pte_fault+0x9f/0xad0
+<4> [<ffffffff8112c537>] ? handle_mm_fault+0x167/0x2b0
+<4> [<ffffffff814f4e3c>] ? do_page_fault+0x1fc/0x570
+<4> [<ffffffff8107a532>] ? recalc_sigpending+0x32/0x80
+<4> [<ffffffff8107ad64>] ? sys_rt_sigtimedwait+0x1e4/0x260
+<4> [<ffffffff81164c60>] ? vfs_write+0x140/0x1a0
+<4> [<ffffffff814f2155>] ? page_fault+0x25/0x30
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<3>BUG: soft lockup - CPU#0 stuck for 78s! [l2vpn_mgr:3427]
+<4>Modules linked in: fuse ipv6 sg dm_mod sd_mod crc_t10dif ext3 jbd 8021q garp stp llc ixgbevf mdio ext4 jbd2 virtio_balloon virtio_blk usb_storage ata_piix virtio_pci virtio_ring virtio i2c_i801 i2c_core [last unloaded: scsi_wait_scan]
+---Type <return> to continue, or q <return> to quit---
+<6>CPU 0:
+<4>Modules linked in: fuse ipv6 sg dm_mod sd_mod crc_t10dif ext3 jbd 8021q garp stp llc ixgbevf mdio ext4 jbd2 virtio_balloon virtio_blk usb_storage ata_piix virtio_pci virtio_ring virtio i2c_i801 i2c_core [last unloaded: scsi_wait_scan]
+<6>Pid: 3427, comm: l2vpn_mgr Tainted: G           ---------------- T 2.6.32-131 #1 Bochs
+<6>RIP: 0010:[<ffffffff814f1ca7>]  [<ffffffff814f1ca7>] _spin_unlock_irqrestore+0x17/0x20
+<6>RSP: 0000:ffff880028203dd0  EFLAGS: 00000282
+<6>RAX: ffff880028215f80 RBX: ffff880028203dd0 RCX: 0000000000000001
+<6>RDX: 0000000000000001 RSI: 0000000000000282 RDI: 0000000000000282
+<6>RBP: ffffffff8100bbd3 R08: 0000030b85e1c266 R09: 0000000000000000
+<6>R10: 0000000000000000 R11: 0000000000000000 R12: ffff880028203d50
+<6>R13: ffff88008813eae0 R14: 0000000000000000 R15: ffffffff814f79fb
+<6>FS:  00007f6c05919700(0000) GS:ffff880028200000(0000) knlGS:0000000000000000
+<6>CS:  0010 DS: 0000 ES: 0000 CR0: 000000008005003b
+<6>CR2: 000000000048fc67 CR3: 000000008763b000 CR4: 00000000000006f0
+<6>DR0: 0000000000000000 DR1: 0000000000000000 DR2: 0000000000000000
+<6>DR3: 0000000000000000 DR6: 00000000ffff0ff0 DR7: 0000000000000400
+<4>Call Trace:
+<4> <IRQ>  [<ffffffff8105ad09>] ? try_to_wake_up+0xc9/0x3b0
+<4> [<ffffffff81073e10>] ? process_timeout+0x0/0x10
+<4> [<ffffffff8105b045>] ? wake_up_process+0x15/0x20
+---Type <return> to continue, or q <return> to quit---
+<4> [<ffffffff81073e1e>] ? process_timeout+0xe/0x10
+<4> [<ffffffff8107539e>] ? run_timer_softirq+0x19e/0x320
+<4> [<ffffffff81028e0d>] ? lapic_next_event+0x1d/0x30
+<4> [<ffffffff8106afe7>] ? __do_softirq+0xc7/0x1e0
+<4> [<ffffffff8100c20c>] ? call_softirq+0x1c/0x30
+<4> [<ffffffff8100ddc5>] ? do_softirq+0x65/0xa0
+<4> [<ffffffff8106acfc>] ? irq_exit+0x7c/0x90
+<4> [<ffffffff814f7a00>] ? smp_apic_timer_interrupt+0x70/0x9d
+<4> [<ffffffff8100bbd3>] ? apic_timer_interrupt+0x13/0x20
+<4> <EOI>  [<ffffffff8111da28>] ? do_try_to_free_pages+0x8/0x430
+<4> [<ffffffff8107561d>] ? del_timer_sync+0x1d/0x30
+<4> [<ffffffff8111e0bb>] ? try_to_free_pages+0xab/0x120
+<4> [<ffffffff8111a680>] ? isolate_pages_global+0x0/0x410
+<4> [<ffffffff81114d5b>] ? __alloc_pages_nodemask+0x44b/0x920
+<4> [<ffffffff811447ab>] ? alloc_pages_current+0xab/0x110
+<4> [<ffffffff81102957>] ? __page_cache_alloc+0x97/0xa0
+<4> [<ffffffff81117c47>] ? __do_page_cache_readahead+0xd7/0x1d0
+<4> [<ffffffff81117d61>] ? ra_submit+0x21/0x30
+<4> [<ffffffff81104a8d>] ? filemap_fault+0x42d/0x440
+<4> [<ffffffff8112b429>] ? __do_fault+0x59/0x530
+<4> [<ffffffff8112b99f>] ? handle_pte_fault+0x9f/0xad0
+<4> [<ffffffff8108cb7c>] ? enqueue_hrtimer+0x7c/0xc0
+<4> [<ffffffff8108dba8>] ? __hrtimer_start_range_ns+0x1f8/0x3e0
+<4> [<ffffffff8112c537>] ? handle_mm_fault+0x167/0x2b0
+<4> [<ffffffff814f4e3c>] ? do_page_fault+0x1fc/0x570
+<4> [<ffffffff8107a532>] ? recalc_sigpending+0x32/0x80
+<4> [<ffffffff8107ad64>] ? sys_rt_sigtimedwait+0x1e4/0x260
+<4> [<ffffffff81164c60>] ? vfs_write+0x140/0x1a0
+<4> [<ffffffff814f2155>] ? page_fault+0x25/0x30
+<3>BUG: soft lockup - CPU#0 stuck for 85s! [Owner_plane:1809]
+<4>Modules linked in: fuse ipv6 sg dm_mod sd_mod crc_t10dif ext3 jbd 8021q garp stp llc ixgbevf mdio ext4 jbd2 virtio_balloon virtio_blk usb_storage ata_piix virtio_pci virtio_ring virtio i2c_i801 i2c_core [last unloaded: scsi_wait_scan]
+<6>CPU 0:
+<4>Modules linked in: fuse ipv6 sg dm_mod sd_mod crc_t10dif ext3 jbd 8021q garp stp llc ixgbevf mdio ext4 jbd2 virtio_balloon virtio_blk usb_storage ata_piix virtio_pci virtio_ring virtio i2c_i801 i2c_core [last unloaded: scsi_wait_scan]
+<6>Pid: 1809, comm: Owner_plane Tainted: G           ---------------- T 2.6.32-131 #1 Bochs
+<6>RIP: 0010:[<ffffffff810524e1>]  [<ffffffff810524e1>] finish_task_switch+0x51/0xe0
+<6>RSP: 0000:ffff880115017758  EFLAGS: 00000246
+<6>RAX: 0000000000000000 RBX: ffff880115017788 RCX: 00000000c0000100
+<6>RDX: 0000000000000000 RSI: ffff88011a976080 RDI: ffff880028215f80
+<6>RBP: ffffffff8100bbce R08: ffff880115016000 R09: 0000000000000000
+<6>R10: 00000000ffffffff R11: 0000000000000000 R12: ffff8801150540b8
+<6>R13: ffff880028215fe8 R14: ffffffff81052185 R15: ffff8801150176d8
+<6>FS:  00007fc228f4c700(0000) GS:ffff880028200000(0000) knlGS:0000000000000000
+<6>CS:  0010 DS: 0000 ES: 0000 CR0: 000000008005003b
+<6>CR2: 000000000048fc67 CR3: 000000010eb15000 CR4: 00000000000006f0
+<6>DR0: 0000000000000000 DR1: 0000000000000000 DR2: 0000000000000000
+<6>DR3: 0000000000000000 DR6: 00000000ffff0ff0 DR7: 0000000000000400
+<4>Call Trace:
+<4> [<ffffffff814ef647>] ? thread_return+0x3b/0x744
+<4> [<ffffffff810d5bea>] ? delayacct_end+0x8a/0xa0
+<4> [<ffffffff810d5e03>] ? __delayacct_freepages_end+0x43/0x50
+<4> [<ffffffff8111dc75>] ? do_try_to_free_pages+0x255/0x430
+<4> [<ffffffff814f026f>] ? schedule_timeout+0x13f/0x2a0
+<4> [<ffffffff81073e10>] ? process_timeout+0x0/0x10
+<4> [<ffffffff814f03ee>] ? schedule_timeout_uninterruptible+0x1e/0x20
+<4> [<ffffffff81114f5d>] ? __alloc_pages_nodemask+0x64d/0x920
+<4> [<ffffffffa0075105>] ? ext4_getblk+0xc5/0x1e0 [ext4]
+<4> [<ffffffff811447ab>] ? alloc_pages_current+0xab/0x110
+<4> [<ffffffff81102957>] ? __page_cache_alloc+0x97/0xa0
+<4> [<ffffffff81117c47>] ? __do_page_cache_readahead+0xd7/0x1d0
+<4> [<ffffffff81117d61>] ? ra_submit+0x21/0x30
+<4> [<ffffffff81104a8d>] ? filemap_fault+0x42d/0x440
+<4> [<ffffffff8112b429>] ? __do_fault+0x59/0x530
+<4> [<ffffffff8112b99f>] ? handle_pte_fault+0x9f/0xad0
+<4> [<ffffffff8108cb7c>] ? enqueue_hrtimer+0x7c/0xc0
+<4> [<ffffffff8112c537>] ? handle_mm_fault+0x167/0x2b0
+<4> [<ffffffff814f4e3c>] ? do_page_fault+0x1fc/0x570
+<4> [<ffffffff814f0d96>] ? do_nanosleep+0x86/0xb0
+<4> [<ffffffff8108de76>] ? hrtimer_nanosleep+0xa6/0x130
+<4> [<ffffffff8108cc10>] ? hrtimer_wakeup+0x0/0x30
+<4> [<ffffffff8108ddc4>] ? hrtimer_start_range_ns+0x14/0x20
+<4> [<ffffffff814f2155>] ? page_fault+0x25/0x30
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+---Type <return> to continue, or q <return> to quit---
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<3>BUG: soft lockup - CPU#0 stuck for 594s! [mrib6:3327]
+<4>Modules linked in: fuse ipv6 sg dm_mod sd_mod crc_t10dif ext3 jbd 8021q garp stp llc ixgbevf mdio ext4 jbd2 virtio_balloon virtio_blk usb_storage ata_piix virtio_pci virtio_ring virtio i2c_i801 i2c_core [last unloaded: scsi_wait_scan]
+<6>CPU 0:
+<4>Modules linked in: fuse ipv6 sg dm_mod sd_mod crc_t10dif ext3 jbd 8021q garp ---Type <return> to continue, or q <return> to quit---
+stp llc ixgbevf mdio ext4 jbd2 virtio_balloon virtio_blk usb_storage ata_piix virtio_pci virtio_ring virtio i2c_i801 i2c_core [last unloaded: scsi_wait_scan]
+<6>Pid: 3327, comm: mrib6 Tainted: G           ---------------- T 2.6.32-131 #1 Bochs
+<6>RIP: 0010:[<ffffffff810524e1>]  [<ffffffff810524e1>] finish_task_switch+0x51/0xe0
+<6>RSP: 0000:ffff880082d13758  EFLAGS: 00000246
+<6>RAX: 0000000000000000 RBX: ffff880082d13788 RCX: 00000000c0000100
+<6>RDX: 0000000000000000 RSI: ffff88003441aae0 RDI: ffff880028215f80
+<6>RBP: ffffffff8100bbce R08: ffff880082d12000 R09: ffff880034413938
+<6>R10: 00000000ffffffff R11: 0000000000000000 R12: ffff8800842b1578
+<6>R13: ffff880028215fe8 R14: ffffffff81052185 R15: ffff880082d136d8
+<6>FS:  00007f60c844a700(0000) GS:ffff880028200000(0000) knlGS:0000000000000000
+<6>CS:  0010 DS: 0000 ES: 0000 CR0: 000000008005003b
+<6>CR2: 000000000048fc67 CR3: 0000000088ec4000 CR4: 00000000000006f0
+<6>DR0: 0000000000000000 DR1: 0000000000000000 DR2: 0000000000000000
+<6>DR3: 0000000000000000 DR6: 00000000ffff0ff0 DR7: 0000000000000400
+<4>Call Trace:
+<4> [<ffffffff814ef647>] ? thread_return+0x3b/0x744
+<4> [<ffffffff810d5bea>] ? delayacct_end+0x8a/0xa0
+<4> [<ffffffff810d5e03>] ? __delayacct_freepages_end+0x43/0x50
+<4> [<ffffffff8111dc75>] ? do_try_to_free_pages+0x255/0x430
+<4> [<ffffffff814f026f>] ? schedule_timeout+0x13f/0x2a0
+<4> [<ffffffff81073e10>] ? process_timeout+0x0/0x10
+<4> [<ffffffff814f03ee>] ? schedule_timeout_uninterruptible+0x1e/0x20
+<4> [<ffffffff81114f5d>] ? __alloc_pages_nodemask+0x64d/0x920
+<4> [<ffffffff811447ab>] ? alloc_pages_current+0xab/0x110
+<4> [<ffffffff81102957>] ? __page_cache_alloc+0x97/0xa0
+<4> [<ffffffff81117c47>] ? __do_page_cache_readahead+0xd7/0x1d0
+<4> [<ffffffff81117d61>] ? ra_submit+0x21/0x30
+<4> [<ffffffff81104a8d>] ? filemap_fault+0x42d/0x440
+<4> [<ffffffff8112b429>] ? __do_fault+0x59/0x530
+<4> [<ffffffff8112b99f>] ? handle_pte_fault+0x9f/0xad0
+<4> [<ffffffff8112c537>] ? handle_mm_fault+0x167/0x2b0
+<4> [<ffffffff814f4e3c>] ? do_page_fault+0x1fc/0x570
+<4> [<ffffffff8107a532>] ? recalc_sigpending+0x32/0x80
+<4> [<ffffffff8107ad64>] ? sys_rt_sigtimedwait+0x1e4/0x260
+<4> [<ffffffff81164c60>] ? vfs_write+0x140/0x1a0
+<4> [<ffffffff814f2155>] ? page_fault+0x25/0x30
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+---Type <return> to continue, or q <return> to quit---
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<3>BUG: soft lockup - CPU#0 stuck for 2150s! [ipv6_connected:3403]
+<4>Modules linked in: fuse ipv6 sg dm_mod sd_mod crc_t10dif ext3 jbd 8021q garp stp llc ixgbevf mdio ext4 jbd2 virtio_balloon virtio_blk usb_storage ata_piix virtio_pci virtio_ring virtio i2c_i801 i2c_core [last unloaded: scsi_wait_scan]
+<6>CPU 0:
+<4>Modules linked in: fuse ipv6 sg dm_mod sd_mod crc_t10dif ext3 jbd 8021q garp stp llc ixgbevf mdio ext4 jbd2 virtio_balloon virtio_blk usb_storage ata_piix virtio_pci virtio_ring virtio i2c_i801 i2c_core [last unloaded: scsi_wait_scan]
+<6>Pid: 3403, comm: ipv6_connected Tainted: G           ---------------- T 2.6.32-131 #1 Bochs
+<6>RIP: 0010:[<ffffffff814f1ca7>]  [<ffffffff814f1ca7>] _spin_unlock_irqrestore+0x17/0x20
+<6>RSP: 0000:ffff88008e4a3838  EFLAGS: 00000206
+<6>RAX: ffff88008d8f6e48 RBX: ffff88008e4a3838 RCX: 0000000000000000
+<6>RDX: 0000000000000000 RSI: 0000000000000206 RDI: 0000000000000206
+<6>RBP: ffffffff8100bbce R08: 0000000000000001 R09: ffff88008e4a3938
+<6>R10: 0000000000000002 R11: 0000000000000000 R12: 0000000000000000
+---Type <return> to continue, or q <return> to quit---
+<6>R13: ffff88011a976080 R14: ffffffff81034d7b R15: ffff88008e4a37d8
+<6>FS:  00007f84ac51c700(0000) GS:ffff880028200000(0000) knlGS:0000000000000000
+<6>CS:  0010 DS: 0000 ES: 0000 CR0: 000000008005003b
+<6>CR2: 000000000048fc67 CR3: 000000009d8a5000 CR4: 00000000000006f0
+<6>DR0: 0000000000000000 DR1: 0000000000000000 DR2: 0000000000000000
+<6>DR3: 0000000000000000 DR6: 00000000ffff0ff0 DR7: 0000000000000400
+<4>Call Trace:
+<4> [<ffffffff810d5bea>] ? delayacct_end+0x8a/0xa0
+<4> [<ffffffff810d5e03>] ? __delayacct_freepages_end+0x43/0x50
+<4> [<ffffffff8111dc75>] ? do_try_to_free_pages+0x255/0x430
+<4> [<ffffffff8111e0bb>] ? try_to_free_pages+0xab/0x120
+<4> [<ffffffff8111a680>] ? isolate_pages_global+0x0/0x410
+<4> [<ffffffff81114d5b>] ? __alloc_pages_nodemask+0x44b/0x920
+<4> [<ffffffff811447ab>] ? alloc_pages_current+0xab/0x110
+<4> [<ffffffff81102957>] ? __page_cache_alloc+0x97/0xa0
+<4> [<ffffffff81117c47>] ? __do_page_cache_readahead+0xd7/0x1d0
+<4> [<ffffffff81117d61>] ? ra_submit+0x21/0x30
+<4> [<ffffffff81104a8d>] ? filemap_fault+0x42d/0x440
+<4> [<ffffffff8112b429>] ? __do_fault+0x59/0x530
+<4> [<ffffffff8112b99f>] ? handle_pte_fault+0x9f/0xad0
+<4> [<ffffffff8108cb7c>] ? enqueue_hrtimer+0x7c/0xc0
+<4> [<ffffffff8108dba8>] ? __hrtimer_start_range_ns+0x1f8/0x3e0
+<4> [<ffffffff8112c537>] ? handle_mm_fault+0x167/0x2b0
+<4> [<ffffffff814f4e3c>] ? do_page_fault+0x1fc/0x570
+<4> [<ffffffff8107a532>] ? recalc_sigpending+0x32/0x80
+<4> [<ffffffff8107ad64>] ? sys_rt_sigtimedwait+0x1e4/0x260
+<4> [<ffffffff81164c60>] ? vfs_write+0x140/0x1a0
+<4> [<ffffffff814f2155>] ? page_fault+0x25/0x30
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48
+<7>IPv6 addrconf: prefix with wrong length 48

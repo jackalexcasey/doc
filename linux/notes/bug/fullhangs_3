@@ -1,0 +1,136 @@
+"<3>INFO: task main:2652 blocked for more than 120 seconds.
+<4> [<ffffffff81009abd>] ? __switch_to+0x23d/0x2f0
+<4> [<ffffffff8109bf40>] ? exit_robust_list+0x90/0x150
+<4> [<ffffffff81066429>] exit_mm+0x79/0x120
+<4> [<ffffffff81066685>] do_exit+0x1b5/0x860
+
+<3>INFO: task fib_mgr:2751 blocked for more than 120 seconds.
+<4> [<ffffffff8114ebcf>] ? kmem_cache_alloc+0xcf/0x190
+<4> [<ffffffff8109bf40>] ? exit_robust_list+0x90/0x150
+<4> [<ffffffff81066429>] exit_mm+0x79/0x120
+<4> [<ffffffff81066685>] do_exit+0x1b5/0x860
+
+<3>INFO: task fib_mgr:2752 blocked for more than 120 seconds.
+<4> [<ffffffff81051cc8>] ? hrtick_update+0x38/0x40
+<4> [<ffffffff81009a08>] ? __switch_to+0x188/0x2f0
+<4> [<ffffffff8109bf40>] ? exit_robust_list+0x90/0x150
+<4> [<ffffffff81066429>] exit_mm+0x79/0x120
+<4> [<ffffffff81066685>] do_exit+0x1b5/0x860
+
+<3>INFO: task fib_mgr:2756 blocked for more than 120 seconds.
+<4> [<ffffffff81055a28>] ? dequeue_entity+0xa8/0x160
+<4> [<ffffffff81009abd>] ? __switch_to+0x23d/0x2f0
+<4> [<ffffffff8109bf40>] ? exit_robust_list+0x90/0x150
+<4> [<ffffffff81066429>] exit_mm+0x79/0x120
+<4> [<ffffffff81066685>] do_exit+0x1b5/0x860
+
+<3>INFO: task fib_mgr:2758 blocked for more than 120 seconds.
+<4> [<ffffffff8109a869>] ? drop_futex_key_refs+0x49/0x80
+<4> [<ffffffff8109ce72>] ? do_futex+0x232/0xd90
+<4> [<ffffffff8109bf40>] ? exit_robust_list+0x90/0x150
+<4> [<ffffffff81066429>] exit_mm+0x79/0x120
+<4> [<ffffffff81066685>] do_exit+0x1b5/0x860
+
+<3>INFO: task fib_mgr:2881 blocked for more than 120 seconds.
+<4> [<ffffffff81055a28>] ? dequeue_entity+0xa8/0x160
+<4> [<ffffffff81009abd>] ? __switch_to+0x23d/0x2f0
+<4> [<ffffffff8109bf40>] ? exit_robust_list+0x90/0x150
+<4> [<ffffffff81066429>] exit_mm+0x79/0x120
+<4> [<ffffffff81066685>] do_exit+0x1b5/0x860
+
+<3>INFO: task fib_mgr:2894 blocked for more than 120 seconds.
+<4> [<ffffffff81051cc8>] ? hrtick_update+0x38/0x40
+<4> [<ffffffff81009a08>] ? __switch_to+0x188/0x2f0
+<4> [<ffffffff8109bf40>] ? exit_robust_list+0x90/0x150
+<4> [<ffffffff81066429>] exit_mm+0x79/0x120
+<4> [<ffffffff81066685>] do_exit+0x1b5/0x860
+
+<3>INFO: task fib_mgr:2913 blocked for more than 120 seconds.
+<4> [<ffffffff81009abd>] ? __switch_to+0x23d/0x2f0
+<4> [<ffffffff8109bf40>] ? exit_robust_list+0x90/0x150
+<4> [<ffffffff81066429>] exit_mm+0x79/0x120
+<4> [<ffffffff81066685>] do_exit+0x1b5/0x860
+
+<3>INFO: task fib_mgr:2932 blocked for more than 120 seconds.
+<4> [<ffffffff8109ce72>] ? do_futex+0x232/0xd90
+<4> [<ffffffff81009abd>] ? __switch_to+0x23d/0x2f0
+<4> [<ffffffff8109bf40>] ? exit_robust_list+0x90/0x150
+<4> [<ffffffff81066429>] exit_mm+0x79/0x120
+<4> [<ffffffff81066685>] do_exit+0x1b5/0x860
+
+<3>INFO: task main:2949 blocked for more than 120 seconds.
+<4> [<ffffffff81009abd>] ? __switch_to+0x23d/0x2f0
+<4> [<ffffffff8109bf40>] ? exit_robust_list+0x90/0x150
+<4> [<ffffffff81066429>] exit_mm+0x79/0x120
+<4> [<ffffffff81066685>] do_exit+0x1b5/0x860
+
+<3>BUG: soft lockup - CPU#0 stuck for 62s! [bcdls:3673]
+<6>Pid: 3673, comm: bcdls Tainted: G           ---------------- T 2.6.32-131 #1 Bochs
+<4> [<ffffffff8111a476>] ? shrink_slab+0x96/0x1a0
+<4> [<ffffffff8111dcc3>] ? do_try_to_free_pages+0x2a3/0x430
+<4> [<ffffffff8111e0bb>] ? try_to_free_pages+0xab/0x120
+
+
+<3>BUG: soft lockup - CPU#0 stuck for 838s! [ipv6_nd:2630]
+<6>Pid: 2630, comm: ipv6_nd Tainted: G           ---------------- T 2.6.32-131 #1 Bochs
+<4> [<ffffffff811bb316>] ? mb_cache_shrink_fn+0x36/0x130
+<4> [<ffffffff8111a476>] ? shrink_slab+0x96/0x1a0
+<4> [<ffffffff8111dcc3>] ? do_try_to_free_pages+0x2a3/0x430
+
+
+
+<4> [<ffffffff814ef647>] ? thread_return+0x3b/0x744
+<4> [<ffffffff810d5bea>] ? delayacct_end+0x8a/0xa0
+<4> [<ffffffff810d5e03>] ? __delayacct_freepages_end+0x43/0x50
+<4> [<ffffffff8111dc75>] ? do_try_to_free_pages+0x255/0x430
+
+
+
+Q1;
+~~~~~~~
+How is it possible that 'khungtaskd' detect task hung in 'D' state && always in the 'exit_robust_list' ???
+
+At do_exit the thread is in 'D' state.
+For some reason we do cond_resched put on wait queue and never comeback...
+
+
+Typical stack trace:
+<4> [<ffffffff81009abd>] ? __switch_to+0x23d/0x2f0
+<4> [<ffffffff8109bf40>] ? exit_robust_list+0x90/0x150
+<4> [<ffffffff81066429>] exit_mm+0x79/0x120
+<4> [<ffffffff81066685>] do_exit+0x1b5/0x860
+<4> [<ffffffff81078e9b>] ? __dequeue_signal+0x1b/0x160
+<4> [<ffffffff81066d71>] do_group_exit+0x41/0xb0
+<4> [<ffffffff8107c879>] get_signal_to_deliver+0x209/0x450
+<4> [<ffffffff8100a5a4>] do_notify_resume+0xf4/0x8d0
+<4> [<ffffffff811a321e>] ? ep_scan_ready_list+0x13e/0x190
+<4> [<ffffffff811a3521>] ? sys_epoll_wait+0x291/0x2b0
+<4> [<ffffffff8105aff0>] ? default_wake_function+0x0/0x20
+<4> [<ffffffff8100b380>] int_signal+0x12/0x17
+
+1- process die for some reason -> do_exit()
+2- The exit_robust_list can sleep (if
+
+SYSCALL_DEFINE6(epoll_pwait,
+   error = sys_epoll_wait(epfd, events, maxevents, timeout);
+
+static void do_signal(struct pt_regs *regs)
+	signr = get_signal_to_deliver(&info, &ka, regs, NULL); 
+
+int get_signal_to_deliver(siginfo_t *info, struct k_sigaction *return_ka,
+	struct pt_regs *regs, void *cookie)
+{
+	struct sighand_struct *sighand = current->sighand;
+	spin_lock_irq(&sighand->siglock);
+
+1968         if (sig_kernel_coredump(signr)) {
+
+1982         /*
+1983          * Death signals, no core dump.
+1984          */
+1985         do_group_exit(info->si_signo);
+1986         /* NOTREACHED */
+
+<4> [<ffffffff81009a08>] ? __switch_to+0x188/0x2f0
+<4> [<ffffffff8109bf40>] ? exit_robust_list+0x90/0x150
+

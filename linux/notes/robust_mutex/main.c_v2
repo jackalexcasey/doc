@@ -74,12 +74,11 @@ err:
 }
 
 
-void * init(void*arg)
+void init(void)
 {
 	int x;
 	pthread_mutexattr_t attr;
 	struct sharedmutex *shmmutex;
-	char *ptr = NULL;
 
 	fprintf(stderr,"INIT %d\n",mutexnr);
 	shmmutex =  mmap_hwid_file();
@@ -105,20 +104,11 @@ void * init(void*arg)
 #endif
 
 	/* Burn CPU to force the schedule uppon robust list release */
-	fprintf(stderr,"INIT DONE %d\n",mutexnr);
-	sleep(60);
-	fprintf(stderr,"BOOM!!!!!!!!\n");
-	pthread_exit(NULL);
-
-
-//*ptr = 1;
 	while(1){} 
 }
 
-void * lock(void *arg)
+void lock(int nr,int meg)
 {
-	int nr = *((int*)arg);
-	int meg = 1;
 	struct sharedmutex *shmmutex;
 	int rc,i;
 	unsigned char *ptr;
@@ -146,7 +136,6 @@ void * lock(void *arg)
 //			fprintf(stderr,".");
 		}
 	}
-	fprintf(stderr,"DONE INIT %d %lx meg\n",nr,size);
 
 	while(1)
 		sleep(1);
@@ -162,12 +151,12 @@ void usage()
 int main (int argc, char*argv[])
 {
 	char ptr[256];
-	int fd,x;
-	int *val;
+	int fd;
 
-	pthread_t tid;
+	if(argc <2)
+		usage();
 
-	mutexnr = 100;
+	mutexnr = atoi(argv[1]);
 	if(mutexnr >= MAX_MUTEX_NR || mutexnr<0)
 		usage();
 		
@@ -196,16 +185,10 @@ int main (int argc, char*argv[])
 		FATAL("could not truncate shared file\n");
 	}
 #endif
-	pthread_create(&tid, NULL, init, NULL);
-	sleep(10);
-
-	for(x=0;x<2;x++){
-		val = malloc(sizeof(int));
-		*val = x;
-		pthread_create(&tid, NULL, lock, val);
-	}
-
-	while(1) sleep(1);
+	if(argc==2)
+		init();	
+	else
+		lock(atoi(argv[2]),atoi(argv[3]));	
 }
 
 
