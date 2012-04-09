@@ -36,22 +36,14 @@
 struct sharedmutex{
 	pthread_mutex_t mutex[MAX_MUTEX_NR];
 };
-static int mutexnr=1;
-struct pages{
-	unsigned long *page;
-};
-
-
-int chewmem_main(int argc, char **argv);
-
 static inline void* mmap_hwid_file(void)
 {
 	int rc,fd;
 	void *ptr;
 	char buf[_POSIX_PATH_MAX];
 
-	snprintf(buf,_POSIX_PATH_MAX,"/mutex_test");
-	fd = shm_open(buf, O_RDWR, 0666);
+	snprintf(buf,_POSIX_PATH_MAX,"./mutex_test");
+	fd = open(buf, O_RDWR, 0666);
 	if(fd<0){
 		rc = errno;
 		goto err;
@@ -72,7 +64,8 @@ err:
 	errno = rc;
 	return NULL;
 }
-
+volatile int flag=0;
+volatile unsigned long long Gx=0,dummy,second;
 
 void * init(void*arg)
 {
@@ -81,7 +74,6 @@ void * init(void*arg)
 	struct sharedmutex *shmmutex;
 	char *ptr = NULL;
 
-	fprintf(stderr,"INIT %d\n",mutexnr);
 	shmmutex =  mmap_hwid_file();
 	if(!shmmutex){
 		perror("mmap_hwid_file");
@@ -91,62 +83,76 @@ void * init(void*arg)
 	pthread_mutexattr_init (&attr);
 	pthread_mutexattr_setrobust_np (&attr, PTHREAD_MUTEX_ROBUST_NP);
 
-	for(x=0;x<mutexnr;x++){
+	/* I'm taking a ref lock on 100 mutex */
+	for(x=0;x<100;x++){
 		pthread_mutex_init(&shmmutex->mutex[x], &attr);
 		pthread_mutex_lock(&shmmutex->mutex[x]);
 	}
-#if 0
-	{
-		char *arg1 = "progname";
-		char *arg2 = "10000";
-		char *arg[] = {arg1,arg2,NULL};
-		chewmem_main(2, arg);
-	}
-#endif
 
-	/* Burn CPU to force the schedule uppon robust list release */
-	fprintf(stderr,"INIT DONE %d\n",mutexnr);
-	sleep(60);
-	fprintf(stderr,"BOOM!!!!!!!!\n");
+	fprintf(stderr,"INIT sleeping for %d sec\n",second);
+	//sleep(20);
+
+	while(!flag){
+		dummy++;
+	}
+
+	for(x=0;x<5;x++){
+	for(Gx=0;Gx<(500*1024*1024);Gx++){
+		dummy++;
+	}
+	}
+
+// This thread had all the lock;
+// It release to the first thread which perform a
+//	fprintf(stderr,"BOOM!!!!!!!!\n");
+
+/* HEre we need to make sure the quantum is expired 
+ * At the momemnt the wake up happen from the dying thread that thread 
+ * can be preempted (if the timeslice is exhausted)
+ * equivalent to timeout???
+ *
+ * */
+	/* 
+	 * I'm holding the lock and I'm about to terminate
+	 * this is going to cause a EOWNERDEAD on all waiter
+	 * And every body will be woken up
+	 * */
 	pthread_exit(NULL);
 
 
-//*ptr = 1;
 	while(1){} 
 }
 
 void * lock(void *arg)
 {
-	int nr = *((int*)arg);
-	int meg = 1;
 	struct sharedmutex *shmmutex;
-	int rc,i;
-	unsigned char *ptr;
-	unsigned long size = 1024*1024*meg;
-	int pagesize = getpagesize();
+	int rc,i,x;
 
-	fprintf(stderr,"INIT %d %lx meg\n",nr,size);
+	fprintf(stderr,"LOCKER\n");
 	shmmutex =  mmap_hwid_file();
 	if(!shmmutex){
 		perror("mmap_hwid_file");
 		return;
 	}
 
-	ptr = malloc(size);
-	if(!ptr){
-		fprintf(stderr,"Cannot allocate memory\n");
-		return -1;
-	}
-
-	rc = pthread_mutex_lock(&shmmutex->mutex[nr]);
+	flag=1;
+	/* Here I wait until the lock is release or the OWNER died */
+	rc = pthread_mutex_lock(&shmmutex->mutex[13]);
 	if(rc == EOWNERDEAD){
+		/* Ok I have the look and I woke up part of the wake from thread1 terminating
+		 * If I terminate here I have the lock so the Hash bucket will be the same
+		 */
 		fprintf(stderr,"pthread_mutex_lock EOWNERDEAD\n");
-		for (i=0; i<size; i=i+pagesize) {
-			ptr[i] = 1;
-//			fprintf(stderr,".");
+		for(x=0;x<5;x++){
+		for(Gx=0;Gx<(500*1024*1024);Gx++){
+			dummy++;
 		}
+		}
+		pthread_exit(NULL);
 	}
-	fprintf(stderr,"DONE INIT %d %lx meg\n",nr,size);
+	fprintf(stderr,"Locker DONE\n");
+	
+
 
 	while(1)
 		sleep(1);
@@ -163,121 +169,34 @@ int main (int argc, char*argv[])
 {
 	char ptr[256];
 	int fd,x;
-	int *val;
 
 	pthread_t tid;
 
-	mutexnr = 100;
-	if(mutexnr >= MAX_MUTEX_NR || mutexnr<0)
-		usage();
-		
+	if(argc !=2)
+		return -1;
+
+	second = atoi(argv[1]);
+
 	/* This is the naming convention */
-	snprintf(ptr,_POSIX_PATH_MAX,"/mutex_test");
+	snprintf(ptr,_POSIX_PATH_MAX,"./mutex_test");
 
 	/* try opening with O_EXCL and if it succeeds zero the memory
 	 * by truncating to 0 */
-	if ((fd = shm_open(ptr, O_CREAT|O_RDWR|O_EXCL,
+	//if ((fd = shm_open(ptr, O_CREAT|O_RDWR|O_EXCL,
+	//	S_IRWXU|S_IRWXG|S_IRWXO)) > 0) {
+	if ((fd = open(ptr, O_CREAT|O_RDWR|O_EXCL,
 		S_IRWXU|S_IRWXG|S_IRWXO)) > 0) {
 	/* truncate file to length PCI device's memory */
 	if (ftruncate(fd, HWID_TABLE_SIZE) != 0)
 		FATAL("could not truncate shared file\n");
 	}
 
-#if 0
-	/* This is the naming convention */
-	snprintf(ptr,_POSIX_PATH_MAX,"/bugger");
-
-	/* try opening with O_EXCL and if it succeeds zero the memory
-	 * by truncating to 0 */
-	if ((fd = shm_open(ptr, O_CREAT|O_RDWR|O_EXCL,
-		S_IRWXU|S_IRWXG|S_IRWXO)) > 0) {
-	/* truncate file to length PCI device's memory */
-	if (ftruncate(fd, HWID_TABLE_SIZE*1024) != 0)
-		FATAL("could not truncate shared file\n");
-	}
-#endif
 	pthread_create(&tid, NULL, init, NULL);
-	sleep(10);
-
+	sleep(5);
 	for(x=0;x<2;x++){
-		val = malloc(sizeof(int));
-		*val = x;
-		pthread_create(&tid, NULL, lock, val);
+		pthread_create(&tid, NULL, lock, NULL);
 	}
 
 	while(1) sleep(1);
-}
-
-
-/*
- * From /proc/meminfo
- * MemFree:         2617084 kB
- *
- * We could also use memfree from proc/meminfo and feed it in here
- * 	The effect would be to fall below the acceptable treshold of
- * 	kswapd and start evicting pages
- * 	After every iteration the MemFree will increase because kswapd free only chunk
- * 	at a time until the high water mark is reached again.
- *
- */
-
-
-/*
- * Need to find the limit where kswapd will not have any room to breadth
- * One way is when chewmem has all the CPU is means kswapd doesn't run
- *
- * Another way would be to use a convergence algo when idle ( the memory needed to
- * survived )
- *
- */
-int chewmem_main(int argc, char **argv)
-{
-	int i;
-	char cmd[256];
-	struct pages *page_array;
-	unsigned long long page_nr,size,kb,page_ctrl_nr;
-
-	if(PAGE_SIZE != getpagesize())
-		return -1;
-	
-	if (argc < 2)
-		return 1;
-	kb = atoi(argv[1]);
-	if (kb <= 0)
-		return -1;
-	
-	page_nr = PAGE_ALIGN(kb*1024) / getpagesize();
-	page_ctrl_nr = (PAGE_ALIGN(page_nr*sizeof(struct pages)))/getpagesize();
-
-	page_array = malloc(page_ctrl_nr*getpagesize());
-	if(!page_array)
-		return -1;
-
-	page_nr = page_nr - page_ctrl_nr;
-	if(page_nr ==0)
-		return -1;
-
-	size = (page_ctrl_nr + page_nr) * getpagesize();
-
-	fprintf(stderr,"Req size=%LdkB; Ctrl pages=%Ld; pages=%Ld; Total size %LdkB \n",
-		kb, page_ctrl_nr, page_nr, (size/1024));
-
-	while(1){
-		for (i=0; i<page_nr; i++) {
-			page_array[i].page = malloc(getpagesize());
-			if(!page_array[i].page)
-				return -1;
-			page_array[i].page[0] = 1;
-		}
-		fprintf(stderr,"Allocation completed\n");
-		while(1)sleep(1);
-		sprintf(cmd,"cat /proc/meminfo  |grep -e \"MemTotal\" -e \"MemFree\"\n");
-		system(cmd);
-		sleep(1);
-		for (i=0; i<page_nr; i++) {
-			free(page_array[i].page);
-		}
-		fprintf(stderr,"Freeing up DONE\n");
-	}
 }
 
