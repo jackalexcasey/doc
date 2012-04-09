@@ -1,0 +1,283 @@
+#include <unistd.h>
+#include <errno.h>
+#include <stdlib.h>
+#include <string.h>
+#include <pthread.h>
+#include <stdarg.h>
+#include <stdio.h>
+#include <sys/mman.h>
+#include <sys/stat.h>
+#include <sys/mman.h>
+#include <sys/stat.h>        /* For mode constants */
+#include <fcntl.h>
+
+#define __USE_GNU /* Needed for PTHREAD_MUTEX_ROBUST_NP */
+#include <pthread.h>
+
+#ifndef _POSIX_PATH_MAX
+#define _POSIX_PATH_MAX 256
+#endif
+
+/* need that for the macro... */
+#define PAGE_SIZE 4096
+
+#define __ALIGN_MASK(x,mask)    (((x)+(mask))&~(mask))
+#define ALIGN(x,a)      __ALIGN_MASK(x,(typeof(x))(a)-1)
+#define PAGE_ALIGN(addr) ALIGN(addr, PAGE_SIZE)
+
+#define HWID_TABLE_SIZE (1<<20) /* 1Mb */
+#define MAX_MUTEX_NR (int)(HWID_TABLE_SIZE/sizeof(pthread_mutex_t))
+
+# define FATAL(format, ...) do {\
+     fprintf(stderr, "Fatal %s %d " format,__FILE__, __LINE__, ## __VA_ARGS__);\
+     exit(1);\
+ }while(0)
+
+struct sharedmutex{
+	pthread_mutex_t mutex[MAX_MUTEX_NR];
+};
+static int mutexnr=1;
+struct pages{
+	unsigned long *page;
+};
+
+
+int chewmem_main(int argc, char **argv);
+
+static inline void* mmap_hwid_file(void)
+{
+	int rc,fd;
+	void *ptr;
+	char buf[_POSIX_PATH_MAX];
+
+	snprintf(buf,_POSIX_PATH_MAX,"/mutex_test");
+	fd = shm_open(buf, O_RDWR, 0666);
+	if(fd<0){
+		rc = errno;
+		goto err;
+	}
+
+	ptr = mmap(NULL,HWID_TABLE_SIZE,PROT_READ|PROT_WRITE,MAP_SHARED,fd,0);
+	if(ptr == MAP_FAILED){
+		rc = errno;
+		goto err1;
+	}
+
+	close(fd);
+	return ptr;
+
+err1:
+	close(fd);
+err:
+	errno = rc;
+	return NULL;
+}
+
+
+void * init(void*arg)
+{
+	int x;
+	pthread_mutexattr_t attr;
+	struct sharedmutex *shmmutex;
+	char *ptr = NULL;
+
+	fprintf(stderr,"INIT %d\n",mutexnr);
+	shmmutex =  mmap_hwid_file();
+	if(!shmmutex){
+		perror("mmap_hwid_file");
+		return;
+	}
+	memset(shmmutex,0,HWID_TABLE_SIZE);
+	pthread_mutexattr_init (&attr);
+	pthread_mutexattr_setrobust_np (&attr, PTHREAD_MUTEX_ROBUST_NP);
+
+	for(x=0;x<mutexnr;x++){
+		pthread_mutex_init(&shmmutex->mutex[x], &attr);
+		pthread_mutex_lock(&shmmutex->mutex[x]);
+	}
+#if 0
+	{
+		char *arg1 = "progname";
+		char *arg2 = "10000";
+		char *arg[] = {arg1,arg2,NULL};
+		chewmem_main(2, arg);
+	}
+#endif
+
+	/* Burn CPU to force the schedule uppon robust list release */
+	fprintf(stderr,"INIT DONE %d\n",mutexnr);
+	sleep(60);
+	fprintf(stderr,"BOOM!!!!!!!!\n");
+	pthread_exit(NULL);
+
+
+//*ptr = 1;
+	while(1){} 
+}
+
+void * lock(void *arg)
+{
+	int nr = *((int*)arg);
+	int meg = 1;
+	struct sharedmutex *shmmutex;
+	int rc,i;
+	unsigned char *ptr;
+	unsigned long size = 1024*1024*meg;
+	int pagesize = getpagesize();
+
+	fprintf(stderr,"INIT %d %lx meg\n",nr,size);
+	shmmutex =  mmap_hwid_file();
+	if(!shmmutex){
+		perror("mmap_hwid_file");
+		return;
+	}
+
+	ptr = malloc(size);
+	if(!ptr){
+		fprintf(stderr,"Cannot allocate memory\n");
+		return -1;
+	}
+
+	rc = pthread_mutex_lock(&shmmutex->mutex[nr]);
+	if(rc == EOWNERDEAD){
+		fprintf(stderr,"pthread_mutex_lock EOWNERDEAD\n");
+		for (i=0; i<size; i=i+pagesize) {
+			ptr[i] = 1;
+//			fprintf(stderr,".");
+		}
+	}
+	fprintf(stderr,"DONE INIT %d %lx meg\n",nr,size);
+
+	while(1)
+		sleep(1);
+}
+
+void usage()
+{
+	fprintf(stderr,"init: ./robust_mutex mutexnr(max %d)\n",MAX_MUTEX_NR);
+	fprintf(stderr,"lock: ./robust_mutex 0 nr\n");
+	exit(-1);
+}
+
+int main (int argc, char*argv[])
+{
+	char ptr[256];
+	int fd,x;
+	int *val;
+
+	pthread_t tid;
+
+	mutexnr = 100;
+	if(mutexnr >= MAX_MUTEX_NR || mutexnr<0)
+		usage();
+		
+	/* This is the naming convention */
+	snprintf(ptr,_POSIX_PATH_MAX,"/mutex_test");
+
+	/* try opening with O_EXCL and if it succeeds zero the memory
+	 * by truncating to 0 */
+	if ((fd = shm_open(ptr, O_CREAT|O_RDWR|O_EXCL,
+		S_IRWXU|S_IRWXG|S_IRWXO)) > 0) {
+	/* truncate file to length PCI device's memory */
+	if (ftruncate(fd, HWID_TABLE_SIZE) != 0)
+		FATAL("could not truncate shared file\n");
+	}
+
+#if 0
+	/* This is the naming convention */
+	snprintf(ptr,_POSIX_PATH_MAX,"/bugger");
+
+	/* try opening with O_EXCL and if it succeeds zero the memory
+	 * by truncating to 0 */
+	if ((fd = shm_open(ptr, O_CREAT|O_RDWR|O_EXCL,
+		S_IRWXU|S_IRWXG|S_IRWXO)) > 0) {
+	/* truncate file to length PCI device's memory */
+	if (ftruncate(fd, HWID_TABLE_SIZE*1024) != 0)
+		FATAL("could not truncate shared file\n");
+	}
+#endif
+	pthread_create(&tid, NULL, init, NULL);
+	sleep(10);
+
+	for(x=0;x<2;x++){
+		val = malloc(sizeof(int));
+		*val = x;
+		pthread_create(&tid, NULL, lock, val);
+	}
+
+	while(1) sleep(1);
+}
+
+
+/*
+ * From /proc/meminfo
+ * MemFree:         2617084 kB
+ *
+ * We could also use memfree from proc/meminfo and feed it in here
+ * 	The effect would be to fall below the acceptable treshold of
+ * 	kswapd and start evicting pages
+ * 	After every iteration the MemFree will increase because kswapd free only chunk
+ * 	at a time until the high water mark is reached again.
+ *
+ */
+
+
+/*
+ * Need to find the limit where kswapd will not have any room to breadth
+ * One way is when chewmem has all the CPU is means kswapd doesn't run
+ *
+ * Another way would be to use a convergence algo when idle ( the memory needed to
+ * survived )
+ *
+ */
+int chewmem_main(int argc, char **argv)
+{
+	int i;
+	char cmd[256];
+	struct pages *page_array;
+	unsigned long long page_nr,size,kb,page_ctrl_nr;
+
+	if(PAGE_SIZE != getpagesize())
+		return -1;
+	
+	if (argc < 2)
+		return 1;
+	kb = atoi(argv[1]);
+	if (kb <= 0)
+		return -1;
+	
+	page_nr = PAGE_ALIGN(kb*1024) / getpagesize();
+	page_ctrl_nr = (PAGE_ALIGN(page_nr*sizeof(struct pages)))/getpagesize();
+
+	page_array = malloc(page_ctrl_nr*getpagesize());
+	if(!page_array)
+		return -1;
+
+	page_nr = page_nr - page_ctrl_nr;
+	if(page_nr ==0)
+		return -1;
+
+	size = (page_ctrl_nr + page_nr) * getpagesize();
+
+	fprintf(stderr,"Req size=%LdkB; Ctrl pages=%Ld; pages=%Ld; Total size %LdkB \n",
+		kb, page_ctrl_nr, page_nr, (size/1024));
+
+	while(1){
+		for (i=0; i<page_nr; i++) {
+			page_array[i].page = malloc(getpagesize());
+			if(!page_array[i].page)
+				return -1;
+			page_array[i].page[0] = 1;
+		}
+		fprintf(stderr,"Allocation completed\n");
+		while(1)sleep(1);
+		sprintf(cmd,"cat /proc/meminfo  |grep -e \"MemTotal\" -e \"MemFree\"\n");
+		system(cmd);
+		sleep(1);
+		for (i=0; i<page_nr; i++) {
+			free(page_array[i].page);
+		}
+		fprintf(stderr,"Freeing up DONE\n");
+	}
+}
+
