@@ -1,0 +1,199 @@
+diff --git a/kernel/futex.c b/kernel/futex.c
+index d0b6438..b0c700b 100644
+--- a/kernel/futex.c
++++ b/kernel/futex.c
+@@ -787,6 +787,8 @@ static void wake_futex(struct futex_q *q)
+ 	 */
+ 	get_task_struct(p);
+ 
++	printk("curr %d wake_futex %d\n",current->pid,p->pid);
++
+ 	plist_del(&q->list, &q->list.plist);
+ 	/*
+ 	 * The waiting task can free the futex_q as soon as
+@@ -798,6 +800,9 @@ static void wake_futex(struct futex_q *q)
+ 	q->lock_ptr = NULL;
+ 
+ 	wake_up_state(p, TASK_NORMAL);
++//	set_current_state(TASK_INTERRUPTIBLE);
++//	schedule_timeout(HZ);
++//	printk("curr after %d\n",current->pid);
+ 	put_task_struct(p);
+ }
+ 
+@@ -928,6 +933,7 @@ static int futex_wake(u32 __user *uaddr, int fshared, int nr_wake, u32 bitset)
+ 		goto out;
+ 
+ 	hb = hash_futex(&key);
++	printk("IN SPIN hash_futex %p\n",hb);
+ 	spin_lock(&hb->lock);
+ 	head = &hb->chain;
+ 
+@@ -942,6 +948,9 @@ static int futex_wake(u32 __user *uaddr, int fshared, int nr_wake, u32 bitset)
+ 			if (!(this->bitset & bitset))
+ 				continue;
+ 
++			/* Here we walk the list of all owned mutex //  contended and wake
++			 * up waiters Only at the end of this the do_exit will complete
++			 * */
+ 			wake_futex(this);
+ 			if (++ret >= nr_wake)
+ 				break;
+@@ -949,6 +958,7 @@ static int futex_wake(u32 __user *uaddr, int fshared, int nr_wake, u32 bitset)
+ 	}
+ 
+ 	spin_unlock(&hb->lock);
++	printk("OUT SPIN hash_futex %p\n",hb);
+ 	put_futex_key(fshared, &key);
+ out:
+ 	return ret;
+@@ -2458,6 +2468,13 @@ err_unlock:
+  * Process a futex-list entry, check whether it's owned by the
+  * dying task, and do notification if so:
+  */
++
++/*
++ * EM Ok our thread is dying and we look if we own lock
++ * if we do we notify the waiters
++ *
++ * In theory only 1 waiters will be notified
++ */
+ int handle_futex_death(u32 __user *uaddr, struct task_struct *curr, int pi)
+ {
+ 	u32 uval, nval, mval;
+@@ -2571,15 +2588,22 @@ void exit_robust_list(struct task_struct *curr)
+ 		/*
+ 		 * Avoid excessively long or circular lists:
+ 		 */
+-		if (!--limit)
++		if (!--limit){
++			WARN(1,"Robust mutex list too long\n");
++#if 0 
++			/* Here I'm sending my process to 'D' state */
++			set_current_state(TASK_UNINTERRUPTIBLE);
++			schedule();
++#endif
+ 			break;
+-
++		}
+ 		cond_resched();
+ 	}
+ 
+ 	if (pending)
+ 		handle_futex_death((void __user *)pending + futex_offset,
+ 				   curr, pip);
++	printk("DONE %d\n",current->pid);
+ }
+ 
+ long do_futex(u32 __user *uaddr, int op, u32 val, ktime_t *timeout,
+diff --git a/kernel/softlockup.c b/kernel/softlockup.c
+index d2080ad..7ffbd0a 100644
+--- a/kernel/softlockup.c
++++ b/kernel/softlockup.c
+@@ -184,6 +184,7 @@ static int watchdog(void *__bind_cpu)
+ 	 * debug-printout triggers in softlockup_tick().
+ 	 */
+ 	while (!kthread_should_stop()) {
++		printk(KERN_ERR "WATCHDOG\n");
+ 		__touch_softlockup_watchdog();
+ 		schedule();
+ 
+diff --git a/kernel/watchdog.c b/kernel/watchdog.c
+index 7865448..b57359d 100644
+--- a/kernel/watchdog.c
++++ b/kernel/watchdog.c
+@@ -251,6 +251,8 @@ static void watchdog_interrupt_count(void)
+ static inline void watchdog_interrupt_count(void) { return; }
+ #endif /* CONFIG_HARDLOCKUP_DETECTOR */
+ 
++static int dummy=0;
++
+ /* watchdog kicker functions */
+ static enum hrtimer_restart watchdog_timer_fn(struct hrtimer *hrtimer)
+ {
+@@ -267,6 +269,11 @@ static enum hrtimer_restart watchdog_timer_fn(struct hrtimer *hrtimer)
+ 	/* .. and repeat */
+ 	hrtimer_forward_now(hrtimer, ns_to_ktime(get_sample_period()));
+ 
++//	if(~(dummy%5))
++//		dump_stack();
++	printk("!");
++	dummy++;
++
+ 	if (touch_ts == 0) {
+ 		if (unlikely(__get_cpu_var(softlockup_touch_sync))) {
+ 			/*
+@@ -280,6 +287,7 @@ static enum hrtimer_restart watchdog_timer_fn(struct hrtimer *hrtimer)
+ 		return HRTIMER_RESTART;
+ 	}
+ 
++
+ 	/* check for a softlockup
+ 	 * This is done by making sure a high priority task is
+ 	 * being scheduled.  The task touches the watchdog to
+@@ -310,13 +318,14 @@ static enum hrtimer_restart watchdog_timer_fn(struct hrtimer *hrtimer)
+ 
+ 	return HRTIMER_RESTART;
+ }
+-
++struct page *vpage;
+ 
+ /*
+  * The watchdog thread - touches the timestamp.
+  */
+ static int watchdog(void *unused)
+ {
++	int x;
+ 	struct sched_param param = { .sched_priority = MAX_RT_PRIO-1 };
+ 	struct hrtimer *hrtimer = &__raw_get_cpu_var(watchdog_hrtimer);
+ 
+@@ -337,6 +346,12 @@ static int watchdog(void *unused)
+ 	 * debug-printout triggers in watchdog_timer_fn().
+ 	 */
+ 	while (!kthread_should_stop()) {
++#if 0
++		printk(KERN_ERR "Watchdog / memory leak1000");
++		for(x=0;x<1000;x++){
++			vpage = alloc_page(GFP_KERNEL);
++		}
++#endif
+ 		__touch_watchdog();
+ 		schedule();
+ 
+diff --git a/mm/page_alloc.c b/mm/page_alloc.c
+index 915a875..1ea16f5 100644
+--- a/mm/page_alloc.c
++++ b/mm/page_alloc.c
+@@ -1963,6 +1963,7 @@ __alloc_pages_slowpath(gfp_t gfp_mask, unsigned int order,
+ 	nodemask_t *nodemask, struct zone *preferred_zone,
+ 	int migratetype)
+ {
++	int loop=0;
+ 	const gfp_t wait = gfp_mask & __GFP_WAIT;
+ 	struct page *page = NULL;
+ 	int alloc_flags;
+@@ -2061,6 +2062,10 @@ rebalance:
+ 	 * running out of options and have to consider going OOM
+ 	 */
+ 	if (!did_some_progress) {
++		if(!(loop%1024)){
++			printk(".\n");
++			loop++;
++		}
+ 		if ((gfp_mask & __GFP_FS) && !(gfp_mask & __GFP_NORETRY)) {
+ 			if (oom_killer_disabled)
+ 				goto nopage;
+diff --git a/mm/vmscan.c b/mm/vmscan.c
+index 0c0f8c5..cd92d5d 100644
+--- a/mm/vmscan.c
++++ b/mm/vmscan.c
+@@ -1893,6 +1893,9 @@ unsigned long try_to_free_pages(struct zonelist *zonelist, int order,
+ 
+ 	trace_mm_vmscan_direct_reclaim_end(nr_reclaimed);
+ 
++	/* Coming from __alloc_pages_direct_reclaim */
++	if(nr_reclaimed)
++		printk("nr_reclaimed %d\n",nr_reclaimed);
+ 	return nr_reclaimed;
+ }
+ 
