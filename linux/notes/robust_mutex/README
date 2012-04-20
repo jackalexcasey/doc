@@ -1,0 +1,3 @@
+Robust mutex behave the same except that pthread maintain a list of owned mutex per-thread.
+When a robust mutex is owned by a thread it is inserted in the list
+The list cannot exceed 2048
