@@ -1,0 +1,15 @@
+A page represent an area of memory;
+A file in user space can be read/write; There is 1 page in that contain the data
+Block size can be smaller than a page. The interface goes to the filesystem and block /disk. 
+
+The page goes in the page cache.
+
+userspace can do mmap of a file
+the *ptr page_fault and the data is taken from the disk and goes in the page_cache.
+RD/WR goes in the page_cache. SYNC flush to disk
+	i.e. the stale data can sit in the page_Cache
+
+Kernel can take a reference to a page (lock it ) Cannot be swapped out
+get_user_page (user ADDR) fault-in the user area PTE ( may end-up reading from disk or OTHER )
+
+
