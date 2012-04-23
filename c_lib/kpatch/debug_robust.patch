@@ -1,0 +1,148 @@
+diff --git a/kernel/futex.c b/kernel/futex.c
+index d0b6438..d8b0ec5 100644
+--- a/kernel/futex.c
++++ b/kernel/futex.c
+@@ -305,9 +305,21 @@ again:
+ 		key->private.mm = mm;
+ 		key->private.address = address;
+ 	} else {
++		struct inode *ino = page_head->mapping->host;
++
+ 		key->both.offset |= FUT_OFF_INODE; /* inode-based key */
+-		key->shared.inode = page_head->mapping->host;
++		key->shared.inode = ino;
+ 		key->shared.pgoff = page_head->index;
++
++		if(ino->i_sb)
++			if(ino->i_sb->s_type)
++				if(ino->i_sb->s_type->name){
++					if(!strncmp(ino->i_sb->s_type->name,"tmpfs",strlen("tmpfs"))){
++					}
++					else
++						printk(KERN_ERR "Warning Futex %p, %s // Pid: %d, comm: %.20s\n",
++							uaddr,ino->i_sb->s_type->name,current->pid, current->comm);
++				}
+ 	}
+ 
+ 	get_futex_key_refs(key);
+@@ -797,6 +809,9 @@ static void wake_futex(struct futex_q *q)
+ 	smp_wmb();
+ 	q->lock_ptr = NULL;
+ 
++	printk(KERN_ERR "Current Pid: %d, comm: %.20s // %Ld Wake up  Pid: %d, comm: %.20s\n",
++			current->pid,current->comm,current->last_switch_count,
++			p->pid, p->comm);
+ 	wake_up_state(p, TASK_NORMAL);
+ 	put_task_struct(p);
+ }
+@@ -2463,8 +2478,11 @@ int handle_futex_death(u32 __user *uaddr, struct task_struct *curr, int pi)
+ 	u32 uval, nval, mval;
+ 
+ retry:
+-	if (get_user(uval, uaddr))
++	if (get_user(uval, uaddr)){
++		printk(KERN_ERR "Warning Futex: Line: %d, Pid: %d, comm: %.20s\n",
++			__LINE__,current->pid, current->comm);
+ 		return -1;
++	}
+ 
+ 	if ((uval & FUTEX_TID_MASK) == task_pid_vnr(curr)) {
+ 		/*
+@@ -2505,8 +2523,11 @@ static inline int fetch_robust_entry(struct robust_list __user **entry,
+ {
+ 	unsigned long uentry;
+ 
+-	if (get_user(uentry, (unsigned long __user *)head))
++	if (get_user(uentry, (unsigned long __user *)head)){
++		printk(KERN_ERR "Warning Futex: Line: %d, Pid: %d, comm: %.20s\n",
++			__LINE__,current->pid, current->comm);
+ 		return -EFAULT;
++	}
+ 
+ 	*entry = (void __user *)(uentry & ~1UL);
+ 	*pi = uentry & 1;
+@@ -2530,6 +2551,23 @@ void exit_robust_list(struct task_struct *curr)
+ 
+ 	if (!futex_cmpxchg_enabled)
+ 		return;
++/*	if(!strcmp(current->comm,"shm_lock")){
++		printk(KERN_ERR "WAITING FOR 200 Sec , Pid: %d, comm: %.20s\n",
++			current->pid, current->comm);
++		schedule_timeout_uninterruptible(HZ*400);
++	}
++*/
++
++	set_need_resched();
++
++	/* 
++	 * Every call to get_user call cond_resched
++	 * In CONFIG_PREEMPT_VOLUNTARY=y
++	 */
++	if(need_resched() && !(preempt_count() & PREEMPT_ACTIVE)){
++		printk(KERN_ERR "Warning Futex: need_resched(), Pid: %d, comm: %.20s\n",
++			current->pid, current->comm);
++	}
+ 
+ 	/*
+ 	 * Fetch the list head (which was registered earlier, via
+@@ -2540,8 +2578,11 @@ void exit_robust_list(struct task_struct *curr)
+ 	/*
+ 	 * Fetch the relative futex offset:
+ 	 */
+-	if (get_user(futex_offset, &head->futex_offset))
++	if (get_user(futex_offset, &head->futex_offset)){
++		printk(KERN_ERR "Warning Futex: Line: %d, Pid: %d, comm: %.20s\n",
++			__LINE__,current->pid, current->comm);
+ 		return;
++	}
+ 	/*
+ 	 * Fetch any possibly pending lock-add first, and handle it
+ 	 * if it exists:
+@@ -2571,8 +2612,10 @@ void exit_robust_list(struct task_struct *curr)
+ 		/*
+ 		 * Avoid excessively long or circular lists:
+ 		 */
+-		if (!--limit)
++		if (!--limit){
++			WARN(1,"Warning Futex: list too long!\n");	
+ 			break;
++		}
+ 
+ 		cond_resched();
+ 	}
+@@ -2580,6 +2623,10 @@ void exit_robust_list(struct task_struct *curr)
+ 	if (pending)
+ 		handle_futex_death((void __user *)pending + futex_offset,
+ 				   curr, pip);
++	printk(KERN_ERR "Warning Futex: DONE, Pid: %d, comm: %.20s\n",
++		current->pid, current->comm);
++
++
+ }
+ 
+ long do_futex(u32 __user *uaddr, int op, u32 val, ktime_t *timeout,
+diff --git a/kernel/hung_task.c b/kernel/hung_task.c
+index d4e8417..81c9985 100644
+--- a/kernel/hung_task.c
++++ b/kernel/hung_task.c
+@@ -144,6 +144,7 @@ static void check_hung_uninterruptible_tasks(unsigned long timeout)
+ 
+ 	rcu_read_lock();
+ 	do_each_thread(g, t) {
++		printk("check_hung_uninterruptible_tasks Pid: %d, comm: %.20s == %Ld\n",t->pid, t->comm,t->nvcsw + t->nivcsw);
+ 		if (!--max_count)
+ 			goto unlock;
+ 		if (!--batch_count) {
+diff --git a/kernel/sched.c b/kernel/sched.c
+index cbeed0f..9f39df6 100644
+--- a/kernel/sched.c
++++ b/kernel/sched.c
+@@ -7064,6 +7064,8 @@ static void __cond_resched(void)
+ int __sched _cond_resched(void)
+ {
+ 	if (should_resched()) {
++		//printk(KERN_ERR "resched(), Pid: %d, comm: %.20s\n",
++		//	current->pid, current->comm);
+ 		__cond_resched();
+ 		return 1;
+ 	}

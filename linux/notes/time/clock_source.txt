@@ -1,0 +1,47 @@
+While clock sources provide read access to
+the monotonically increasing time value
+
+CLock Source:
+0 hpet.c        hpet_clocksource_register   834 clocksource_register(&clocksource_hpet);
+1 i8253.c       init_pit_clocksource        210 return clocksource_register(&pit_cs);
+2 kvmclock.c    kvmclock_init               215 clocksource_register(&kvm_clock);
+3 tsc.c         init_tsc_clocksource        895 clocksource_register(&clocksource_tsc);
+f jiffies.c     init_jiffies_clocksource     69 return clocksource_register(&clocksource_jiffies);
+
+clock event sources are used to schedule the next
+event interrupt(s). Clock event sources provide either periodic or
+individual programmable events
+
+The clock event functionalities necessary for
+dynamic tick implementations are available
+whether the high resolution timer functionality
+is enabled or not.
+
+Clock Event:
+2 apic.c        setup_APIC_timer                 544 clockevents_register_device(levt);
+3 hpet.c        hpet_legacy_clockevent_register  311 clockevents_register_device(&hpet_clockevent);
+4 hpet.c        init_one_hpet_msi_clockevent     595 clockevents_register_device(evt);
+5 i8253.c       setup_pit_timer                  115 clockevents_register_device(&pit_ce);
+
+
+The clock event device is managed by the framework when a device can be dynamically added / removed.
+Depending on the 'rating' the new device may be used or NOT
+
+do_timer is handled by void tick_handle_periodic(struct clock_event_device *dev) in kernel/time/tick-common.c
+OR
+static void tick_do_update_jiffies64(ktime_t now) in kernel/time/tick-sched.c
+
+Setup : void tick_setup_sched_timer(void)
+tick_sched_timer -> tick_do_update_jiffies64 ->do_timer
+
+UNTIL idle task disable the timer // * We rearm the timer until we get disabled by the idle code.
+
+
+
+HRTIMER utilize the clock_event 'tick_program_event' to setup the next expiration of time sorted event...
+NOTE the clock device is a per-CPU variable;
+	struct clock_event_device *dev = __get_cpu_var(tick_cpu_device).evtdev;
+
+
+
+

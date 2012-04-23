@@ -1,0 +1,7 @@
+Kernel use a tickless timer i.e.CONFIG_NO_HZ) enables 'on-demand' timer 
+interrupts: if there is no timer to be expired for say 1.5 seconds when 
+the system goes idle, then the system will stay totally idle for 1.5 
+seconds.
+
+When the system goes idle _what_ else than timer can wake up a process ( IRQ, Network IO -> pool OR timer )
+No need to tick when we are idle

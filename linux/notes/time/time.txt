@@ -1,0 +1,82 @@
+2.1) i8254 - PIT
+2.2) RTC
+2.3) APIC
+On Pentium and later processors, an on-board timer is available to each CPU
+as part of the Advanced Programmable Interrupt Controller.  The APIC is
+accessed through memory-mapped registers and provides interrupt service to each
+CPU, used for IPIs and local timer interrupts.
+
+2.4) HPET
+HPET is quite complex, and was originally intended to replace the PIT / RTC
+support of the X86 PC.  It remains to be seen whether that will be the case, as
+the de facto standard of PC hardware is to emulate these older devices.  Some
+systems designated as legacy free may support only the HPET as a hardware timer
+device.
+In general, the HPET is recommended as a high precision (compared to PIT /RTC)
+time source which is independent of local variation (as there is only one HPET
+in any given system).  The HPET is also memory-mapped, and its presence is
+indicated through ACPI tables by the BIOS.
+
+3) TSC Hardware
+The TSC or time stamp counter is relatively simple in theory; it counts
+instruction cycles issued by the processor
+
+The TSC is a CPU-local clock in most implementations.  This means, on SMP
+platforms, the TSCs of different CPUs may start at different times depending
+on when the CPUs are powered on.  Generally, CPUs on the same die will share
+the same clock, however, this is not always the case.
+
+Both VMX and SVM provide extension fields in the virtualization hardware which
+allows the guest visible TSC to be offset by a constant.  Newer implementations
+
+3.7) TSC virtualization - VMX
+
+VMX provides conditional trapping of RDTSC, RDMSR, WRMSR and RDTSCP
+instructions, which is enough for full virtualization of TSC in any manner.  In
+addition, VMX allows passing through the host TSC plus an additional TSC_OFFSET
+field specified in the VMCS.  Special instructions must be used to read and
+write the VMCS field.
+
+
+the host and, potentially, a number of virtual machines.  Thus the virtual
+operating system does not run with 100% usage of the CPU, despite the fact that
+it may very well make that assumption.  It may expect it to remain true to very
+exacting bounds when interrupt sources are disabled, but in reality only its
+virtual interrupt sources are disabled, and the machine may still be preempted
+at any time. 
+
+This causes problems as the passage of real time, the injection
+of machine interrupts and the associated clock sources are no longer completely
+synchronized with real time.
+
+This same problem can occur on native harware to a degree, as SMM mode may
+steal cycles from the naturally on X86 systems when SMM mode is used by the
+BIOS, but not in such an extreme fashion.  However, the fact that SMM mode may
+cause similar problems to virtualization makes it a good justification for
+solving many of these problems on bare metal.
+
+
+4.1) Interrupt clocking
+
+One of the most immediate problems that occurs with legacy operating systems
+is that the system timekeeping routines are often designed to keep track of
+time by counting periodic interrupts.  These interrupts may come from the PIT
+or the RTC, but the problem is the same: the host virtualization engine may not
+be able to deliver the proper number of interrupts per second, and so guest
+time may fall behind.  This is especially problematic if a high interrupt rate
+is selected, such as 1000 HZ, which is unfortunately the default for many Linux
+guests.
+
+4.7) Delays and precision timing
+
+Precise timing and delays may not be possible in a virtualized system.  This
+can happen if the system is controlling physical hardware, or issues delays to
+compensate for slower I/O to and from devices.  The first issue is not solvable
+in general for a virtualized system; hardware control software can't be
+adequately virtualized without a full real-time operating system, which would
+require an RT aware virtualization platform.
+
+The second issue may cause performance problems, but this is unlikely to be a
+significant issue.  In many cases these delays may be eliminated through
+configuration or paravirtualization.
+
