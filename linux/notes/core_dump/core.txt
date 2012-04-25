@@ -1,0 +1,101 @@
+Signal delivery is done when the process ENTER/LEAVE the current context;
+The switcher looks for pending signal to deliver. If it finds one then:
+	entry_64.S ENABLE_INTERRUPTS   669 call do_notify_resume
+	static void do_signal(struct pt_regs *regs)
+	int get_signal_to_deliver(siginfo_t *info, struct k_sigaction *return_ka,
+		struct pt_regs *regs, void *cookie)
+	dequeue the signal
+		if coredumpable
+			do_coredump(info->si_signo, info->si_signo, regs);
+
+	Death signal : do_group_exit(info->si_signo);
+	do_exit()
+
+CORE dump generation:
+Only one thread generate the core dump and the other are killed
+The core can happens through a pipe OR a regular file (by default)
+To have it through a pipe you can do
+cat > /proc/sys/kernel/core_pattern
+|/etc/cmpressdump.sh %h.%e.%p.core
+
+The core dump is calling into binfmt that support various mode
+
+0 ia32_aout.c        <global>     113 .core_dump = aout_core_dump,
+1 binfmt_aout.c      <global>      42 .core_dump = aout_core_dump,
+2 binfmt_elf.c       <global>      72 .core_dump = elf_core_dump,
+3 binfmt_elf_fdpic.c <global>      87 .core_dump = elf_fdpic_core_dump,
+4 binfmt_flat.c      <global>      95 .core_dump = flat_core_dump,
+5 binfmt_som.c       <global>      59 .core_dump = som_core_dump,
+
+
+linux_binfmt has support for 
+  70         .load_binary    = load_elf_binary,
+  71         .load_shlib = load_elf_library,
+  72         .core_dump  = elf_core_dump,
+  73         .min_coredump   = ELF_EXEC_PAGESIZE,
+  74         .hasvdso    = 1
+
+
+execve utilize load_elf_binary
+and at the end there is a 
+	start_thread(regs, elf_entry, bprm->p);
+
+
+
+MORE DETAILS:
+
+SIGNAL SIDE
+~~~~~~~~~~~~
+The switcher looks for pending signal to deliver. If it finds one then:
+	-entry_64.S ENABLE_INTERRUPTS   669 call do_notify_resume
+	-static void do_signal(struct pt_regs *regs)
+	-int get_signal_to_deliver(siginfo_t *info, struct k_sigaction *return_ka,
+		struct pt_regs *regs, void *cookie)
+	-dequeue the signal
+		-if coredumpable
+			-do_coredump(info->si_signo, info->si_signo, regs);
+
+do_coredump kill and serialize the death of all thread
+	find and kill all tasks which use this mm 'zap_process(struct task_struct *start)' SIGKILL / signal_wake_up(t, 1);
+		Rely on 
+		kick_process - kick a running thread to enter/exit the kernel
+		* Cause a process which is running on another CPU to enter
+		* kernel-mode, without any delay. (to get signals handled.)
+
+then call the appropriate FMT ( in this cases elf_core_dump )
+binfmt->core_dump(&cprm);
+
+PROCESS SIDE
+~~~~~~~~~~~~
+ALL THE thread are killed and wait in the schedule() for the thread tht emit the core file to finish (coredump_finish(mm);) 
+	Death signal : do_group_exit(info->si_signo);
+	do_exit()
+	exit_mm()
+	for (;;) {
+		set_task_state(tsk, TASK_UNINTERRUPTIBLE);
+		if (!self.task) /* see coredump_finish() */
+			break;
+		schedule();
+	}
+
+WHEN the thread that generates the core file is done coredump_finish(mm); it unblock all thread to finish
+
+
+
+BINFMT side
+~~~~~~~~~~~~
+binfmt->core_dump(&cprm);
+
+/* Write program headers for segments dump */
+Parse all VMA  THEN dump all the information to the FILE :dump_write(cprm->file, &phdr, sizeof(phdr)))
+
+/* Write out Data section for each segment */
+ for (vma = first_vma(current, gate_vma); vma != NULL; 
+
+ For every VMA walk every page 
+ 	for (addr = vma->vm_start; addr < end; addr += PAGE_SIZE) {
+		page = get_dump_page(addr); >>> __get_user_pages(current <<< PAGE_IN_EVERY PAGE OF EACH VMA's
+		void *kaddr = kmap(page);
+			dump_write(cprm->file, kaddr,
+
+
