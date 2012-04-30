@@ -1,0 +1,110 @@
+User 100-140 i.e. -20 <-> 19  // 19 low prio(140) -20 high prio(100)
+Kernel 0-99 i.e. 0 low prio // 99 high prio
+ps -eo pid,rtprio
+
+Linux’s CFS scheduler,however, does not directly assign timeslices to processes.
+Instead, in a novel approach, CFS assigns processes a proportion of the processor.
+
+The amount of processor time that a process receives is a function of the load of the system.
+The nice value acts as a weight, changing the proportion of the processor time each process receives. 
+
+In Linux, under the new CFS scheduler, the decision is a function of how much of a proportion of 
+the processor the newly runnable processor has consumed ( From the last time it RAN )
+
+If it has consumed a smaller proportion of the processor than the currently
+executing process, it runs immediately, preempting the current process. 
+
+If not, it is scheduled to run at a later time.
+
+BECAUSE if a process rans for a short period of time the last cycle it will probably do the same again so
+it's kind of an IO bound task
+
+SO the scheduling is done based on how much 'processor time is allowed to a process' NICE value is a tuning knob.
+A IO process will receive a huge processor time even if it doesn't need to run for long. We want the scheduler to 
+run this process ASAP.
+	Each task_struct maintain vruntime ( time it rans ) scheduler pickup the taks with the smallest amount of vruntime ( weighted by nice )
+	Vruntime is into a RB tree ordered from minimal vruntime to maximum
+
+Scheduler is invoked periodically (update_curr() ) OR when a process become runnable or block
+
+ __pick_next_entity() Get the left most entry in the RB tree ;  Traversing the tree is Order O(height of the tree) i.e. log N
+ 	IF NULL then go to idle task
+
+Process terminate or block ==> remove from the tree __dequeue_entity()
+
+Schedule pick up highest priority class
+
+Going to sleep()
+-Mark sleeping
+-Goes on the wait queue
+-Remove from RB tree
+-call schedule
+
+Wakeup
+-Mark runnable
+-remove from wait queue
+-inserted into RB tree
+
+
+WAITQUEUE
+~~~~~~~~~~~
+DEFINE_WAIT(wait)
+add_wait_queue('me', &wait)
+while(!condition){
+	prepare_to_wait(&q, &wait, TASK_INTERRUPTIBLE);
+	if (signal_pending(current))      <<<<<< Here we woke up and because of SIGNAL we return to user space context
+										As we already know this is going to deliver the signal into the Context switcher entry.S
+		/* handle signal */
+		break;
+	schedule();
+}
+finish_wait(&q, &wait); <<<< MArk runnable, remove itself from Wait queue
+
+WAKE UP
+~~~~~~~~~~~~
+Mark the task runnable, remove from wait queue, insert into RB tree
+
+USER Preemption occurs when kernel return to user-space()
+	-need_reschedule() flag is SET BY  ( set by scheduler_tick() OR wakeup when a high prio process  )
+	-This flag is the kernel indicating that it need reschedule()
+
+In the kernel->userspace transition OR after IRQ handling, kernel looks that flag and if set it will invoke scheduler()
+
+
+
+NOTE a return from IRQ handler can go back to kernel context OR userspace context... ( user preemption OR kernel preemption can occurs )
+
+RETURNING to userspace is a safe preemption point ( safe to return to task A ==> also safe to return to task B
+SO when the kernel is preparing to return to USERSPACE ( after an IRQ OR from a SYScall ) it check for a scheduling point
+
+NOTE the timer is an interrupt...
+
+preempt_count track the lock level of a task; When preempt_count goes to 0 and need_reschedule() then kernel schedule)
+
+KERNEL preemption (kernel code path being preempted.) Preemption ocurs:
+	-After an IRQ handler BEFORE returning to userspace
+	-When a kernel code path become preemptible again ( preempt_count == 0);
+	-explicit call to schedule()
+	-If a kernel call block ( implicit call to schedule())
+
+
+
+
+
+
+On other OS those I/O bound taks are kind of set highprio and large timeslice (can be done automatically )
+
+
+CFS split the process across all process equally ( FAIR ) but it knows how much time one run vs the other.
+If there is 2 process and only 1 runs then no scheduler involve. When the other process will be ready CFS knows that he didn't 
+receive a FAIR portion of the CPU so it will run it automatically.
+
+CFS as a targeted latency of EX 20msec;  ( 2 process => 10 msec each; 20 process =>1 msec each; 1 msec is floor )
+	Floor is minimum_granularity
+
+NICE value only has a relative weight
+
+
+OTHER
+Prio + Timeslice  WHERE nice adjust the timeslice
+
