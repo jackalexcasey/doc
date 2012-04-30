@@ -1,0 +1,153 @@
+"<3>INFO: task main:2652 blocked for more than 120 seconds.
+<3>"echo 0 > /proc/sys/kernel/hung_task_timeout_secs" disables this message.
+<6>main          D 0000000000000000     0  2652   1736 0x00000000
+<4> ffff8800d1d07cb8 0000000000000086 ffffffff81e15640 ffffffff81e15648
+<4> ffff8800d1d07fd8 ffff8800d1d17500 0000000000015f80 000000000000f598
+<4> 0000000000015f80 ffff8800d1d07fd8 0000000000015f80 ffff8800d1d07fd8
+<4>Call Trace:
+<4> [<ffffffff81009abd>] ? __switch_to+0x23d/0x2f0
+<4> [<ffffffff8109bf40>] ? exit_robust_list+0x90/0x150
+<4> [<ffffffff81066429>] exit_mm+0x79/0x120
+<4> [<ffffffff81066685>] do_exit+0x1b5/0x860
+<4> [<ffffffff81078e9b>] ? __dequeue_signal+0x1b/0x160
+<4> [<ffffffff81066d71>] do_group_exit+0x41/0xb0
+<4> [<ffffffff8107c879>] get_signal_to_deliver+0x209/0x450
+<4> [<ffffffff8100a5a4>] do_notify_resume+0xf4/0x8d0
+<4> [<ffffffff811a3521>] ? sys_epoll_wait+0x291/0x2b0
+<4> [<ffffffff8105aff0>] ? default_wake_function+0x0/0x20
+<4> [<ffffffff8100b380>] int_signal+0x12/0x17
+
+exit_robust_list
+Each thread maintain a list of robust mutex; Kernel walk that list for up to 1024 object.
+At do_exit time, the kernel walk that list and search for mutex that are owned by the current thread (terminating)
+A futex object is a 32bit value taken by '(get_user(uval, uaddr))'
+
+Like regular mutex there is a queue of 'waiters' i.e thread block on that mutex.
+So when the kernel find that a mutex is owned by current it goes out and 'unblock' all the waiters 
+
+The assume that the mutex is 'SHARED" because we are terminting
+2470         /*
+2471          * Ok, this dying thread is truly holding a futex
+2472          * of interest. Set the OWNER_DIED bit atomically
+2473          * via cmpxchg, and if the value had FUTEX_WAITERS
+2474          * set, wake up a waiter (if any). (We have to do a
+2475          * futex_wake() even if OWNER_DIED is already set -
+2476          * to handle the rare but possible case of recursive
+2477          * thread-death.) The rest of the cleanup is done in
+2478          * userspace.
+2479          */
+
+This is 'futex_wake()' which process 1 mutex object that is owned by the current context.
+
+'futex_wake()'
+look at the mutex (32bit variable)
+
+Call into 'get_futex_key()' wich establish the identy of the mutex by doing:
+	- For shared mappings, it's (page->index, vma->vm_file->f_path.dentry->d_inode,
+       offset_within_page).
+	- For private mappings, it's (uaddr, current->mm).
+
+GET THE KEY
+~~~~~~~~~~~~~~~~~
+There is a key distinction between 'SHARED' and 'PRIVATE' mutex in the way the key is determined.
+
+ * PROCESS_PRIVATE futexes are fast; the process controls the data
+ * As the mm cannot disappear under us and the 'key' only needs
+ * virtual address, we dont even have to find the underlying vma.
+    key->private.mm = mm;
+    key->private.address = address;
+    get_futex_key_refs(key);
+
+SHARED mutex attach to the object and NOT the process...
+
+PROCESS_SHARED may involve swapping in the page and SO this call might sleep
+	The process is not owning the object (it's shared) so anything can happen to it
+	and for that reason we need to pin the pages (avoid the page from disappearing)
+
+	Here we do a 'get_user_pages_fast' i.e. attempt to take a ref count on the page without 
+	mm->mmap_sem
+	IF we fail we take 
+		down_read(&mm->mmap_sem);
+		get_user_pages(current, mm, start
+		up_read(&mm->mmap_sem);
+
+
+		* get_user_pages() - pin user pages in memory
+		* @tsk:    task_struct of target task
+		* @mm:     mm_struct of target mm
+		* @start:  starting user address
+
+* get_user_pages walks a process's page tables and takes a reference to                                            
+* each struct page that each user address corresponds to at a given                                                
+* instant. That is, it takes the page that would be accessed if a user                                             
+* thread accesses the given user virtual address at that instant.
+
+* *** At that instant meaning that if I inspect VMA of a process at a moment
+* then I take the corresponding PAGE; but the second after the process
+* can change that VMA
+
+*                                                                                                                  
+* This does not guarantee that the page exists in the user mappings when                                           
+* get_user_pages returns, and there may even be a completely different                                             
+* page there in some cases (eg. if mmapped pagecache has been invalidated                                          
+* and subsequently re faulted). However it does guarantee that the page                                            
+* won't be freed completely. And mostly callers simply care that the page                                          
+* contains data that was valid *at some point in time*. Typically, an IO                                           
+* or similar operation cannot guarantee anything stronger anyway because                                           
+* locks can't be held over the syscall boundary.      
+
+
+NEXT we compound the series of pages 'page_head = compound_head(page);'
+  AND we lock the page with 'lock_page(page_head);'
+
+???
+ __wait_on_bit_lock(page_waitqueue(page), &wait, sync_page,
+ TASK_UNINTERRUPTIBLE);
+	/*
+	 * In order to wait for pages to become available there must be
+	 * waitqueues associated with pages. By using a hash table of
+	 * waitqueues where the bucket discipline is to maintain all
+	 * waiters on the same queue and wake all when any of the pages
+	 * become available, and for the woken contexts to check to be
+	 * sure the appropriate page became available, this saves space
+	 * at a cost of "thundering herd" phenomena during rare hash
+	 * collisions.
+	 */
+	static wait_queue_head_t *page_waitqueue(struct page *page)
+
+	ext4_journalled_aops = {
+    .sync_page      = block_sync_page,
+
+ * so sync_page() will then return in state TASK_UNINTERRUPTIBLE.
+???
+
+SO HERE it looks like we are waiting for the disk to come back with the data;
+We are on a wait queue non Uninterruptible......
+
+****************
+The mutex can be mmap to shared memory OR a normal FILE
+****************
+
+At the end we can compute the key
+if (PageAnon(page_head)) {
+    key->both.offset |= FUT_OFF_MMSHARED; /* ref taken on mm */
+    key->private.mm = mm;
+    key->private.address = address;
+} else {
+    key->both.offset |= FUT_OFF_INODE; /* inode-based key */
+    key->shared.inode = page_head->mapping->host;
+    key->shared.pgoff = page_head->index;
+}
+
+RETURN THE KEY
+~~~~~~~~~~~~~~~~~~~~~
+
+After we found key so now we go into a glocal hash table.
+Then we take the spin_lock of that BUCKET
+	Iterate the list of that bucket
+	If there is a match ; Identify the object i.e. 'this'
+		then wake_futex(this); this->task is the waiters (struct task_struct ())
+			wake_up_state(p, TASK_NORMAL);
+			Put it on the run-queue if it's not already there
+
+NOTE: PI futex wake up also happens at do exit for in the function exit_pi_state();
