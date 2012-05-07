@@ -1,0 +1,131 @@
+There is different type of preemption;
+1) User space preemption
+
+2) Kernel space preemption
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+This is when the CPU is in kernel context on the behalf of a process ( EX userspace syscall )
+	CONFIG_PREEMPT_NONE 		( no preemption ever )
+	CONFIG_PREEMPT_VOLUNTARY 	( Preemption on explicit schedule() point )
+	CONFIG_PREEMPT				( Can be preempted at any point ) 
+
+In any cases, preemption can only happen when preempt_count is 0
+	preempt_count is off thread_info
+spinlock() disable preemption i.e. thread_info->preempt_count++;
+
+How preemption arise
+~~~~~~~~~~~~~~~~~~~~
+===> A) From an IRQ; Like timer ( which driver the scheduler's ticker ), network card packet RX...
+
+The current execution context ( kernel OR user ) is saved on the stack and IRQ runs; The IRQ handler
+may need to signal that some condition happens by executing a signal_eventfd for EX which calls wake_up()
+OR in the case of the scheduler mark one task with need_reschedule()
+		( in any cases upon return from IRQ, kernel check need_resched() )
+
+wake_up() does the following:
+- Mark the task runnable
+- Remove it from wait queue
+- Inserted the task into the RB tree ( the tree is self balancing; The task is inserted
+  in the tree with respect to it's task->vruntime
+- Mark the current thread with need_reschedule() flag
+- =>> At this time there is no Context switch
+
+The current context is restored from the stack;
+1) If the saved context was kernel then preemption will occurs only with CONFIG_PREEMPT _only_
+	i.e you are in a kernel path ( on behalf of process ), preempt_count==0, IRQ signal on a thread
+	which has more priority
+1.1) With CONFIG_PREEMPT_RT you can be preempted even when preempt_count != 0
+2) Saved context was userspace
+	Returning to userspace is a safe preemption point i.e.
+	( safe to return to task A ==> also safe to return to task B )
+	schedule();
+
+===> B) From a kernel call
+
+Context goes to kernel space;
+1) If the Kernel calls doesn't call any function that can sleep then the call
+	return to userspace into the same context.
+1.1 If the call does while(1) for a long time then return(); the Timer IRQ will have 
+	fired in the mean time and the need_reschedule() flag will be set. Return to userspace
+	will switch context
+1.2) If the Kernel calls doesn't call any function that can sleep BUT
+	Indicate it needs to sleep ( need_reschedule()) then the return to userspace
+	will switch context.
+1.3) If the kernel calls take a spin_lock and release a spin_lock, the 
+	preempt_count == 0 and thereore check need_resched() )
+	==> preempt_enable()
+2) If the kernel calls into a function that can sleep ( like kmalloc ), before going to 
+	sleep, the need_reschedule() flag is set :
+	-Goes on the wait queue
+	-Remove from RB tree
+	-call schedule ( Kernel -> User  OR Kernel -> Kernel )
+
+Conclusion:
+~~~~~~~~~~~
+Scheduler is invoked:
+	Periodically IRQ timer
+	When a process become runnable ( wake_up because of IRQ or mutex / IPC / semaphore ...)
+	When a process block ( premption point / explicit schedule ()
+
+Context switch happens when
+1) Kernel return to userspace
+2) Kernel call schedule() preemption point.
+
+For that reason, the context can be switched ( restored ) to kernel or userspace context
+
+Premption checking
+~~~~~~~~~~~~~~~~~~
+might_sleep() is place into function that can sleep (like kmalloc).
+On a system with preemption, if you hold a spinlock and you call into kmalloc for ex
+then might_sleep with give you warning..
+
+in_atomic() cannot know about held spinlocks in non-preemptible kernels because here 
+preempt_count is not tracked
+
+
+Wait queue
+~~~~~~~~~~
+Wait queue are a rendez-vous point for signaling
+
+#define DEFINE_WAIT_FUNC(name, function)                \
+    wait_queue_t name = {                       \
+        .private    = current,              \
+        .func       = function,             \
+        .task_list  = LIST_HEAD_INIT((name).task_list), \
+    }
+#define DEFINE_WAIT(name) DEFINE_WAIT_FUNC(name, autoremove_wake_function)
+
+struct pipe_inode_info {
+    wait_queue_head_t wait;
+};
+static struct pipe_inode_info *pipe;
+
+DEFINE_WAIT(wait); 
+while(!condition){
+	prepare_to_wait(&pipe->wait, &wait, TASK_INTERRUPTIBLE);
+	if (signal_pending(current)){
+		/* Here we woke up and because of SIGNAL we return to user space context
+		 * This is going to deliver the signal into the Context switcher entry.S
+		 */
+		/* handle signal */
+		break;
+	}
+	schedule();
+}
+finish_wait(&pipe->wait, &wait); <<<< set back to runnable, remove itself from Wait queue
+
+
+Switching context:
+~~~~~~~~~~~~~~~~~~
+switch_mm() change virtual Memory PTE
+switch_to() switch processor register
+
+
+Real time scheduling
+~~~~~~~~~~~~~~~~~~~~
+Sched FIFO; run until it explicitly yield ( no time slice )
+Sched RR; run until it explicetly yield or the timeslice is exhausted
+
+User 100-140 i.e. -20 <-> 19  // 19 low prio(140) -20 high prio(100)
+Kernel 0-99 i.e. 0 low prio // 99 high prio
+ps -eo pid,rtprio
+

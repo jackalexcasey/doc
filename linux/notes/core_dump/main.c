@@ -87,6 +87,37 @@ void usage()
 
 /*
  * The core dump takes the RSS (from statm)
+ *  ACTUALLY not true; Private mapping are dumped
+169 7f44ff36f000-7f44ff56e000 ---p 00007000 07:00 653052                     /lib/librt-2.11.1.so
+170 Size:               2044 kB
+171 Rss:                   0 kB
+172 Pss:                   0 kB
+173 Shared_Clean:          0 kB
+174 Shared_Dirty:          0 kB
+175 Private_Clean:         0 kB
+176 Private_Dirty:         0 kB
+177 Referenced:            0 kB
+178 Swap:                  0 kB
+179 KernelPageSize:        4 kB
+180 MMUPageSize:           4 kB
+
+DEFAULT is 0&1 0x3
+           bit 0  Dump anonymous private mappings.
+		   		MAP_PRIVATE
+           bit 1  Dump anonymous shared mappings. ::: WHAT is anonymous shared mapping GOES through the fork() 
+		   		The use of MAP_ANONYMOUS in conjunction with MAP_SHARED 
+           bit 2  Dump file-backed private mappings.
+           bit 3  Dump file-backed shared mappings.
+
+Difference between anonymous OR private mapping ???
+MALLOC create a anonymous MAP_PRIVATE ( Do you need to be fault in to dump ? yes)
+STACK
+
+In general, the  Private_* represent the malloc/stack ( Anonymous mapping PRIVATE )
+Shared_* represent MAP_SHARED through fd OR MAP_SHARED|MAP_ANONYMOUS
+
+
+
  * The mmap only grow VMsize 
  * VMRSS is the resident size
  * The kernel will walk the PTE for the process and for every page RSS pipe it to user space
@@ -104,13 +135,26 @@ int main (int argc, char*argv[])
 	if(argc <2)
 		usage();
 
+#if 0
+	size = 1024*1024*100;
+	ptr = malloc(size);
+	for(x=0;x<size;x++){
+		ptr[x] = x;
+	}
+	while(1) sleep(1);
+#endif
+
 	snprintf(filename,_POSIX_PATH_MAX,argv[1]);
 	ptr = mmap_hwid_file();
 	if(!ptr)
 		return -1;
-	sprintf(cmd,"echo 0x3f > /proc/%d/coredump_filter\n",getpid());
-	system(cmd);
-	if(argc ==3 ){
+	if(argc == 4){
+		fprintf(stderr,"Coredump FILTER\n");
+		sprintf(cmd,"echo 0x3f > /proc/%d/coredump_filter\n",getpid());
+		system(cmd);
+	}
+	if(argc >=3 ){
+		fprintf(stderr,"Faulting in %d\n",size);
 		for(x=0;x<size;x++){
 			ptr[x] = x;
 		}
