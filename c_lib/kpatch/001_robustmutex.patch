@@ -1,0 +1,120 @@
+commit 8b6692599b63ed748a88443cf45c05fa062605cf
+Author: Etienne <etmartin@etmartin-desktop.(none)>
+Date:   Mon Apr 23 13:51:46 2012 -0400
+
+    robust_debug
+
+diff --git a/kernel/futex.c b/kernel/futex.c
+index d0b6438..ae7ad34 100644
+--- a/kernel/futex.c
++++ b/kernel/futex.c
+@@ -305,9 +305,21 @@ again:
+ 		key->private.mm = mm;
+ 		key->private.address = address;
+ 	} else {
++		struct inode *ino = page_head->mapping->host;
++
+ 		key->both.offset |= FUT_OFF_INODE; /* inode-based key */
+-		key->shared.inode = page_head->mapping->host;
++		key->shared.inode = ino;
+ 		key->shared.pgoff = page_head->index;
++
++		if(ino->i_sb)
++			if(ino->i_sb->s_type)
++				if(ino->i_sb->s_type->name){
++					if(!strncmp(ino->i_sb->s_type->name,"tmpfs",strlen("tmpfs"))){
++					}
++					else
++						printk(KERN_ERR "Warning Futex %p, %s // Pid: %d, comm: %.20s\n",
++							uaddr,ino->i_sb->s_type->name,current->pid, current->comm);
++				}
+ 	}
+ 
+ 	get_futex_key_refs(key);
+@@ -796,7 +808,6 @@ static void wake_futex(struct futex_q *q)
+ 	 */
+ 	smp_wmb();
+ 	q->lock_ptr = NULL;
+-
+ 	wake_up_state(p, TASK_NORMAL);
+ 	put_task_struct(p);
+ }
+@@ -2463,8 +2474,11 @@ int handle_futex_death(u32 __user *uaddr, struct task_struct *curr, int pi)
+ 	u32 uval, nval, mval;
+ 
+ retry:
+-	if (get_user(uval, uaddr))
++	if (get_user(uval, uaddr)){
++		printk(KERN_ERR "Warning Futex: Line: %d, Pid: %d, comm: %.20s\n",
++			__LINE__,current->pid, current->comm);
+ 		return -1;
++	}
+ 
+ 	if ((uval & FUTEX_TID_MASK) == task_pid_vnr(curr)) {
+ 		/*
+@@ -2505,8 +2519,11 @@ static inline int fetch_robust_entry(struct robust_list __user **entry,
+ {
+ 	unsigned long uentry;
+ 
+-	if (get_user(uentry, (unsigned long __user *)head))
++	if (get_user(uentry, (unsigned long __user *)head)){
++		printk(KERN_ERR "Warning Futex: Line: %d, Pid: %d, comm: %.20s\n",
++			__LINE__,current->pid, current->comm);
+ 		return -EFAULT;
++	}
+ 
+ 	*entry = (void __user *)(uentry & ~1UL);
+ 	*pi = uentry & 1;
+@@ -2531,6 +2548,15 @@ void exit_robust_list(struct task_struct *curr)
+ 	if (!futex_cmpxchg_enabled)
+ 		return;
+ 
++	/* 
++	 * Every call to get_user call cond_resched
++	 * In CONFIG_PREEMPT_VOLUNTARY=y
++	 */
++	if(need_resched() && !(preempt_count() & PREEMPT_ACTIVE)){
++		printk(KERN_ERR "Warning Futex: need_resched(), Pid: %d, comm: %.20s\n",
++			current->pid, current->comm);
++	}
++
+ 	/*
+ 	 * Fetch the list head (which was registered earlier, via
+ 	 * sys_set_robust_list()):
+@@ -2540,8 +2566,11 @@ void exit_robust_list(struct task_struct *curr)
+ 	/*
+ 	 * Fetch the relative futex offset:
+ 	 */
+-	if (get_user(futex_offset, &head->futex_offset))
++	if (get_user(futex_offset, &head->futex_offset)){
++		printk(KERN_ERR "Warning Futex: Line: %d, Pid: %d, comm: %.20s\n",
++			__LINE__,current->pid, current->comm);
+ 		return;
++	}
+ 	/*
+ 	 * Fetch any possibly pending lock-add first, and handle it
+ 	 * if it exists:
+@@ -2571,8 +2600,10 @@ void exit_robust_list(struct task_struct *curr)
+ 		/*
+ 		 * Avoid excessively long or circular lists:
+ 		 */
+-		if (!--limit)
++		if (!--limit){
++			WARN(1,"Warning Futex: list too long!\n");	
+ 			break;
++		}
+ 
+ 		cond_resched();
+ 	}
+diff --git a/kernel/time/tick-oneshot.c b/kernel/time/tick-oneshot.c
+index a96c0e2..8ad3e2c 100644
+--- a/kernel/time/tick-oneshot.c
++++ b/kernel/time/tick-oneshot.c
+@@ -68,7 +68,6 @@ int tick_dev_program_event(struct clock_event_device *dev, ktime_t expires,
+ int tick_program_event(ktime_t expires, int force)
+ {
+ 	struct clock_event_device *dev = __get_cpu_var(tick_cpu_device).evtdev;
+-
+ 	return tick_dev_program_event(dev, expires, force);
+ }
+ 

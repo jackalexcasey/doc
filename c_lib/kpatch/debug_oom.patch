@@ -1,0 +1,94 @@
+diff --git a/fs/binfmt_elf.c b/fs/binfmt_elf.c
+index e3c6533..e86e30e 100644
+--- a/fs/binfmt_elf.c
++++ b/fs/binfmt_elf.c
+@@ -2056,6 +2056,7 @@ static int elf_core_dump(struct coredump_params *cprm)
+ 			struct page *page;
+ 			int stop;
+ 
++//			printk("!%d_%lx_",current->pid,addr);
+ 			page = get_dump_page(addr);
+ 			if (page) {
+ 				void *kaddr = kmap(page);
+@@ -2068,6 +2069,11 @@ static int elf_core_dump(struct coredump_params *cprm)
+ 				stop = !dump_seek(cprm->file, PAGE_SIZE);
+ 			if (stop)
+ 				goto end_coredump;
++			
++			if (fatal_signal_pending(current)){
++				printk("Core dump aborted by fatal signal\n");
++				goto end_coredump;
++			}
+ 		}
+ 	}
+ 
+diff --git a/mm/oom_kill.c b/mm/oom_kill.c
+index 7ee7e0d..83c6542 100644
+--- a/mm/oom_kill.c
++++ b/mm/oom_kill.c
+@@ -258,8 +258,10 @@ static struct task_struct *select_bad_process(unsigned long *ppoints,
+ 		 * blocked waiting for another task which itself is waiting
+ 		 * for memory. Is there a better alternative?
+ 		 */
+-		if (test_tsk_thread_flag(p, TIF_MEMDIE))
++		if (test_tsk_thread_flag(p, TIF_MEMDIE)){
++//			printk("OOOM %s %d TIF_MEMDIE\n",current->comm,current->pid);
+ 			return ERR_PTR(-1UL);
++		}
+ 
+ 		/*
+ 		 * This is in the process of releasing memory so wait for it
+@@ -272,6 +274,7 @@ static struct task_struct *select_bad_process(unsigned long *ppoints,
+ 		 * Otherwise we could get an easy OOM deadlock.
+ 		 */
+ 		if (p->flags & PF_EXITING) {
++			printk("OOOM %s PF_EXITING\n",current->comm);
+ 			if (p != current)
+ 				return ERR_PTR(-1UL);
+ 
+@@ -379,9 +382,13 @@ static void __oom_kill_task(struct task_struct *p, int verbose)
+ 	 * exit() and clear out its resources quickly...
+ 	 */
+ 	p->rt.time_slice = HZ;
++	printk("TIF_MEMDIE %d (%s)\n",task_pid_nr(p), p->comm);
+ 	set_tsk_thread_flag(p, TIF_MEMDIE);
+ 
+ 	force_sig(SIGKILL, p);
++
++	//if (!wake_up_state(p,TASK_INTERRUPTIBLE|TASK_WAKEKILL))
++		kick_process(p);
+ }
+ 
+ static int oom_kill_task(struct task_struct *p)
+@@ -427,6 +434,7 @@ static int oom_kill_process(struct task_struct *p, gfp_t gfp_mask, int order,
+ 	 * If the task is already exiting, don't alarm the sysadmin or kill
+ 	 * its children or threads, just set TIF_MEMDIE so it can die quickly
+ 	 */
++	// HERE
+ 	if (p->flags & PF_EXITING) {
+ 		__oom_kill_task(p, 0);
+ 		return 0;
+diff --git a/mm/page_alloc.c b/mm/page_alloc.c
+index 915a875..73dcf70 100644
+--- a/mm/page_alloc.c
++++ b/mm/page_alloc.c
+@@ -2017,6 +2017,7 @@ rebalance:
+ 		page = __alloc_pages_high_priority(gfp_mask, order,
+ 				zonelist, high_zoneidx, nodemask,
+ 				preferred_zone, migratetype);
++		printk("#");
+ 		if (page)
+ 			goto got_pg;
+ 	}
+@@ -2030,8 +2031,10 @@ rebalance:
+ 		goto nopage;
+ 
+ 	/* Avoid allocations with no watermarks from looping endlessly */
+-	if (test_thread_flag(TIF_MEMDIE) && !(gfp_mask & __GFP_NOFAIL))
++	if (test_thread_flag(TIF_MEMDIE) && !(gfp_mask & __GFP_NOFAIL)){
++		printk("!");
+ 		goto nopage;
++	}
+ 
+ 	/*
+ 	 * Try direct compaction. The first pass is asynchronous. Subsequent

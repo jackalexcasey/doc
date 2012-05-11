@@ -1,0 +1,168 @@
+diff --git a/arch/x86/mm/fault.c b/arch/x86/mm/fault.c
+index b899fb7..94724cf 100644
+--- a/arch/x86/mm/fault.c
++++ b/arch/x86/mm/fault.c
+@@ -860,6 +860,7 @@ mm_fault_error(struct pt_regs *regs, unsigned long error_code,
+ 	       unsigned long address, unsigned int fault)
+ {
+ 	if (fault & VM_FAULT_OOM) {
++		printk("mm_fault_error \n");
+ 		out_of_memory(regs, error_code, address);
+ 	} else {
+ 		if (fault & (VM_FAULT_SIGBUS|VM_FAULT_HWPOISON|
+diff --git a/fs/binfmt_elf.c b/fs/binfmt_elf.c
+index e3c6533..7c727a0 100644
+--- a/fs/binfmt_elf.c
++++ b/fs/binfmt_elf.c
+@@ -1886,6 +1886,30 @@ static size_t elf_core_vma_data_size(struct vm_area_struct *gate_vma,
+ 	return size;
+ }
+ 
++static unsigned char mincore_page(struct address_space *mapping, pgoff_t pgoff)
++{
++	unsigned char present = 0;
++	struct page *page;
++
++	/*
++	 * When tmpfs swaps out a page from a file, any process mapping that
++	 * file will not get a swp_entry_t in its pte, but rather it is like
++	 * any other file mapping (ie. marked !present and faulted in with
++	 * tmpfs's .fault). So swapped out tmpfs mappings are tested here.
++	 *
++	 * However when tmpfs moves the page from pagecache and into swapcache,
++	 * it is still in core, but the find_get_page below won't find it.
++	 * No big deal, but make a note of it.
++	 */
++	page = find_get_page(mapping, pgoff);
++	if (page) {
++		present = PageUptodate(page);
++		page_cache_release(page);
++	}
++
++	return present;
++}
++
+ /*
+  * Actual dumper
+  *
+@@ -2051,17 +2075,34 @@ static int elf_core_dump(struct coredump_params *cprm)
+ 		unsigned long end;
+ 
+ 		end = vma->vm_start + vma_dump_size(vma, mm_flags);
++		printk("Core dump %s: [%lx - %lx]\n",current->comm,vma->vm_start,end);
+ 
+ 		for (addr = vma->vm_start; addr < end; addr += PAGE_SIZE) {
+ 			struct page *page;
+ 			int stop;
++			pgoff_t pgoff;
++			unsigned char present =1; // By default we assume it's in i.e. no page-in required
++			
++			/* 
++			 * If the vma is backed up by a file the page may of may not be in the page_cache
++			 */
++			if (vma->vm_file) {
++				pgoff = linear_page_index(vma, addr);
++				present = mincore_page(vma->vm_file->f_mapping, pgoff);
++			} 
++			if(!present){ /* We just paged-in the page */
++				printk("Core dump page-in VMA %lx\n",addr);
++//				continue;
++			}
+ 
+ 			page = get_dump_page(addr);
+ 			if (page) {
+ 				void *kaddr = kmap(page);
++
++
+ 				stop = ((size += PAGE_SIZE) > cprm->limit) ||
+ 					!dump_write(cprm->file, kaddr,
+-						    PAGE_SIZE);
++							PAGE_SIZE);
+ 				kunmap(page);
+ 				page_cache_release(page);
+ 			} else
+diff --git a/mm/memory.c b/mm/memory.c
+index 59a134e..aa008d7 100644
+--- a/mm/memory.c
++++ b/mm/memory.c
+@@ -1303,8 +1303,10 @@ no_page_table:
+ 	 * be zero-filled if handle_mm_fault() actually did handle it.
+ 	 */
+ 	if ((flags & FOLL_DUMP) &&
+-	    (!vma->vm_ops || !vma->vm_ops->fault))
++	    (!vma->vm_ops || !vma->vm_ops->fault)){
++		printk("HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH\n");
+ 		return ERR_PTR(-EFAULT);
++	}
+ 	return page;
+ }
+ 
+diff --git a/mm/oom_kill.c b/mm/oom_kill.c
+index 7ee7e0d..2e07837 100644
+--- a/mm/oom_kill.c
++++ b/mm/oom_kill.c
+@@ -258,8 +258,10 @@ static struct task_struct *select_bad_process(unsigned long *ppoints,
+ 		 * blocked waiting for another task which itself is waiting
+ 		 * for memory. Is there a better alternative?
+ 		 */
+-		if (test_tsk_thread_flag(p, TIF_MEMDIE))
++		if (test_tsk_thread_flag(p, TIF_MEMDIE)){
++			printk("OOOM %s %d TIF_MEMDIE\n",current->comm,current->pid);
+ 			return ERR_PTR(-1UL);
++		}
+ 
+ 		/*
+ 		 * This is in the process of releasing memory so wait for it
+@@ -272,6 +274,7 @@ static struct task_struct *select_bad_process(unsigned long *ppoints,
+ 		 * Otherwise we could get an easy OOM deadlock.
+ 		 */
+ 		if (p->flags & PF_EXITING) {
++			printk("OOOM %s PF_EXITING\n",current->comm);
+ 			if (p != current)
+ 				return ERR_PTR(-1UL);
+ 
+@@ -637,6 +640,7 @@ void out_of_memory(struct zonelist *zonelist, gfp_t gfp_mask, int order)
+ 			panic("out of memory. panic_on_oom is selected\n");
+ 		/* Fall-through */
+ 	case CONSTRAINT_CPUSET:
++		printk(" out of Memory\n");
+ 		__out_of_memory(gfp_mask, order);
+ 		break;
+ 	}
+diff --git a/mm/page_alloc.c b/mm/page_alloc.c
+index 915a875..1ea16f5 100644
+--- a/mm/page_alloc.c
++++ b/mm/page_alloc.c
+@@ -1963,6 +1963,7 @@ __alloc_pages_slowpath(gfp_t gfp_mask, unsigned int order,
+ 	nodemask_t *nodemask, struct zone *preferred_zone,
+ 	int migratetype)
+ {
++	int loop=0;
+ 	const gfp_t wait = gfp_mask & __GFP_WAIT;
+ 	struct page *page = NULL;
+ 	int alloc_flags;
+@@ -2061,6 +2062,10 @@ rebalance:
+ 	 * running out of options and have to consider going OOM
+ 	 */
+ 	if (!did_some_progress) {
++		if(!(loop%1024)){
++			printk(".\n");
++			loop++;
++		}
+ 		if ((gfp_mask & __GFP_FS) && !(gfp_mask & __GFP_NORETRY)) {
+ 			if (oom_killer_disabled)
+ 				goto nopage;
+diff --git a/mm/vmscan.c b/mm/vmscan.c
+index 0c0f8c5..cd92d5d 100644
+--- a/mm/vmscan.c
++++ b/mm/vmscan.c
+@@ -1893,6 +1893,9 @@ unsigned long try_to_free_pages(struct zonelist *zonelist, int order,
+ 
+ 	trace_mm_vmscan_direct_reclaim_end(nr_reclaimed);
+ 
++	/* Coming from __alloc_pages_direct_reclaim */
++	if(nr_reclaimed)
++		printk("nr_reclaimed %d\n",nr_reclaimed);
+ 	return nr_reclaimed;
+ }
+ 

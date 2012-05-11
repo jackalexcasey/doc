@@ -12,4 +12,21 @@ RD/WR goes in the page_cache. SYNC flush to disk
 Kernel can take a reference to a page (lock it ) Cannot be swapped out
 get_user_page (user ADDR) fault-in the user area PTE ( may end-up reading from disk or OTHER )
 
+* get_user_pages walks a process's page tables and takes a reference to                                               
+* each struct page that each user address corresponds to at a given                                                   
+* instant. That is, it takes the page that would be accessed if a user                                                
+* thread accesses the given user virtual address at that instant.     
 
+From user space VMA context, follow the Page table entry down to the PTE
+
+__do_page_fault   ==> handle_mm_fault ( PGD/PMD/PTE  + handle alloc PTE fault )
+__get_user_pages  ==>
+
+Depending on the type of page; handle_pte_fault brings the pages in
+	If the VMA has  vma->vm_ops->fault THEN do_linear_fault
+	OR
+	do_anonymous_page
+	OR
+	do_nonlinear_fault
+	OR
+	do_swap_page

@@ -1,0 +1,62 @@
+diff --git a/fs/binfmt_elf.c b/fs/binfmt_elf.c
+index e3c6533..4e4f2d1 100644
+--- a/fs/binfmt_elf.c
++++ b/fs/binfmt_elf.c
+@@ -32,6 +32,7 @@
+ #include <linux/elf.h>
+ #include <linux/utsname.h>
+ #include <linux/coredump.h>
++#include <linux/swap.h>
+ #include <asm/uaccess.h>
+ #include <asm/param.h>
+ #include <asm/page.h>
+@@ -2056,6 +2057,18 @@ static int elf_core_dump(struct coredump_params *cprm)
+ 			struct page *page;
+ 			int stop;
+ 
++			/*
++			 * There's risk involved with suddenly allowing 1000 threads to have 
++			 * TIF_MEMDIE set and the chances of fully depleting all allowed zones is 
++			 * much higher if they allocate memory prior to exit, for example.
++			 */
++			if (test_thread_flag(TIF_MEMDIE) || fatal_signal_pending(current)){
++				printk("ABORTING core dump %s %d %ld\n",current->comm,current->pid,
++					nr_free_pages());
++				stop = 1;
++				goto end_coredump;
++			}
++
+ 			page = get_dump_page(addr);
+ 			if (page) {
+ 				void *kaddr = kmap(page);
+diff --git a/mm/oom_kill.c b/mm/oom_kill.c
+index 7ee7e0d..d039df0 100644
+--- a/mm/oom_kill.c
++++ b/mm/oom_kill.c
+@@ -258,8 +258,17 @@ static struct task_struct *select_bad_process(unsigned long *ppoints,
+ 		 * blocked waiting for another task which itself is waiting
+ 		 * for memory. Is there a better alternative?
+ 		 */
+-		if (test_tsk_thread_flag(p, TIF_MEMDIE))
++
++		/* This is exactly what we have HERE... pipe is block on the 
++		 * inline page_reclaim trying to oom and when traversing the process
++		 * list we always fall back to the same
++		 */
++		if (test_tsk_thread_flag(p, TIF_MEMDIE)){
++			if (!wake_up_process(p))
++				kick_process(p);
++			printk("%s %d // %s %d TIF_MEMDIE\n",current->comm, current->pid, p->comm,p->pid);
+ 			return ERR_PTR(-1UL);
++		}
+ 
+ 		/*
+ 		 * This is in the process of releasing memory so wait for it
+@@ -380,6 +389,7 @@ static void __oom_kill_task(struct task_struct *p, int verbose)
+ 	 */
+ 	p->rt.time_slice = HZ;
+ 	set_tsk_thread_flag(p, TIF_MEMDIE);
++	printk("SETTING TIF_MEMDIE %d (%s)\n",task_pid_nr(p), p->comm);
+ 
+ 	force_sig(SIGKILL, p);
+ }

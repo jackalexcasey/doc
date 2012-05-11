@@ -1,0 +1,224 @@
+diff --git a/arch/x86/include/asm/thread_info.h b/arch/x86/include/asm/thread_info.h
+index d4092fa..a81d937 100644
+--- a/arch/x86/include/asm/thread_info.h
++++ b/arch/x86/include/asm/thread_info.h
+@@ -95,6 +95,7 @@ struct thread_info {
+ #define TIF_BLOCKSTEP		25	/* set when we want DEBUGCTLMSR_BTF */
+ #define TIF_LAZY_MMU_UPDATES	27	/* task is updating the mmu lazily */
+ #define TIF_SYSCALL_TRACEPOINT	28	/* syscall tracepoint instrumentation */
++#define TIF_OOM_DEADLOCK 29 /* OOM deadlock thread */
+ 
+ #define _TIF_SYSCALL_TRACE	(1 << TIF_SYSCALL_TRACE)
+ #define _TIF_NOTIFY_RESUME	(1 << TIF_NOTIFY_RESUME)
+diff --git a/fs/binfmt_elf.c b/fs/binfmt_elf.c
+index e3c6533..7e4ade6 100644
+--- a/fs/binfmt_elf.c
++++ b/fs/binfmt_elf.c
+@@ -1886,6 +1886,51 @@ static size_t elf_core_vma_data_size(struct vm_area_struct *gate_vma,
+ 	return size;
+ }
+ 
++#define CANARY_PAGES_NR 10
++struct canary_pages{
++	unsigned long pages[CANARY_PAGES_NR];
++};
++
++static void canary_release(struct canary_pages *canary)
++{
++	int x;
++
++	if(!canary)
++		return;
++	for(x=0;x<CANARY_PAGES_NR;x++){
++		if(canary->pages[x]){
++			free_page(canary->pages[x]);
++			canary->pages[x]=0;
++		}
++	}
++	kfree(canary);
++	printk("\ncanary_release\n");
++	return;
++}
++
++/*
++ * During a storm of pipe coredump we are subject to OOM deadlock.
++ * For protection, we pump-in a few pages per process before hand so that we
++ * can quickly released them whenever a OOM fatal signal is received.
++ */
++static struct canary_pages* canary_inflate(void)
++{
++	int x;
++	struct canary_pages *canary;
++
++	canary = kzalloc(GFP_KERNEL, sizeof(struct canary_pages));
++	if(!canary)
++		return NULL;
++	for(x=0;x<CANARY_PAGES_NR;x++){
++		canary->pages[x] = __get_free_page(GFP_KERNEL);
++		if(!canary->pages[x]){
++			canary_release(canary);
++			return NULL;
++		}
++	}
++	return canary;
++}
++
+ /*
+  * Actual dumper
+  *
+@@ -1906,6 +1951,7 @@ static int elf_core_dump(struct coredump_params *cprm)
+ 	struct elf_note_info info;
+ 	struct elf_phdr *phdr4note = NULL;
+ 	struct elf_shdr *shdr4extnum = NULL;
++	struct canary_pages* canary = NULL;
+ 	Elf_Half e_phnum;
+ 	elf_addr_t e_shoff;
+ 
+@@ -1957,6 +2003,10 @@ static int elf_core_dump(struct coredump_params *cprm)
+ 	fs = get_fs();
+ 	set_fs(KERNEL_DS);
+ 
++	canary = canary_inflate();
++	if(!canary)
++		goto end_coredump;
++
+ 	offset += sizeof(*elf);				/* Elf header */
+ 	offset += segs * sizeof(struct elf_phdr);	/* Program headers */
+ 	foffset = offset;
+@@ -2066,6 +2116,11 @@ static int elf_core_dump(struct coredump_params *cprm)
+ 				page_cache_release(page);
+ 			} else
+ 				stop = !dump_seek(cprm->file, PAGE_SIZE);
++			/* Monitor fatal signal in the case where current OOM. */
++			if (fatal_signal_pending(current)){
++				printk("\n%s/%d CORE aborted\n", current->comm, task_pid_nr(current));
++				stop = 1;
++			}
+ 			if (stop)
+ 				goto end_coredump;
+ 		}
+@@ -2086,6 +2141,7 @@ end_coredump:
+ 	set_fs(fs);
+ 
+ cleanup:
++	canary_release(canary);
+ 	free_note_info(&info);
+ 	kfree(shdr4extnum);
+ 	kfree(phdr4note);
+diff --git a/mm/oom_kill.c b/mm/oom_kill.c
+index 7ee7e0d..e017eec 100644
+--- a/mm/oom_kill.c
++++ b/mm/oom_kill.c
+@@ -219,6 +219,33 @@ static inline enum oom_constraint constrained_alloc(struct zonelist *zonelist,
+ 	return CONSTRAINT_NONE;
+ }
+ 
++static DEFINE_SPINLOCK(deadlock_lock);
++static pid_t deadlock_pid = 0;
++static unsigned long deadlock_begin = 0;
++
++static int __deadlock_detect(pid_t pid)
++{
++	int rc;
++	unsigned long flags;
++
++	spin_lock_irqsave(&deadlock_lock, flags);
++	if (deadlock_pid != pid){
++		deadlock_pid = pid;
++		deadlock_begin = jiffies;
++		rc = 0;
++	}
++	else{
++		if (time_is_before_jiffies(deadlock_begin + 5*HZ)) {
++			deadlock_pid = 0;
++			rc = 1;
++		}
++		else
++			rc = 0;
++	}
++	spin_unlock_irqrestore(&deadlock_lock, flags);
++	return rc;
++}
++
+ /*
+  * Simple selection loop. We chose the process with the highest
+  * number of 'points'. We expect the caller will lock the tasklist.
+@@ -231,6 +258,7 @@ static struct task_struct *select_bad_process(unsigned long *ppoints,
+ 	struct task_struct *p;
+ 	struct task_struct *chosen = NULL;
+ 	struct timespec uptime;
++	int oom_deadlock = 1;
+ 	*ppoints = 0;
+ 
+ 	do_posix_clock_monotonic_gettime(&uptime);
+@@ -249,6 +277,10 @@ static struct task_struct *select_bad_process(unsigned long *ppoints,
+ 		if (mem && !task_in_mem_cgroup(p, mem))
+ 			continue;
+ 
++		if (test_tsk_thread_flag(p, TIF_OOM_DEADLOCK))
++			continue;
++		oom_deadlock = 0;
++
+ 		/*
+ 		 * This task already has access to memory reserves and is
+ 		 * being killed. Don't allow any other task access to the
+@@ -258,8 +290,31 @@ static struct task_struct *select_bad_process(unsigned long *ppoints,
+ 		 * blocked waiting for another task which itself is waiting
+ 		 * for memory. Is there a better alternative?
+ 		 */
+-		if (test_tsk_thread_flag(p, TIF_MEMDIE))
++		if (test_tsk_thread_flag(p, TIF_MEMDIE)){
++			if(__deadlock_detect(p->pid)){
++				printk("\n%s/%d's [OOM deadlock] stackdump:\n",
++					p->comm, task_pid_nr(p));
++				show_stack(p, NULL);
++				/* This is critical since the current dying thread is not making progress 
++				 * But the problem is that the next one in the list will always be the same
++				 * one...
++				 */
++				clear_tsk_thread_flag(p,TIF_MEMDIE);
++				set_tsk_thread_flag(p,TIF_OOM_DEADLOCK);
++			}
+ 			return ERR_PTR(-1UL);
++		}
++
++		/* Task that are core dumping are first choice 
++		 * This is good and put a ctr in TIF_MEMDIE
++		 * for lock up detection + a panic timer
++		 * NOT really needed for CORE anyway
++		 *
++		 * */
++		if (p->flags & PF_DUMPCORE){
++			chosen = p;
++			break;
++		}
+ 
+ 		/*
+ 		 * This is in the process of releasing memory so wait for it
+@@ -288,7 +343,9 @@ static struct task_struct *select_bad_process(unsigned long *ppoints,
+ 			*ppoints = points;
+ 		}
+ 	}
+-
++	if(oom_deadlock)
++		panic("OOM deadlock on all task\n");
++	printk("\n%s/%d OOM chosen\n", chosen->comm, task_pid_nr(chosen));
+ 	return chosen;
+ }
+ 
+@@ -408,6 +465,7 @@ static int oom_kill_process(struct task_struct *p, gfp_t gfp_mask, int order,
+ {
+ 	struct task_struct *c;
+ 
++#if 0
+ 	if (printk_ratelimit()) {
+ 		printk(KERN_WARNING "%s invoked oom-killer: "
+ 			"gfp_mask=0x%x, order=%d, oom_adj=%d\n",
+@@ -422,6 +480,7 @@ static int oom_kill_process(struct task_struct *p, gfp_t gfp_mask, int order,
+ 		if (sysctl_oom_dump_tasks)
+ 			dump_tasks(mem);
+ 	}
++#endif
+ 
+ 	/*
+ 	 * If the task is already exiting, don't alarm the sysadmin or kill

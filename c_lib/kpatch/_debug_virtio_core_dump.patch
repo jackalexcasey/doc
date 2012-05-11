@@ -1,0 +1,128 @@
+diff --git a/drivers/block/virtio_blk.c b/drivers/block/virtio_blk.c
+index ff18912..0141f63 100644
+--- a/drivers/block/virtio_blk.c
++++ b/drivers/block/virtio_blk.c
+@@ -9,6 +9,10 @@
+ 
+ #define PART_BITS 4
+ 
++static atomic_t curr_watermark;
++static int high_watermark;
++static DEFINE_SPINLOCK(watermark_lock);
++
+ static int major, index;
+ struct workqueue_struct *virtblk_wq;
+ 
+@@ -78,23 +82,36 @@ static void blk_done(struct virtqueue *vq)
+ 		__blk_end_request_all(vbr->req, error);
+ 		list_del(&vbr->list);
+ 		mempool_free(vbr, vblk->pool);
++		atomic_dec(&curr_watermark);
+ 	}
+ 	/* In case queue is stopped waiting for more buffers. */
+ 	blk_start_queue(vblk->disk->queue);
+ 	spin_unlock_irqrestore(&vblk->lock, flags);
+ }
+ 
++
+ static bool do_req(struct request_queue *q, struct virtio_blk *vblk,
+ 		   struct request *req)
+ {
+ 	unsigned long num, out = 0, in = 0;
+ 	struct virtblk_req *vbr;
++	int tmp;
+ 
+ 	vbr = mempool_alloc(vblk->pool, GFP_ATOMIC);
+-	if (!vbr)
++	if (!vbr){
++		WARN_ON(1);
+ 		/* When another request finishes we'll try again. */
+ 		return false;
++	}
+ 
++	spin_lock(&watermark_lock);
++	tmp = atomic_add_return(1,&curr_watermark);
++	if(tmp > high_watermark){
++		high_watermark = tmp;
++		printk("Virtio-BLK highwater mark %d\n",high_watermark);
++	}
++	spin_unlock(&watermark_lock);
++	
+ 	vbr->req = req;
+ 	if (req->cmd_flags & REQ_FLUSH) {
+ 		vbr->out_hdr.type = VIRTIO_BLK_T_FLUSH;
+@@ -152,6 +169,8 @@ static bool do_req(struct request_queue *q, struct virtio_blk *vblk,
+ 
+ 	if (virtqueue_add_buf(vblk->vq, vblk->sg, out, in, vbr) < 0) {
+ 		mempool_free(vbr, vblk->pool);
++		atomic_dec(&curr_watermark);
++		WARN_ON(1);
+ 		return false;
+ 	}
+ 
+@@ -317,6 +336,9 @@ static int __devinit virtblk_probe(struct virtio_device *vdev)
+ 		goto out_free_vblk;
+ 	}
+ 
++	atomic_set(&curr_watermark,0);
++	high_watermark=0;
++
+ 	vblk->pool = mempool_create_kmalloc_pool(1,sizeof(struct virtblk_req));
+ 	if (!vblk->pool) {
+ 		err = -ENOMEM;
+@@ -499,6 +521,7 @@ static int __init init(void)
+ {
+ 	int error;
+ 
++	printk("Instrumented virtio driver\n");
+ 	virtblk_wq = create_singlethread_workqueue("virtio-blk");
+ 	if (!virtblk_wq)
+ 		return -ENOMEM;
+@@ -531,5 +554,5 @@ module_init(init);
+ module_exit(fini);
+ 
+ MODULE_DEVICE_TABLE(virtio, id_table);
+-MODULE_DESCRIPTION("Virtio block driver");
++MODULE_DESCRIPTION("Instrumented Virtio block driver");
+ MODULE_LICENSE("GPL");
+diff --git a/fs/exec.c b/fs/exec.c
+index 42a7af9..09cbe28 100644
+--- a/fs/exec.c
++++ b/fs/exec.c
+@@ -1973,6 +1973,7 @@ void do_coredump(long signr, int exit_code, struct pt_regs *regs)
+ 		goto fail_unlock;
+ 
+  	if (ispipe) {
++		printk("PIPE COREDUMP\n");
+ 		if (cprm.limit == 1) {
+ 			/*
+ 			 * Normally core limits are irrelevant to pipes, since
+@@ -2027,6 +2028,7 @@ void do_coredump(long signr, int exit_code, struct pt_regs *regs)
+ 		cprm.file = filp_open(cn.corename,
+ 				 O_CREAT | 2 | O_NOFOLLOW | O_LARGEFILE | flag,
+ 				 0600);
++	printk("CORE FILE %s\n",cn.corename);
+ 	if (IS_ERR(cprm.file))
+ 		goto fail_dropcount;
+ 	inode = cprm.file->f_path.dentry->d_inode;
+diff --git a/kernel/exit.c b/kernel/exit.c
+index bc12be6..30ac320 100644
+--- a/kernel/exit.c
++++ b/kernel/exit.c
+@@ -705,6 +705,8 @@ static void exit_mm(struct task_struct * tsk)
+ 		 * Implies mb(), the result of xchg() must be visible
+ 		 * to core_state->dumper.
+ 		 */
++		printk(KERN_ERR "CORE DUMPING %d, Pid: %d, comm: %.20s\n",
++			__LINE__,current->pid, current->comm);
+ 		if (atomic_dec_and_test(&core_state->nr_threads))
+ 			complete(&core_state->startup);
+ 
+@@ -717,6 +719,7 @@ static void exit_mm(struct task_struct * tsk)
+ 		__set_task_state(tsk, TASK_RUNNING);
+ 		down_read(&mm->mmap_sem);
+ 	}
++
+ 	atomic_inc(&mm->mm_count);
+ 	BUG_ON(mm != tsk->active_mm);
+ 	/* more a memory barrier than a real lock */

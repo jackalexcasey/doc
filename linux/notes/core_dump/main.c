@@ -81,7 +81,9 @@ err:
 
 void usage()
 {
-	fprintf(stderr,"./robust_mutex mutex filename [extra arg mean fault in]\n");
+	fprintf(stderr,"./robust_mutex mmap'ing [filename] variable size\n \
+		3 argument => Fault in the mmap memory\n \
+		4 argument => Adjust coredump FILTER to 0x3f\n");
 	exit(-1);
 }
 
@@ -129,7 +131,7 @@ Shared_* represent MAP_SHARED through fd OR MAP_SHARED|MAP_ANONYMOUS
 int main (int argc, char*argv[])
 {
 	int x;
-	unsigned char *ptr;
+	unsigned char *ptr,val;
 	char cmd[256];
 
 	if(argc <2)
@@ -153,10 +155,11 @@ int main (int argc, char*argv[])
 		sprintf(cmd,"echo 0x3f > /proc/%d/coredump_filter\n",getpid());
 		system(cmd);
 	}
+	val = (unsigned char)getpid();
 	if(argc >=3 ){
 		fprintf(stderr,"Faulting in %d\n",size);
 		for(x=0;x<size;x++){
-			ptr[x] = x;
+			ptr[x] = val;
 		}
 	}
 	while(1) sleep(1);

@@ -1,0 +1,173 @@
+diff --git a/arch/x86/ia32/ia32_aout.c b/arch/x86/ia32/ia32_aout.c
+index f9f4724..c563aba 100644
+--- a/arch/x86/ia32/ia32_aout.c
++++ b/arch/x86/ia32/ia32_aout.c
+@@ -134,7 +134,12 @@ static void set_brk(unsigned long start, unsigned long end)
+ 
+ static int dump_write(struct file *file, const void *addr, int nr)
+ {
+-	return file->f_op->write(file, addr, nr, &file->f_pos) == nr;
++	int rc;
++	rc = file->f_op->write(file, addr, nr, &file->f_pos) == nr;
++	if(rc == -EPIPE){
++		printk("\n -EPIPE ");
++	}
++	return rc;
+ }
+ 
+ #define DUMP_WRITE(addr, nr)			     \
+diff --git a/fs/binfmt_elf.c b/fs/binfmt_elf.c
+index e3c6533..29c0899 100644
+--- a/fs/binfmt_elf.c
++++ b/fs/binfmt_elf.c
+@@ -1897,7 +1897,7 @@ static int elf_core_dump(struct coredump_params *cprm)
+ {
+ 	int has_dumped = 0;
+ 	mm_segment_t fs;
+-	int segs;
++	int segs, x;
+ 	size_t size = 0;
+ 	struct vm_area_struct *vma, *gate_vma;
+ 	struct elfhdr *elf = NULL;
+@@ -1908,6 +1908,14 @@ static int elf_core_dump(struct coredump_params *cprm)
+ 	struct elf_shdr *shdr4extnum = NULL;
+ 	Elf_Half e_phnum;
+ 	elf_addr_t e_shoff;
++	unsigned long canary_pages[10];
++
++	memset(canary_pages,0,sizeof(canary_pages));
++	for(x=0;x<10;x++){
++		canary_pages[x] = __get_free_page(GFP_KERNEL);
++		if(!canary_pages[x])
++			goto out;
++	}
+ 
+ 	/*
+ 	 * We no longer stop all VM operations.
+@@ -2066,6 +2074,23 @@ static int elf_core_dump(struct coredump_params *cprm)
+ 				page_cache_release(page);
+ 			} else
+ 				stop = !dump_seek(cprm->file, PAGE_SIZE);
++
++			/*
++			 * Monitor fatal signal OR TIF_MEMDIE for the case where the 
++			 * current process OOM.
++			 */
++			if (test_thread_flag(TIF_MEMDIE) || fatal_signal_pending(current)){
++				char str[64];
++				snprintf(str,64,"\nOOM %s %d\nIncomplete core file",current->comm,current->pid);
++				printk(KERN_ERR "%s",str);
++				dump_write(cprm->file, str,64);
++				stop = 1;
++			}
++			if(sigismember(&current->pending.signal, SIGPIPE)){
++				printk("SIGPIPE PENDING\n");
++				stop = 1;
++			}
++
+ 			if (stop)
+ 				goto end_coredump;
+ 		}
+@@ -2091,6 +2116,12 @@ cleanup:
+ 	kfree(phdr4note);
+ 	kfree(elf);
+ out:
++	for(x=0;x<10;x++){
++		if(canary_pages[x]){
++			free_page(canary_pages[x]);
++			canary_pages[x]=0;
++		}
++	}
+ 	return has_dumped;
+ }
+ 
+diff --git a/mm/oom_kill.c b/mm/oom_kill.c
+index 7ee7e0d..c067cd2 100644
+--- a/mm/oom_kill.c
++++ b/mm/oom_kill.c
+@@ -232,17 +232,12 @@ static struct task_struct *select_bad_process(unsigned long *ppoints,
+ 	struct task_struct *chosen = NULL;
+ 	struct timespec uptime;
+ 	*ppoints = 0;
++	static int cur=0, ctr =0;
+ 
+ 	do_posix_clock_monotonic_gettime(&uptime);
+ 	for_each_process(p) {
+ 		unsigned long points;
+ 
+-		/*
+-		 * skip kernel threads and tasks which have already released
+-		 * their mm.
+-		 */
+-		if (!p->mm)
+-			continue;
+ 		/* skip the init task */
+ 		if (is_global_init(p))
+ 			continue;
+@@ -258,8 +253,65 @@ static struct task_struct *select_bad_process(unsigned long *ppoints,
+ 		 * blocked waiting for another task which itself is waiting
+ 		 * for memory. Is there a better alternative?
+ 		 */
+-		if (test_tsk_thread_flag(p, TIF_MEMDIE))
++
++		/*
++		 * The deadlock can happen in the case of a pipe core dump where a
++		 * process which is in the middle of doing a core dump gets 
++		 * OOM / TIF_MEMDIE and at the same time gets block on the other
++		 * end of the pipe.
++		 *
++		 * For that reason, if we ever reach this point, every process in the 
++		 * middle of a core dump will be terminated right away.
++		 *
++		 * The problem is that it makes no difference if the core-dumping process
++		 * is blocked on the pipe since it won't receive the signal because that
++		 * other process that core-dump is blocked on also need memory and end up also in this
++		 * path 
++		 * Maybe we need to check the pipe signal pending??
++		 */
++		if (p->flags & PF_DUMPCORE) {
++			if(fatal_signal_pending(p)){ /* Already latched in */
++				printk("! %d\n",p->pid);
++			}
++			force_sig(SIGKILL, p);
++			//WAKE UP THE PROCESS
++			continue;
++		}
++
++		/* 
++		 * After some time, if we keep coming here with the same p it means that p
++		 * didn't make any progress and is probably blocked on another thread that
++		 * needs memory but doesn't have TIF_MEMDIE sets.
++		 * Remember we are coming from page_fault OR page_alloc here
++		 *
++		 *
++		 * TODO we must track progress otherwise deadlock
++		 */
++		if (test_tsk_thread_flag(p, TIF_MEMDIE)){
++			if(cur != p->pid){
++				ctr = 0;
++				cur = p->pid;
++			}
++			else{
++				ctr++;
++				if(ctr >1000){
++					printk("\n\n# %d\n\n",p->pid);
++					printk("\n%s/%d's [blocked] stackdump:\n\n",
++						p->comm, task_pid_nr(p));
++					show_stack(p, NULL);
++					printk("\n\n\n");
++					ctr =0;
++					/* This is critical since the current dying thread is not making progress */
++					clear_tsk_thread_flag(p,TIF_MEMDIE);
++					return ERR_PTR(-1UL);
++				}
++			}
+ 			return ERR_PTR(-1UL);
++		}
++
++/* Let's try to be wise; on page_fault OOM try to select a core dump process */
++		if (!p->mm)
++			continue;
+ 
+ 		/*
+ 		 * This is in the process of releasing memory so wait for it
