@@ -1,0 +1,26 @@
+For performance reasons, kernel maintain various caches like the
+page_cache for example. Page_cache cache the disk data in memory i.e.
+when you read a file from the disk, the cache is populated so that
+subsequent read/write hit the cache directly instead of going to the
+disk.
+
+When the memory is low, kernel evict those various caches using a
+mechanism known as page_reclaim. Page_reclaim can happen in the context
+of a kernel thread ( kswapd ) or on the behalf of the process itself (
+the one that needs memory and generate page_fault ) depending on how low
+is the available memory. In the second case the allocation takes the
+slow path. This is when the page_reclaim algorithm is executed directly
+part of the allocation logic.
+
+OOM will kick in when all caches are evicted ( including page_cache )
+and even more memory is needed (from application or kernel). For that
+reason ( because we don't know beforehand how much memory can be freed
+from the various caches ) it's kind of hard to predict when it will
+happen. By evicting all caches ( echo 3 > /proc/sys/vm/drop_caches ) you
+can get a fairly good idea of much memory is really available. Obviously
+there is a performance cost of evicting caches.
+ 
+NOTE: We don't swap to disk
+
+
+
