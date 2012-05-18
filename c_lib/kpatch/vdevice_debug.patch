@@ -1,0 +1,235 @@
+diff --git a/drivers/misc/vdevice.c b/drivers/misc/vdevice.c
+index f94d0fd..c90ed0e 100644
+--- a/drivers/misc/vdevice.c
++++ b/drivers/misc/vdevice.c
+@@ -20,7 +20,7 @@
+ #include <linux/platform_device.h>
+ #include <linux/vdevice.h>
+ 
+-#define DRIVER_VERSION	"0.01"
++#define DRIVER_VERSION	"0.02"
+ #define DRIVER_AUTHOR	"Etienne Martineau <etmartin@cisco.com>"
+ #define DRIVER_DESC	"Virtual Device Framework"
+ 
+@@ -103,7 +103,7 @@ static struct vdev * vdevice_find(unsigned int seg, unsigned int bus,
+ 		ptr= list_entry(pos, struct vdev, list);
+ 		if(seg == ptr->aseg && bus==ptr->abus && (devfn == ptr->adevfn)){
+ 			spin_unlock(&vfcn_list_lock);
+-			DPRINTK("vdevice_find %x %x:%x.%x",seg,bus,PCI_SLOT(devfn),PCI_FUNC(devfn));
++	//		DPRINTK("vdevice_find %x %x:%x.%x",seg,bus,PCI_SLOT(devfn),PCI_FUNC(devfn));
+ 			return ptr;
+ 		}
+ 	}
+@@ -118,7 +118,7 @@ static int vfcn_read(struct vdev *pci_dev, int reg, int len, u32 *val)
+ 	len = MIN(len, (int)(MAX_CFG_SIZE - reg));
+ 	memcpy(&value, (unsigned char*)(pci_dev->config) + reg, len);
+ 	*val = le32_to_cpu(value);
+-	DPRINTK("CFG Read %x->%d= %x\n",reg,len,*val);
++//	DPRINTK("CFG Read %x->%d= %x\n",reg,len,*val);
+ 	return 0;
+ }
+ 
+@@ -126,14 +126,14 @@ static int vfcn_write(struct vdev *pci_dev, int reg, int len, u32 val)
+ {
+ 	int i;
+ 
+-	DPRINTK("CFG Write %x->%d= %x\n",reg,len,val);
++//	DPRINTK("CFG Write %x->%d= %x\n",reg,len,val);
+ 	if(len==4 && ((val &0xffffffff) ==0xfffffffe)){ /* Weird config */
+ 		val=0;
+-		DPRINTK("BAR %x -> %x\n",reg,val);
++//		DPRINTK("BAR %x -> %x\n",reg,val);
+ 	}
+ 	else if(len==4 && ((val &0xfffffff0) ==0xfffffff0)){ /* probing for SIZE */
+ 		val = pci_dev->bar[(reg>>2)-1];
+-		DPRINTK("BAR %x -> %x\n",reg,val);
++//		DPRINTK("BAR %x -> %x\n",reg,val);
+ 	}
+ 	for (i = 0; i < len; i++) {
+ 		*((unsigned char*)(pci_dev->config) + reg + i) = val & 0xff;
+@@ -178,7 +178,7 @@ static int vdevice_fixup(struct vdev *dev)
+ 		vdev->resource[2].start = vdev->resource[0].start;
+ 		vdev->resource[2].end = vdev->resource[0].end;
+ 		/* Change config space accordingly */
+-		*(uint32_t *)(&config[base_addr_lookup[2]]) = *(uint32_t *)(&config[base_addr_lookup[0]]);
++		*(uint32_t *)(&config[base_addr_lookup[2]]) = *(uint32_t *)(&config[base_addr_lookup[0]]) | PCI_BASE_ADDRESS_MEM_PREFETCH ;
+ 	}
+ 	return 0;
+ }
+@@ -191,6 +191,16 @@ static void bar_restore(struct vdev *dev)
+ 
+ 	for(x=0;x<MAX_RESOURCE;x++){
+ 		if(dev->res[x]){
++		{
++			int y;
++			unsigned long *bar2;
++
++			printk("\nRESTORE BAR2\n");
++			bar2 = dev->res[x];
++			for(y=0;y<10*2;y++){
++				printk("_%x_",bar2[y]);
++			}
++		}
+ 			/* Restore resource */
+ 			vdev->resource[x].start = dev->resource_org[x].start;
+ 			vdev->resource[x].end = dev->resource_org[x].end;
+@@ -238,7 +248,30 @@ static int bar_adjust(struct vdev *dev)
+ 		dev->res[x] = bigphysarea_alloc_pages(pagenr, 1, GFP_KERNEL);
+ 		if(!dev->res[x])
+ 			goto err;
++
++		{
++			int y;
++			unsigned long *bar2;
++
++			printk("\nBAR2\n");
++			bar2 = dev->res[x];
++			for(y=0;y<10*2;y++){
++				printk("_%x_",bar2[y]);
++			}
++		}
++
+ 		memset(dev->res[x],0,size);
++
++		{
++			int y;
++			unsigned long *bar2;
++
++			printk("\nBAR2\n");
++			bar2 = dev->res[x];
++			for(y=0;y<10*2;y++){
++				printk("_%x_",bar2[y]);
++			}
++		}
+ 		addr = (unsigned long)virt_to_phys(dev->res[x]);	
+ 
+ 		/* Remember original value */
+@@ -250,7 +283,7 @@ static int bar_adjust(struct vdev *dev)
+ 		vdev->resource[x].end = ((unsigned long)(addr+size));
+ 
+ 		/* Change config space accordingly */
+-		*(uint32_t *)(&config[base_addr_lookup[x]]) = (unsigned long) addr;
++		*(uint32_t *)(&config[base_addr_lookup[x]]) = (unsigned long) addr | PCI_BASE_ADDRESS_MEM_PREFETCH;
+ 
+ 		DPRINTK(" pci_resource_start(dev, %d) %x ",x,pci_resource_start(vdev, x) );
+ 		DPRINTK(" pci_resource_end(dev, %d) %x ",x,pci_resource_end(vdev, x) );
+@@ -421,6 +454,7 @@ static void vdevice_remove(struct vdev *dev)
+ static ssize_t write(struct file * filep, const char __user * buf, 
+ 			 size_t count, loff_t *ppos)
+ {
++	int rc;
+ 	struct vdev *dev = filep->private_data;
+ 	struct pci_dev *pdev;
+ 	unsigned long p = *ppos;
+@@ -481,14 +515,16 @@ static ssize_t write(struct file * filep, const char __user * buf,
+ 		DPRINTK("Found %x:%x.%x ",dev->B,dev->D,dev->F);
+ 
+ 		/* Put it live */
+-		if(vdev_insert(dev, pdev)){
++		rc = vdev_insert(dev, pdev);
++		if(rc){
+ 			DPRINTK("Cannot insert  %x:%x.%x ",dev->B,dev->D,dev->F);
+-			return -EINVAL;
++			return rc;
+ 		}
+-		if(vdevice_fixup(dev)){
++		rc = vdevice_fixup(dev);
++		if(rc){
+ 			vdevice_remove(dev);
+ 			DPRINTK("Cannot fixup  %x:%x.%x ",dev->B,dev->D,dev->F);
+-			return -EINVAL;
++			return rc;
+ 		}
+ 	}
+ 	return written;
+diff --git a/drivers/uio/udrv_irq.c b/drivers/uio/udrv_irq.c
+index a464d56..4c7f5fe 100644
+--- a/drivers/uio/udrv_irq.c
++++ b/drivers/uio/udrv_irq.c
+@@ -164,6 +164,19 @@ int udrv_request_irq(int irq, int type, int efd, struct uio_info *dev_info)
+ 			atomic_dec(&priv->irq_count);
+ 			return -EIO;
+ 		}
++		{
++			/* This is for debugging purpose */
++			struct irq_cfg *cfg_new = NULL;
++			struct irq_desc *desc;
++
++			desc = irq_to_desc(irq);
++			if(!desc)
++				return -EINVAL;
++			cfg_new = desc->chip_data;
++			printk (" UDRV assigned IRQ vector %d for IRQ # %d\n",cfg_new->vector,
++				irq);
++
++		}
+ 	}
+ 	else{
+ 		if(request_irq(irq, udrv_interrupt, 0, dev_info->name, desc)){
+diff --git a/mm/bigphysarea.c b/mm/bigphysarea.c
+index c691510..49f432d 100644
+--- a/mm/bigphysarea.c
++++ b/mm/bigphysarea.c
+@@ -337,9 +337,6 @@ int init2(int priority)
+ 
+ int bigphysarea_iommu_attach_device(struct device *dev)
+ {
+-    int ret, i;
+-	struct pci_dev *pdev = to_pci_dev(dev);
+-
+ 	if (!iommu_found()) /* Silently return */
+ 		return 0;
+ 
+@@ -348,34 +345,11 @@ int bigphysarea_iommu_attach_device(struct device *dev)
+ 		return -EINVAL;
+ 	}
+ 
+-	ret = iommu_attach_device(bigphysarea_iommu_domain, dev);
+-   
+-    if (ret)
+-        return ret;
+-
+-    for (i = 0; i < DEVICE_COUNT_RESOURCE; i++) { 
+-        if (!pci_resource_len(pdev, i))
+-            continue;
+-        ret = iommu_map_range(bigphysarea_iommu_domain,
+-                              pci_resource_start(pdev, i),
+-                              pci_resource_start(pdev, i),
+-                              pci_resource_len(pdev, i), 
+-			                  IOMMU_READ | IOMMU_WRITE | IOMMU_CACHE);
+-
+-        if (ret) {
+-	        iommu_detach_device(bigphysarea_iommu_domain, dev);
+-            return ret;
+-        }
+-    }
+-
+-    return ret;
++	return iommu_attach_device(bigphysarea_iommu_domain, dev);
+ }
+ 
+ int bigphysarea_iommu_detach_device(struct device *dev)
+ {
+-    int i;
+-	struct pci_dev *pdev = to_pci_dev(dev);
+-
+ 	if (!iommu_found()) /* Silently return */
+ 		return 0;
+ 
+@@ -385,16 +359,6 @@ int bigphysarea_iommu_detach_device(struct device *dev)
+ 	}
+ 
+ 	iommu_detach_device(bigphysarea_iommu_domain, dev);
+-
+-    for (i = 0; i < DEVICE_COUNT_RESOURCE; i++) { 
+-        if (!pci_resource_len(pdev, i))
+-            continue;
+-
+-        iommu_unmap_range(bigphysarea_iommu_domain,
+-                              pci_resource_start(pdev, i),
+-                              pci_resource_len(pdev, i));
+-    }
+-    
+ 	return 0;
+ }
+ 

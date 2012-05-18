@@ -1,0 +1,97 @@
+diff --git a/drivers/misc/vdevice.c b/drivers/misc/vdevice.c
+index f94d0fd..45460b8 100644
+--- a/drivers/misc/vdevice.c
++++ b/drivers/misc/vdevice.c
+@@ -103,7 +103,7 @@ static struct vdev * vdevice_find(unsigned int seg, unsigned int bus,
+ 		ptr= list_entry(pos, struct vdev, list);
+ 		if(seg == ptr->aseg && bus==ptr->abus && (devfn == ptr->adevfn)){
+ 			spin_unlock(&vfcn_list_lock);
+-			DPRINTK("vdevice_find %x %x:%x.%x",seg,bus,PCI_SLOT(devfn),PCI_FUNC(devfn));
++	//		DPRINTK("vdevice_find %x %x:%x.%x",seg,bus,PCI_SLOT(devfn),PCI_FUNC(devfn));
+ 			return ptr;
+ 		}
+ 	}
+@@ -118,7 +118,7 @@ static int vfcn_read(struct vdev *pci_dev, int reg, int len, u32 *val)
+ 	len = MIN(len, (int)(MAX_CFG_SIZE - reg));
+ 	memcpy(&value, (unsigned char*)(pci_dev->config) + reg, len);
+ 	*val = le32_to_cpu(value);
+-	DPRINTK("CFG Read %x->%d= %x\n",reg,len,*val);
++//	DPRINTK("CFG Read %x->%d= %x\n",reg,len,*val);
+ 	return 0;
+ }
+ 
+@@ -126,14 +126,14 @@ static int vfcn_write(struct vdev *pci_dev, int reg, int len, u32 val)
+ {
+ 	int i;
+ 
+-	DPRINTK("CFG Write %x->%d= %x\n",reg,len,val);
++//	DPRINTK("CFG Write %x->%d= %x\n",reg,len,val);
+ 	if(len==4 && ((val &0xffffffff) ==0xfffffffe)){ /* Weird config */
+ 		val=0;
+-		DPRINTK("BAR %x -> %x\n",reg,val);
++//		DPRINTK("BAR %x -> %x\n",reg,val);
+ 	}
+ 	else if(len==4 && ((val &0xfffffff0) ==0xfffffff0)){ /* probing for SIZE */
+ 		val = pci_dev->bar[(reg>>2)-1];
+-		DPRINTK("BAR %x -> %x\n",reg,val);
++//		DPRINTK("BAR %x -> %x\n",reg,val);
+ 	}
+ 	for (i = 0; i < len; i++) {
+ 		*((unsigned char*)(pci_dev->config) + reg + i) = val & 0xff;
+diff --git a/drivers/pci/msi.c b/drivers/pci/msi.c
+index 9803fe4..89a76ab 100644
+--- a/drivers/pci/msi.c
++++ b/drivers/pci/msi.c
+@@ -241,8 +241,11 @@ void write_msi_msg_desc(struct irq_desc *desc, struct msi_msg *msg)
+ 			entry->msi_attrib.entry_nr * PCI_MSIX_ENTRY_SIZE;
+ 
+ 		writel(msg->address_lo, base + PCI_MSIX_ENTRY_LOWER_ADDR);
++		printk("write_msi_msg_desc LO %lx\n",msg->address_lo);
+ 		writel(msg->address_hi, base + PCI_MSIX_ENTRY_UPPER_ADDR);
++		printk("write_msi_msg_desc HI %lx\n",msg->address_hi);
+ 		writel(msg->data, base + PCI_MSIX_ENTRY_DATA);
++		printk("write_msi_msg_desc DATA %lx\n",msg->data);
+ 	} else {
+ 		struct pci_dev *dev = entry->dev;
+ 		int pos = entry->msi_attrib.pos;
+@@ -447,6 +450,8 @@ static void __iomem *msix_map_region(struct pci_dev *dev, unsigned pos,
+ 	table_offset &= ~PCI_MSIX_FLAGS_BIRMASK;
+ 	phys_addr = pci_resource_start(dev, bir) + table_offset;
+ 
++	printk("msix_map_region PHYS ADDR %lx\n",phys_addr);
++
+ 	return ioremap_nocache(phys_addr, nr_entries * PCI_MSIX_ENTRY_SIZE);
+ }
+ 
+@@ -527,6 +532,7 @@ static int msix_capability_init(struct pci_dev *dev,
+ 	base = msix_map_region(dev, pos, multi_msix_capable(control));
+ 	if (!base)
+ 		return -ENOMEM;
++	printk("msix_map_region VADDR ADDR %p\n",base);
+ 
+ 	ret = msix_setup_entries(dev, pos, base, entries, nvec);
+ 	if (ret)
+diff --git a/drivers/uio/udrv_irq.c b/drivers/uio/udrv_irq.c
+index a464d56..4c7f5fe 100644
+--- a/drivers/uio/udrv_irq.c
++++ b/drivers/uio/udrv_irq.c
+@@ -164,6 +164,19 @@ int udrv_request_irq(int irq, int type, int efd, struct uio_info *dev_info)
+ 			atomic_dec(&priv->irq_count);
+ 			return -EIO;
+ 		}
++		{
++			/* This is for debugging purpose */
++			struct irq_cfg *cfg_new = NULL;
++			struct irq_desc *desc;
++
++			desc = irq_to_desc(irq);
++			if(!desc)
++				return -EINVAL;
++			cfg_new = desc->chip_data;
++			printk (" UDRV assigned IRQ vector %d for IRQ # %d\n",cfg_new->vector,
++				irq);
++
++		}
+ 	}
+ 	else{
+ 		if(request_irq(irq, udrv_interrupt, 0, dev_info->name, desc)){
