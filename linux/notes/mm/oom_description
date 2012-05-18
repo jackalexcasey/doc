@@ -1,41 +1,42 @@
 Gents,
 
-I've release a patch to thirparty that aims at fixing the Out Of Memory ( OOM ) deadlock that 
-some of you guys have been observing. From VM POV, the symptoms of an OOM deadlock is that the
-whole VM become unresponsive and on the Host, QEMU start spinning at 100%.
+I've release a patch to thirparty that should fix the Out Of Memory ( OOM ) deadlock that 
+some of you guys have been observing recently. From VM POV, the symptoms of an OOM deadlock 
+is that the whole VM become un-responsive while at the same time on HostOS the QEMU process
+spin at 100%.
 
-OOM deadlock can triggered manually with a DOS like application or automagically when the system
-is low in memory and suddenly multiple XR process are crashing and producing a core file.
-There is ofcourse numbers of other scenario as well.
+OOM deadlock can be triggered manually with a DOS like type of application or automagically
+when the system is low in memory and a all of a sudden multiple processes are crashing 
+simulteneously producing a huge core file each on the disk.
 
-Post-mortem kernel trace back from within the failing VM indicates that processes are 
-hungs "PID ... blocked for more than 120 seconds". 
-Eventually kernel also lock down "BUG: soft lockup - CPU#0 stuck for 61s"
+Post-mortem kernel trace back ( from the stuck VM ) indicates that core-dumping processes are 
+hungs "PID ... blocked for more than 120 seconds" and eventually the kernel also lock 
+down "BUG: soft lockup - CPU#0 stuck for 61s"
 
 The situation that cause an OOM deadlock is well understood now. Essentially a OOM deadlock is
-when a task that has access to 'memory reserves' ( emergency memory pool ) is block waiting for 
-another task which itself is block waiting for memory
+when a task that has access to 'memory reserve' ( emergency memory pool ) is block waiting for 
+another task which itself is block waiting for memory.
 
 That situation arise when the page allocation logic takes the slow path and start evicting 
-page_cache manually. If it cannot release enought memory, the Out of Memory Killer is invoke.
+page_cache manually. If it cannot release enough memory, the Out of Memory Killer is invoke.
 
-In Linux, the Out of Memory Killer select a process ( based on some heuristic ), and kills it with SIGKILL.
-The goal of the out of memory killer is to hopefully gain back memory and relief pressure on MM.
+In Linux, the Out of Memory Killer select a process ( based on some heuristic ), and kills it 
+with SIGKILL. The goal of the out of memory killer is to relieve the pressure from MM.
 
 The catch is that in some situation for a process to terminate and clean-up it may need some extra memory.
-This is what 'memory reserves' is all about. This is a special emergency pool that the OOM process has 
-access in order to clean up. 
+This is what 'memory reserves' is all about. Its a special emergency pool that the 
+OOM process has access in order to clean up. 
 	From the code /* Give the process all it needs so it can die quickly */
 
-If the emergency pool ever gets exhausted and kernel need memory it will result in a panic. 
-For that reason, kernel grant to access to 'memory reserve' to only one process at a time which is
-carefully selected ( the one that is killed by OOM ).
+In the avenue where the emergency pool itself gets exhausted the kernel will panic. 
+For that reason the Out of Memory Killer very carefully gives access to 'memory reserve' 
+to only 1 process at a time.
 
-Now the OOM deadlock happen when the OOM process cannot termintate ( and therefore release memory )
-because it is blocked on another process which in turns need memory?
+Now the OOM deadlock happen when the OOM process cannot terminate ( and therefore release memory )
+because it is blocked on another process which in turns need memory.
 
 This is where the OOM deadlock detection comes into the picture. The OOM deadlock detection logic
 knows about how much 'progress' is made by the OOM process and if it is found that nothing has been 
-achieve whithin a certain periode of time then it marks that task as OOM_DEADLOCK and invoke the oom 
-killer again but this time on another task.
+achieve whithin a certain periode of time then it identified that task as OOM_DEADLOCK and invoke 
+the oom killer again on a different task.
 
