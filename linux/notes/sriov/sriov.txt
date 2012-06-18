@@ -1,0 +1,52 @@
+** Also look into "arch/x86/pci/olpc.c" ***
+
+At probe time, the code init sriov if any (pci_iov_init())
+
+struct pci_dev{
+	struct pci_sriov *sriov
+}
+
+struct pci_sriov{
+offset
+virtnr
+...
+}
+
+
+pci_iov_init{
+looks for PCI_EXT_CAP_ID_SRIOV capabilities
+if found the sriov_init()
+}
+
+
+sriov_init(){
+	Talks to SRIOV hardware specific register
+	Gather # BAR / calculate resource size
+		The physfn res_size is adjusted to take all virtfn within it's scope
+	Adjust pci_dev
+	kmalloc iov
+	dev->sriov = iov;
+}
+
+PF / VF driver instantiation:
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Both PF and VF driver share the same VendorID: DeviceID
+The initial instantiation is on the PhysicalFN; From the same probe() method, the sriov specific code
+is taken -> pci_enable_sriov()
+
+pci_enable_sriov()
+	check is physfn()
+	if not then 
+		sriov_enable()
+
+sriov_enable()
+
+	Turn on power to SRIOV: pci_write_config_word(dev, iov->pos + PCI_SRIOV_CTRL, iov->ctrl);
+	The call virtfn_add()
+	Alloc a new pci_dev
+	Allocate a bus off that dev to place of the VF
+	Partition resource for each VF
+	pci_device_add()
+	pci_bus_add_device()
+	Create sysfs
+
