@@ -1,0 +1,21 @@
+limit price
+~~~~~~~~~~~~
+With a limit order to buy, the price represents the highest price the investor will pay.
+
+The price of a limit order to sell represents the lowest price the investor will accept.
+
+Stop price.
+~~~~~~~~~~~~~~~~
+When you give an order to buy or sell a stock or other security once it has reached a certain price, the price you name is known as the stop price.
+
+When you ask your broker to buy, your stop price is higher than the current market price. When you're selling, the stop price is lower than the current price.
+
+In either case, once the stop price has been reached, your broker will execute the order even if a flurry of trading drives the stock's price up or down quickly. That might mean you end up paying more than the stop price if you're buying or get less than the stop price if you're selling.
+
+
+************
+Stop orders are the simpler of the two.  Stop orders are triggered when the market trades at or through the stop price (depending upon trigger method, the default for non-NASDAQ listed stock is last price), and then a market order is transmitted to the exchange.  A buy stop is placed above the current market price.  A sell stop order is placed below the current market price.  Stop orders may get traders in or out of the market.  The risk associated with stop orders is that they don’t guarantee a price.  When a buy stop order triggers, the market order is transmitted and you will pay the prevailing ask price in the market when received.  When a sell stop order triggers, the market order is transmitted and you will pay the prevailing bid price in the market when received. 
+
+
+*************
+Stop limit orders are slightly more complicated.  Account holders will set two prices with a stop limit order; the stop price and the limit price.  When the stop price is triggered, the limit order is sent to the exchange.  A limit order will then be working, at or better than the limit price you entered.  With a stop limit order traders are guaranteed that, if they receive an execution, it will be at the price they indicated or better.  The risk associated with a stop limit order is that the limit order may not be marketable and, thus, no execution may occur.  A sell stop limit order is placed below the current market price.  When the stop price is triggered, the limit order is sent to the exchange and a sell limit order is now working at, or higher than, the price you entered.  A buy stop limit order is placed above the current market price.  When the stop price is triggered, the limit order is sent to the exchange and a buy limit order is now working at or lower than the price you entered. 

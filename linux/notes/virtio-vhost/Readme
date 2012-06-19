@@ -1,0 +1,107 @@
+
+virtio.c
+~~~~~~~~~~
+Create a BUS 'virtio_bus'
+
+Provide method to register/unregister a device over that BUS
+	register_virtio_device
+	unregister_virtio_device
+
+	2 virtio_pci.c    virtio_pci_probe  659 err = register_virtio_device(&vp_dev->vdev);
+
+Provide a method to register/unregister a driver over that BUS
+	register_virtio_driver
+	unregister_virtio_driver
+
+	0 virtio_blk.c     init            512 error = register_virtio_driver(&virtio_blk);
+	1 virtio-rng.c     init            148 err = register_virtio_driver(&virtio_rng_driver);
+	2 virtio_console.c init           1840 return register_virtio_driver(&virtio_console);
+	3 virtio_net.c     init           1086 return register_virtio_driver(&virtio_net_driver);
+	4 virtio_balloon.c init            376 return register_virtio_driver(&virtio_balloon_driver);
+
+The virtio_bus implement the binding logic ( match / probe / remove )
+
+
+virtio-pci.c
+~~~~~~~~~~~~~
+
+Register a pci driver with ID tables:
+	{ 0x1af4, PCI_ANY_ID, PCI_ANY_ID, PCI_ANY_ID, 0, 0, 0 }
+
+The back end emulation provide a pci model for virtio-XXX that shows up in the topology
+
+** THEN register_virtio_device
+
+
+virtio DRIVER
+~~~~~~~~~~~~~~
+virtio_blk.c	virtio-rng.c	virtio_console.c	virtio_net.c	virtio_balloon.c
+
+==>virtio_net.c
+
+-register as a network device
+
+	 843     .ndo_open            = virtnet_open,
+	  844     .ndo_stop            = virtnet_close,
+	   845     .ndo_start_xmit      = start_xmit,
+		846     .ndo_validate_addr   = eth_validate_addr,
+		 847     .ndo_set_mac_address = virtnet_set_mac_address,
+		  848     .ndo_set_rx_mode     = virtnet_set_rx_mode,
+		   849     .ndo_change_mtu      = virtnet_change_mtu,
+			850     .ndo_vlan_rx_add_vid = virtnet_vlan_rx_add_vid,
+			 851     .ndo_vlan_rx_kill_vid = virtnet_vlan_rx_kill_vid,
+
+configure the VQ with vring 
+	vq_callback_t *callbacks[] = { skb_recv_done, skb_xmit_done, NULL};
+
+register_netdev
+
+
+
+BACKEND QEMU virtio
+~~~~~~~~~~~~~~~~~~~~~
+hw/virtio-net.c // Tun/Tap / qemu nic 
+	Use vring technology
+
+OR
+hw/vhost_net.c vhost_net_init()
+	open("/dev/vhost-net", O_RDWR);
+	r = ioctl(dev->control, VHOST_SET_VRING_NUM, &state)
+	r = ioctl(dev->control, VHOST_SET_VRING_KICK, &file);
+
+The signaling part is interesting because the kernel is using an irqFD to signal directly on the vring in the guest
+so the qemu loop doesn't see it
+	qemu_set_fd_handler(net->backend, NULL, NULL, NULL); 
+
+
+
+Host Kernel vhost
+~~~~~~~~~~~~~~~~~
+Deals directly with vring
+
+	Init a poll table to handle handle_tx_net / handle_rx_net
+
+TX
+~~~~~~~
+Create an IOV from the vqueue and transmit into the socket data
+
+
+RX:
+~~~~~~~
+	struct msghdr msg = {
+		.msg_name = NULL,
+		.msg_namelen = 0,
+		.msg_control = NULL, /* FIXME: get and handle RX aux data. */                                                   
+		.msg_controllen = 0,
+		.msg_iov = vq->iov,
+		.msg_flags = MSG_DONTWAIT,                                                                                      
+	};
+
+	// Fill with vqueue
+	head = vhost_get_vq_desc(&net->dev, vq, vq->iov,
+
+	// Read the socket directly in the IOV
+	sock->ops->recvmsg(NULL, sock, &msg,a
+
+	Signal()
+
