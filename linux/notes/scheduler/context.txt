@@ -1,0 +1,70 @@
+Process context;
+	In process context, the current macro points to the associated task. Furthermore, because a process is
+	coupled to the kernel in process context, process context can sleep or otherwise invoke
+	the scheduler.
+
+IRQ context:
+	Interrupt context, on the other hand, is not associated with a process.The current
+	macro is not relevant (although it points to the interrupted process).Without a backing
+	process, interrupt context cannot sleep—how would it ever reschedule?
+
+
+
+Kernel stack;
+For each process there is a kernel stack associated to it. To maintain the process (kernel ) context./
+That stack (per process) is non swappable memory so it cannot be to big.
+
+
+IRQ stack;
+Interruption have their own stack
+
+Disable IRQ on the local CPU OR maskng IRQ in the interruption controller
+
+
+Deferring WORK;
+
+A)SoftIRQ
+~~~~~~~~~~~~~~~~
+Static define at compile time;
+SoftIRQ are check if needed to run 
+	-Return from IRQ context
+	-From ksoftirqd
+	-Manualy checking ( like in he networking stack )
+
+do_softirq loop over all softirq and run them by calling the action
+
+RESERVE for time critical ( LIKE network and block )
+
+Tasklet are implemented as softirq where one of the static softirq entry points to tasklet
+-Sched softirq
+-hrtimer softirq
+-timer softirq
+-rcu softirq
+
+SoftIRQ run with IRQ turned on BUT cannot sleep; On the current CPU, softIRQ are disable when
+softIRQ runs on curent CPU. softIRQ are SMP safe so you need to protect your data structure against
+yourself i.e. THE SAME softirq can run simultanously on all CPU.  ==> May need to rely on per-CPU
+data structure.
+
+SoftIRQ SCALE to the # of CPU.
+Tasklet are softIRQ with only one instance possible across all CPU
+
+Signal a softIRQ is raise_softirq(NET_TX_SOFTIRQ);
+
+B)Tasklet
+~~~~~~~~~~~~~
+Build on top of softIRQ
+	Explicitely check if another instance is running on another CPU and if SO then don't run
+
+CANNOT SLEEP
+
+tasklet_schedule(&my_tasklet); //Can schedule on once before it runs across all CPU
+
+ksoftIRQd
+~~~~~~~~~~~~~~~~~~~~~~~
+SoftIRQ can raise themself  SO there is a high rate (potentially )
+2 approach
+
+
+C)WorkQueue
+
