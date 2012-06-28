@@ -1,0 +1,122 @@
+From d8eb4388bd19c439dab1f6d57bbc2a0589a6afd5 Mon Sep 17 00:00:00 2001
+From: Etienne <etmartin@etmartin-desktop.(none)>
+Date: Wed, 27 Jun 2012 11:41:17 -0400
+Subject: [PATCH 4/8] kmmio adjusting PTE page_present bit
+
+---
+ arch/x86/mm/mmio-mod.c    |    9 ++++++---
+ include/linux/mmiotrace.h |    4 ++--
+ mm/memory.c               |   15 +++++++++------
+ 3 files changed, 17 insertions(+), 11 deletions(-)
+
+diff --git a/arch/x86/mm/mmio-mod.c b/arch/x86/mm/mmio-mod.c
+index 1ad1d98..16c1eff 100644
+--- a/arch/x86/mm/mmio-mod.c
++++ b/arch/x86/mm/mmio-mod.c
+@@ -290,7 +290,7 @@ void mmiotrace_ioremap(resource_size_t offset, unsigned long size,
+ 	ioremap_trace_core(offset, size, addr, mm);
+ }
+ 
+-static void iounmap_trace_core(volatile void __iomem *addr, struct mm_struct *mm)
++static int iounmap_trace_core(volatile void __iomem *addr, struct mm_struct *mm)
+ {
+ 	struct mmiotrace_map map = {
+ 		.phys = 0,
+@@ -330,15 +330,18 @@ not_enabled:
+ 		pr_debug(NAME "Unmapping %p.\n", addr);
+ 		synchronize_rcu(); /* unregister_kmmio_probe() requirement */
+ 		kfree(found_trace);
++		return 1;
+ 	}
++	return 0;
+ }
+ 
+-void mmiotrace_iounmap(volatile void __iomem *addr, struct mm_struct *mm)
++int mmiotrace_iounmap(volatile void __iomem *addr, struct mm_struct *mm)
+ {
+ //	might_sleep();
+ 	if (is_enabled()){ /* recheck and proper locking in *_core() */
+-		iounmap_trace_core(addr, mm);
++		return iounmap_trace_core(addr, mm);
+ 	}
++	return 0;
+ }
+ 
+ int mmiotrace_printk(const char *fmt, ...)
+diff --git a/include/linux/mmiotrace.h b/include/linux/mmiotrace.h
+index 2ea5f5d..ca65c0c 100644
+--- a/include/linux/mmiotrace.h
++++ b/include/linux/mmiotrace.h
+@@ -48,7 +48,7 @@ extern int kmmio_handler(struct pt_regs *regs, unsigned long addr);
+ /* Called from ioremap.c */
+ extern void mmiotrace_ioremap(resource_size_t offset, unsigned long size,
+ 		void __iomem *addr, struct mm_struct *mm);
+-extern void mmiotrace_iounmap(volatile void __iomem *addr, struct mm_struct *mm);
++extern int mmiotrace_iounmap(volatile void __iomem *addr, struct mm_struct *mm);
+ 
+ /* For anyone to insert markers. Remember trailing newline. */
+ extern int mmiotrace_printk(const char *fmt, ...)
+@@ -69,7 +69,7 @@ static inline void mmiotrace_ioremap(resource_size_t offset, unsigned long size,
+ {
+ }
+ 
+-static inline void mmiotrace_iounmap(volatile void __iomem *addr)
++static inline int mmiotrace_iounmap(volatile void __iomem *addr)
+ {
+ }
+ 
+diff --git a/mm/memory.c b/mm/memory.c
+index ec727c2..36c40bf 100644
+--- a/mm/memory.c
++++ b/mm/memory.c
+@@ -862,6 +862,14 @@ static unsigned long zap_pte_range(struct mmu_gather *tlb,
+ 
+ 		(*zap_work) -= PAGE_SIZE;
+ 
++		/* the proble is that we latch the PTE */
++		if(mmiotrace_iounmap((void*)addr, mm)){
++			pteval_t v = pte_val(ptent);
++			v |= _PAGE_PRESENT;
++			set_pte_atomic(&ptent, __pte(v));
++		}
++			
++
+ 		if (pte_present(ptent)) {
+ 			struct page *page;
+ 
+@@ -1009,13 +1017,11 @@ static unsigned long unmap_page_range(struct mmu_gather *tlb,
+ {
+ 	pgd_t *pgd;
+ 	unsigned long next;
+-	struct mm_struct *mm = vma->vm_mm;
+ 
+ 	if (details && !details->check_mapping && !details->nonlinear_vma)
+ 		details = NULL;
+ 
+ 	BUG_ON(addr >= end);
+-	mmiotrace_iounmap((void*)addr, mm);
+ 
+ 	tlb_start_vma(tlb, vma);
+ 	pgd = pgd_offset(vma->vm_mm, addr);
+@@ -1781,6 +1787,7 @@ static int remap_pte_range(struct mm_struct *mm, pmd_t *pmd,
+ 	do {
+ 		BUG_ON(!pte_none(*pte));
+ 		set_pte_at(mm, addr, pte, pte_mkspecial(pfn_pte(pfn, prot)));
++		mmiotrace_ioremap(pfn<<PAGE_SHIFT, PAGE_SIZE, (void*)addr, mm);
+ 		pfn++;
+ 	} while (pte++, addr += PAGE_SIZE, addr != end);
+ 	arch_leave_lazy_mmu_mode();
+@@ -1923,10 +1930,6 @@ int remap_pfn_range(struct vm_area_struct *vma, unsigned long addr,
+ 
+ 	if (err)
+ 		untrack_pfn_vma(vma, pfn, PAGE_ALIGN(size));
+-
+-	addr = end - PAGE_ALIGN(size);
+-	pfn += addr >> PAGE_SHIFT;
+-	mmiotrace_ioremap(pfn<<PAGE_SHIFT, PAGE_ALIGN(size), (void*)addr, mm);
+ 	return err;
+ }
+ EXPORT_SYMBOL(remap_pfn_range);
+-- 
+1.7.0.4
+

@@ -1,0 +1,85 @@
+From 47f3bde11441b73ccaa94c8ba23db461a83f9b7a Mon Sep 17 00:00:00 2001
+From: Etienne <etmartin@etmartin-desktop.(none)>
+Date: Wed, 27 Jun 2012 13:41:51 -0400
+Subject: [PATCH 5/8] Attempt to track PRESENT with kmmio setting
+ dma_t8 is failing becasue of mmap dup
+ reset is working fine; Todo need to validate across VM for virtual device tracing...
+
+---
+ arch/x86/mm/kmmio.c |    6 +++++-
+ mm/memory.c         |   20 ++++++++++++++++++--
+ 2 files changed, 23 insertions(+), 3 deletions(-)
+
+diff --git a/arch/x86/mm/kmmio.c b/arch/x86/mm/kmmio.c
+index 6367e63..8b3c0f4 100644
+--- a/arch/x86/mm/kmmio.c
++++ b/arch/x86/mm/kmmio.c
+@@ -126,8 +126,11 @@ static void clear_pte_presence(pte_t *pte, bool clear, pteval_t *old)
+ 	if (clear) {
+ 		*old = v & _PAGE_PRESENT;
+ 		v &= ~_PAGE_PRESENT;
+-	} else	/* presume this has been called with clear==true previously */
++		v |= _PAGE_UNUSED1;
++	} else{	/* presume this has been called with clear==true previously */
+ 		v |= *old;
++		v &= ~_PAGE_UNUSED1;
++	}
+ 	set_pte_atomic(pte, __pte(v));
+ }
+ pte_t *tt_lookup_address(unsigned long address, unsigned int *level, struct mm_struct *mm);
+@@ -136,6 +139,7 @@ pte_t *tt_lookup_address(unsigned long address, unsigned int *level, struct mm_s
+ static int clear_page_presence(struct kmmio_fault_page *f, bool clear, struct mm_struct *mm)
+ {
+ 	unsigned int level;
++	//Other function to do that
+ 	pte_t *pte = tt_lookup_address(f->page, &level, mm);
+ 
+ 	if (!pte) {
+diff --git a/mm/memory.c b/mm/memory.c
+index 36c40bf..eb03de0 100644
+--- a/mm/memory.c
++++ b/mm/memory.c
+@@ -866,6 +866,14 @@ static unsigned long zap_pte_range(struct mmu_gather *tlb,
+ 		if(mmiotrace_iounmap((void*)addr, mm)){
+ 			pteval_t v = pte_val(ptent);
+ 			v |= _PAGE_PRESENT;
++			//
++			/* If I cleat this bit here it triggers a print_bad_pte #3
++			 *because ptent is read back later on
++
++			 Playing with the presetn bit is tricky
++			 might be better to use PROT_NONE instead???
++			 * */
++//			v &= ~_PAGE_UNUSED1;
+ 			set_pte_atomic(&ptent, __pte(v));
+ 		}
+ 			
+@@ -892,6 +900,7 @@ static unsigned long zap_pte_range(struct mmu_gather *tlb,
+ 				     page->index > details->last_index))
+ 					continue;
+ 			}
++			// TODO here we read back
+ 			ptent = ptep_get_and_clear_full(mm, addr, pte,
+ 							tlb->fullmm);
+ 			tlb_remove_tlb_entry(tlb, pte, addr);
+@@ -3401,8 +3410,15 @@ static int follow_pte(struct mm_struct *mm, unsigned long address,
+ 	ptep = pte_offset_map_lock(mm, pmd, address, ptlp);
+ 	if (!ptep)
+ 		goto out;
+-	if (!pte_present(*ptep))
+-		goto unlock;
++	/*this is causing problem whith the MM dup core dup_mmap
++	 * because it needs to get the PTE in order to retrieve prot
++	 * MAYBE we could use another bit to trace on???
++	 */
++
++	//if(!(pte_flags(*ptep) & (_PAGE_UNUSED1)) ){
++		if (!pte_present(*ptep))
++			goto unlock;
++//	}
+ 	*ptepp = ptep;
+ 	return 0;
+ unlock:
+-- 
+1.7.0.4
+

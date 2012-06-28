@@ -1,0 +1,89 @@
+/*                                                                                                                     
+[2:memory.c]*       |3495  * Access another process' address space.                                                                              
+[4:pgtable.h]       |3496  * Source/target buffer must be kernel space,                                                                          
+[5:page.h]          |3497  * Do not walk the page table directly, use get_user_pages                                                             
+[6:paravirt.h]      |3498  */                                                                                                                    
+~                   |3499 int access_process_vm(struct task_struct *tsk, unsigned long addr, void *buf, int len, int write)                      
+~                   |3500 {
+
+
+[6:paravirt.h]      |1508  * get_user_pages walks a process's page tables and takes a reference to                                               
+~                   |1509  * each struct page that each user address corresponds to at a given                                                   
+~                   |1510  * instant. That is, it takes the page that would be accessed if a user                                                
+~                   |1511  * thread accesses the given user virtual address at that instant.        
+
+
+~                   |3414 /**                                                                                                                    
+~                   |3415  * follow_pfn - look up PFN at a user virtual address                                                                  
+~                   |3416  * @vma: memory mapping                                                                                                
+~                   |3417  * @address: user virtual address                                                                                      
+~                   |3418  * @pfn: location to store found PFN                                                                                   
+~                   |3419  *                                                                                                                     
+~                   |3420  * Only IO mappings and raw PFN mappings are allowed.                                                                  
+~                   |3421  *                                                                                                                     
+~                   |3422  * Returns zero and the pfn at @pfn on success, -ve otherwise.                                                         
+~                   |3423  */                                                                                                                    
+~                   |3424 int follow_pfn(struct vm_area_struct *vma, unsigned long address,                                                      
+~                   |3425     unsigned long *pfn)  
+
+~                   |3370 static int follow_pte(struct mm_struct *mm, unsigned long address,                                                     
+~                   |3371         pte_t **ptepp, spinlock_t **ptlp)  
+
+
+
+~                   |131 static inline unsigned long pte_pfn(pte_t pte)
+~                   |132 {    
+~                   |133     return (pte_val(pte) & PTE_PFN_MASK) >> PAGE_SHIFT;
+~                   |134 }   
+
+
+
+~                   |237 static inline pte_t pfn_pte(unsigned long page_nr, pgprot_t pgprot)                                                     
+~                   |238 {                                                                                                                       
+~                   |239     return __pte(((phys_addr_t)page_nr << PAGE_SHIFT) |                                                                 
+~                   |240              massage_pgprot(pgprot));                                                                                   
+~                   |241 }                                                       
+
+
+
+
+ #define mk_pte(page, pgprot)   pfn_pte(page_to_pfn(page), (pgprot))    
+
+
+
+~                   | 803     if (unlikely(is_pfn_mapping(vma))) {
+~                   | 804         /*
+~                   | 805          * We do not free on error cases below as remove_vma
+~                   | 806          * gets called on error from higher level routine
+~                   | 807          */
+~                   | 808         ret = track_pfn_vma_copy(vma);
+~                   | 809         if (ret)
+~                   | 810             return ret;
+~                   | 811     }
+~                   | 812 
+
+
+
+
+~                   |354  * Start a pte protection read-modify-write transaction, which
+~                   |355  * protects against asynchronous hardware modifications to the pte.
+~                   |356  * The intention is not to prevent the hardware from making pte
+~                   |357  * updates, but to prevent any updates it may make from being lost.
+~                   |358  *
+~                   |359  * This does not protect against other software modifications of the
+~                   |360  * pte; the appropriate pte lock must be held over the transation.
+~                   |361  *                       
+~                   |362  * Note that this interface is intended to be batchable, meaning that
+~                   |363  * ptep_modify_prot_commit may not actually update the pte, but merely
+~                   |364  * queue the update to be done at some later time.  The update must be
+~                   |365  * actually committed before the pte lock is released, however.
+~                   |366  */
+~                   |367 static inline pte_t ptep_modify_prot_start(struct mm_struct *mm,
+~                   |368                        unsigned long addr,
+~                   |369                        pte_t *ptep)
+~                   |370 {
+~                   |371     return __ptep_modify_prot_start(mm, addr, ptep);
+~                   |372 }
+
+
+:q

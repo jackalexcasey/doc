@@ -1,0 +1,134 @@
+diff --git a/arch/x86/mm/kmmio.c b/arch/x86/mm/kmmio.c
+index 16ccbd7..966947d 100644
+--- a/arch/x86/mm/kmmio.c
++++ b/arch/x86/mm/kmmio.c
+@@ -130,14 +130,19 @@ static void clear_pte_presence(pte_t *pte, bool clear, pteval_t *old)
+ 	set_pte_atomic(pte, __pte(v));
+ }
+ 
++extern pte_t *lookup_u_address(unsigned long address, unsigned int *level);
+ static int clear_page_presence(struct kmmio_fault_page *f, bool clear)
+ {
+ 	unsigned int level;
+ 	pte_t *pte = lookup_address(f->page, &level);
+ 
+ 	if (!pte) {
+-		pr_err("kmmio: no pte for page 0x%08lx\n", f->page);
+-		return -1;
++		pr_err("trying user PTE\n");
++		pte = lookup_u_address(f->page, &level);
++		if(!pte){
++			pr_err("kmmio: no pte for page 0x%08lx\n", f->page);
++			return -1;
++		}
+ 	}
+ 
+ 	switch (level) {
+diff --git a/arch/x86/mm/mmio-mod.c b/arch/x86/mm/mmio-mod.c
+index 132772a..cd218de 100644
+--- a/arch/x86/mm/mmio-mod.c
++++ b/arch/x86/mm/mmio-mod.c
+@@ -288,6 +288,7 @@ void mmiotrace_ioremap(resource_size_t offset, unsigned long size,
+ 		return;
+ 	ioremap_trace_core(offset, size, addr);
+ }
++EXPORT_SYMBOL(mmiotrace_ioremap);
+ 
+ static void iounmap_trace_core(volatile void __iomem *addr)
+ {
+diff --git a/arch/x86/mm/pageattr.c b/arch/x86/mm/pageattr.c
+index 89f7c96..b60aadc 100644
+--- a/arch/x86/mm/pageattr.c
++++ b/arch/x86/mm/pageattr.c
+@@ -322,6 +322,48 @@ static inline pgprot_t static_protections(pgprot_t prot, unsigned long address,
+ 	return prot;
+ }
+ 
++#define pgd_offset_u(address) pgd_offset(current->mm, (address))
++/*
++ * Lookup the page table entry for a virtual address. Return a pointer
++ * to the entry and the level of the mapping.
++ *
++ * Note: We return pud and pmd either when the entry is marked large
++ * or when the present bit is not set. Otherwise we would return a
++ * pointer to a nonexisting mapping.
++ */
++pte_t *lookup_u_address(unsigned long address, unsigned int *level)
++{
++	pgd_t *pgd = pgd_offset_u(address);
++	pud_t *pud;
++	pmd_t *pmd;
++
++	*level = PG_LEVEL_NONE;
++
++	if (pgd_none(*pgd))
++		return NULL;
++
++	pud = pud_offset(pgd, address);
++	if (pud_none(*pud))
++		return NULL;
++
++	*level = PG_LEVEL_1G;
++	if (pud_large(*pud) || !pud_present(*pud))
++		return (pte_t *)pud;
++
++	pmd = pmd_offset(pud, address);
++	if (pmd_none(*pmd))
++		return NULL;
++
++	*level = PG_LEVEL_2M;
++	if (pmd_large(*pmd) || !pmd_present(*pmd))
++		return (pte_t *)pmd;
++
++	*level = PG_LEVEL_4K;
++
++	return pte_offset_kernel(pmd, address);
++}
++EXPORT_SYMBOL_GPL(lookup_u_address);
++
+ /*
+  * Lookup the page table entry for a virtual address. Return a pointer
+  * to the entry and the level of the mapping.
+diff --git a/mm/memory.c b/mm/memory.c
+index 33d0bea..ed4f12a 100644
+--- a/mm/memory.c
++++ b/mm/memory.c
+@@ -1859,6 +1859,10 @@ static inline int remap_pud_range(struct mm_struct *mm, pgd_t *pgd,
+  *
+  *  Note: this is only safe if the mm semaphore is held when called.
+  */
++extern void mmiotrace_ioremap(resource_size_t offset, unsigned long size,
++	void __iomem *addr);
++extern pte_t *lookup_u_address(unsigned long address, unsigned int *level);
++
+ int remap_pfn_range(struct vm_area_struct *vma, unsigned long addr,
+ 		    unsigned long pfn, unsigned long size, pgprot_t prot)
+ {
+@@ -1866,7 +1870,7 @@ int remap_pfn_range(struct vm_area_struct *vma, unsigned long addr,
+ 	unsigned long next;
+ 	unsigned long end = addr + PAGE_ALIGN(size);
+ 	struct mm_struct *mm = vma->vm_mm;
+-	int err;
++	int err,saved_pfn = pfn;
+ 
+ 	/*
+ 	 * Physically remapped pages are special. Tell the
+@@ -1920,6 +1924,18 @@ int remap_pfn_range(struct vm_area_struct *vma, unsigned long addr,
+ 	if (err)
+ 		untrack_pfn_vma(vma, pfn, PAGE_ALIGN(size));
+ 
++	{
++		unsigned int level;
++		pte_t *pte = lookup_u_address(addr , &level);
++		printk("remap_pfn_range: vaddr = %lx paddr = %lx size = %lx\n",addr,saved_pfn,size);
++		if(!pte)
++			printk("NO PTE\n");
++
++		mmiotrace_ioremap(saved_pfn<<PAGE_SHIFT,size,(void*)addr);
++	}
++
++
++
+ 	return err;
+ }
+ EXPORT_SYMBOL(remap_pfn_range);

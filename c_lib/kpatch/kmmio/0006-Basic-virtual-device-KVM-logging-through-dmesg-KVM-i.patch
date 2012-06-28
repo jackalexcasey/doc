@@ -1,0 +1,93 @@
+From aaa9b202da128537475dccb12a35d0342c56dc51 Mon Sep 17 00:00:00 2001
+From: Etienne <etmartin@etmartin-desktop.(none)>
+Date: Wed, 27 Jun 2012 15:14:12 -0400
+Subject: [PATCH 6/8] Basic virtual device / KVM logging through dmesg KVM io RD/WR
+
+---
+ arch/x86/kvm/x86.c    |    6 +++++-
+ arch/x86/mm/ioremap.c |    2 +-
+ arch/x86/mm/kmmio.c   |    4 ++--
+ mm/memory.c           |    3 +++
+ 4 files changed, 11 insertions(+), 4 deletions(-)
+
+diff --git a/arch/x86/kvm/x86.c b/arch/x86/kvm/x86.c
+index 6625152..5a3785f 100644
+--- a/arch/x86/kvm/x86.c
++++ b/arch/x86/kvm/x86.c
+@@ -3016,6 +3016,7 @@ static void kvm_init_msr_list(void)
+ static int vcpu_mmio_write(struct kvm_vcpu *vcpu, gpa_t addr, int len,
+ 			   const void *v)
+ {
++	printk("vcpu_mmio_write %lx %lx\n",addr,*(unsigned long*)v);
+ 	if (vcpu->arch.apic &&
+ 	    !kvm_iodevice_write(&vcpu->arch.apic->dev, addr, len, v))
+ 		return 0;
+@@ -3025,11 +3026,14 @@ static int vcpu_mmio_write(struct kvm_vcpu *vcpu, gpa_t addr, int len,
+ 
+ static int vcpu_mmio_read(struct kvm_vcpu *vcpu, gpa_t addr, int len, void *v)
+ {
++	int err;
+ 	if (vcpu->arch.apic &&
+ 	    !kvm_iodevice_read(&vcpu->arch.apic->dev, addr, len, v))
+ 		return 0;
+ 
+-	return kvm_io_bus_read(vcpu->kvm, KVM_MMIO_BUS, addr, len, v);
++	err = kvm_io_bus_read(vcpu->kvm, KVM_MMIO_BUS, addr, len, v);
++	printk("vcpu_mmio_read %lx %lx\n",addr, *(unsigned long*)v);
++	return err;
+ }
+ 
+ gpa_t kvm_mmu_gva_to_gpa_read(struct kvm_vcpu *vcpu, gva_t gva, u32 *error)
+diff --git a/arch/x86/mm/ioremap.c b/arch/x86/mm/ioremap.c
+index 6424ea4..a60b28f 100644
+--- a/arch/x86/mm/ioremap.c
++++ b/arch/x86/mm/ioremap.c
+@@ -169,7 +169,7 @@ static void __iomem *__ioremap_caller(resource_size_t phys_addr,
+ 		goto err_free_area;
+ 
+ 	ret_addr = (void __iomem *) (vaddr + offset);
+-	mmiotrace_ioremap(unaligned_phys_addr, unaligned_size, ret_addr, &init_mm);
++//	mmiotrace_ioremap(unaligned_phys_addr, unaligned_size, ret_addr, &init_mm);
+ 
+ 	return ret_addr;
+ err_free_area:
+diff --git a/arch/x86/mm/kmmio.c b/arch/x86/mm/kmmio.c
+index 8b3c0f4..936a0e7 100644
+--- a/arch/x86/mm/kmmio.c
++++ b/arch/x86/mm/kmmio.c
+@@ -126,10 +126,10 @@ static void clear_pte_presence(pte_t *pte, bool clear, pteval_t *old)
+ 	if (clear) {
+ 		*old = v & _PAGE_PRESENT;
+ 		v &= ~_PAGE_PRESENT;
+-		v |= _PAGE_UNUSED1;
++		//v |= _PAGE_UNUSED1;
+ 	} else{	/* presume this has been called with clear==true previously */
+ 		v |= *old;
+-		v &= ~_PAGE_UNUSED1;
++//		v &= ~_PAGE_UNUSED1;
+ 	}
+ 	set_pte_atomic(pte, __pte(v));
+ }
+diff --git a/mm/memory.c b/mm/memory.c
+index eb03de0..3c1b857 100644
+--- a/mm/memory.c
++++ b/mm/memory.c
+@@ -866,12 +866,15 @@ static unsigned long zap_pte_range(struct mmu_gather *tlb,
+ 		if(mmiotrace_iounmap((void*)addr, mm)){
+ 			pteval_t v = pte_val(ptent);
+ 			v |= _PAGE_PRESENT;
++			//Here we clear the pte but is it true always?
+ 			//
+ 			/* If I cleat this bit here it triggers a print_bad_pte #3
+ 			 *because ptent is read back later on
+ 
+ 			 Playing with the presetn bit is tricky
+ 			 might be better to use PROT_NONE instead???
++
++			 PROT_NONE is really PAGE_PRESENT cleared
+ 			 * */
+ //			v &= ~_PAGE_UNUSED1;
+ 			set_pte_atomic(&ptent, __pte(v));
+-- 
+1.7.0.4
+

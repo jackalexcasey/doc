@@ -1,0 +1,122 @@
+From 87344827daba0a643ca58216593baeeb4cbaf610 Mon Sep 17 00:00:00 2001
+From: Etienne <etmartin@etmartin-desktop.(none)>
+Date: Wed, 27 Jun 2012 10:57:21 -0400
+Subject: [PATCH 3/8] kmmio stable logging / mmap&munmap ( with key struct mm)
+
+---
+ arch/x86/mm/mmio-mod.c         |   21 ++++++++++++++-------
+ include/linux/mmiotrace.h      |    2 ++
+ kernel/trace/trace_mmiotrace.c |    6 ++++--
+ mm/memory.c                    |    3 +--
+ 4 files changed, 21 insertions(+), 11 deletions(-)
+
+diff --git a/arch/x86/mm/mmio-mod.c b/arch/x86/mm/mmio-mod.c
+index 2714cfa..1ad1d98 100644
+--- a/arch/x86/mm/mmio-mod.c
++++ b/arch/x86/mm/mmio-mod.c
+@@ -252,6 +252,7 @@ static void ioremap_trace_core(resource_size_t offset, unsigned long size,
+ 		.probe = {
+ 			.addr = (unsigned long)addr,
+ 			.len = size,
++			.mm = mm,
+ 			.pre_handler = pre,
+ 			.post_handler = post,
+ 			.private = trace
+@@ -301,14 +302,13 @@ static void iounmap_trace_core(volatile void __iomem *addr, struct mm_struct *mm
+ 	struct remap_trace *tmp;
+ 	struct remap_trace *found_trace = NULL;
+ 
+-	pr_debug(NAME "Unmapping %p.\n", addr);
+-
+ 	spin_lock_irq(&trace_lock);
+ 	if (!is_enabled())
+ 		goto not_enabled;
+ 
+ 	list_for_each_entry_safe(trace, tmp, &trace_list, list) {
+-		if ((unsigned long)addr == trace->probe.addr) {
++		if (((unsigned long)addr == trace->probe.addr) && 
++			(trace->probe.mm == mm)) {
+ 			if (!nommiotrace)
+ 				unregister_kmmio_probe(&trace->probe, mm);
+ 			list_del(&trace->list);
+@@ -316,12 +316,18 @@ static void iounmap_trace_core(volatile void __iomem *addr, struct mm_struct *mm
+ 			break;
+ 		}
+ 	}
+-	map.map_id = (found_trace) ? found_trace->id : -1;
+-	mmio_trace_mapping(&map);
++	if(found_trace){
++		map.map_id = found_trace->id;
++		map.phys = found_trace->phys;
++		map.virt = found_trace->probe.addr;
++		map.len = found_trace->probe.len;
++		mmio_trace_mapping(&map);
++	}
+ 
+ not_enabled:
+ 	spin_unlock_irq(&trace_lock);
+ 	if (found_trace) {
++		pr_debug(NAME "Unmapping %p.\n", addr);
+ 		synchronize_rcu(); /* unregister_kmmio_probe() requirement */
+ 		kfree(found_trace);
+ 	}
+@@ -329,9 +335,10 @@ not_enabled:
+ 
+ void mmiotrace_iounmap(volatile void __iomem *addr, struct mm_struct *mm)
+ {
+-	might_sleep();
+-	if (is_enabled()) /* recheck and proper locking in *_core() */
++//	might_sleep();
++	if (is_enabled()){ /* recheck and proper locking in *_core() */
+ 		iounmap_trace_core(addr, mm);
++	}
+ }
+ 
+ int mmiotrace_printk(const char *fmt, ...)
+diff --git a/include/linux/mmiotrace.h b/include/linux/mmiotrace.h
+index 307f1cd..2ea5f5d 100644
+--- a/include/linux/mmiotrace.h
++++ b/include/linux/mmiotrace.h
+@@ -19,6 +19,8 @@ struct kmmio_probe {
+ 	unsigned long		addr;
+ 	/* length of the probe region: */
+ 	unsigned long		len;
++	/* mm context */
++	struct mm_struct *mm;
+ 	/* Called before addr is executed: */
+ 	kmmio_pre_handler_t	pre_handler;
+ 	/* Called after addr is executed: */
+diff --git a/kernel/trace/trace_mmiotrace.c b/kernel/trace/trace_mmiotrace.c
+index 0acd834..8111270 100644
+--- a/kernel/trace/trace_mmiotrace.c
++++ b/kernel/trace/trace_mmiotrace.c
+@@ -240,8 +240,10 @@ static enum print_line_t mmio_print_map(struct trace_iterator *iter)
+ 		break;
+ 	case MMIO_UNPROBE:
+ 		ret = trace_seq_printf(s,
+-			"UNMAP %u.%06lu %d 0x%lx %d\n",
+-			secs, usec_rem, m->map_id, 0UL, 0);
++			"UNMAP %u.%06lu %d 0x%llx 0x%lx 0x%lx 0x%lx %d\n",
++			secs, usec_rem, m->map_id,
++			(unsigned long long)m->phys, m->virt, m->len,
++			0UL, 0);
+ 		break;
+ 	default:
+ 		ret = trace_seq_printf(s, "map what?\n");
+diff --git a/mm/memory.c b/mm/memory.c
+index 406bbc4..ec727c2 100644
+--- a/mm/memory.c
++++ b/mm/memory.c
+@@ -1015,8 +1015,7 @@ static unsigned long unmap_page_range(struct mmu_gather *tlb,
+ 		details = NULL;
+ 
+ 	BUG_ON(addr >= end);
+-	if(addr == 0x12340000)
+-		mmiotrace_iounmap((void*)addr, mm);
++	mmiotrace_iounmap((void*)addr, mm);
+ 
+ 	tlb_start_vma(tlb, vma);
+ 	pgd = pgd_offset(vma->vm_mm, addr);
+-- 
+1.7.0.4
+

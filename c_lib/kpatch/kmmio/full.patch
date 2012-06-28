@@ -1,0 +1,702 @@
+diff --git a/arch/x86/kvm/x86.c b/arch/x86/kvm/x86.c
+index 6625152..815606a 100644
+--- a/arch/x86/kvm/x86.c
++++ b/arch/x86/kvm/x86.c
+@@ -3013,23 +3013,53 @@ static void kvm_init_msr_list(void)
+ 	num_msrs_to_save = j;
+ }
+ 
++#include <linux/mmiotrace.h>
++extern void mmiotrace(struct mmiotrace_rw *mmio);
++
++/* Do I have MM context at this stage???? if so then I can use the lookup
++ * directly in kmmio
++ */
+ static int vcpu_mmio_write(struct kvm_vcpu *vcpu, gpa_t addr, int len,
+ 			   const void *v)
+ {
++	int rc;
++	struct mmiotrace_rw mmio;
++
+ 	if (vcpu->arch.apic &&
+ 	    !kvm_iodevice_write(&vcpu->arch.apic->dev, addr, len, v))
+ 		return 0;
+ 
+-	return kvm_io_bus_write(vcpu->kvm, KVM_MMIO_BUS, addr, len, v);
++	rc = kvm_io_bus_write(vcpu->kvm, KVM_MMIO_BUS, addr, len, v);
++
++	mmio.phys = addr;
++	mmio.width = len;
++	mmio.value = *(unsigned long*)v;
++	mmio.map_id = -1;
++	mmio.opcode = MMIO_WRITE;
++	mmiotrace(&mmio);
++
++	return rc;
+ }
+ 
+ static int vcpu_mmio_read(struct kvm_vcpu *vcpu, gpa_t addr, int len, void *v)
+ {
++	int rc;
++	struct mmiotrace_rw mmio;
++
+ 	if (vcpu->arch.apic &&
+ 	    !kvm_iodevice_read(&vcpu->arch.apic->dev, addr, len, v))
+ 		return 0;
+ 
+-	return kvm_io_bus_read(vcpu->kvm, KVM_MMIO_BUS, addr, len, v);
++	rc = kvm_io_bus_read(vcpu->kvm, KVM_MMIO_BUS, addr, len, v);
++
++	mmio.phys = addr;
++	mmio.width = len;
++	mmio.value = *(unsigned long*)v;
++	mmio.map_id = -1;
++	mmio.opcode = MMIO_READ;
++	mmiotrace(&mmio);
++
++	return rc;
+ }
+ 
+ gpa_t kvm_mmu_gva_to_gpa_read(struct kvm_vcpu *vcpu, gva_t gva, u32 *error)
+diff --git a/arch/x86/mm/ioremap.c b/arch/x86/mm/ioremap.c
+index 99ecf31..a60b28f 100644
+--- a/arch/x86/mm/ioremap.c
++++ b/arch/x86/mm/ioremap.c
+@@ -169,7 +169,7 @@ static void __iomem *__ioremap_caller(resource_size_t phys_addr,
+ 		goto err_free_area;
+ 
+ 	ret_addr = (void __iomem *) (vaddr + offset);
+-	mmiotrace_ioremap(unaligned_phys_addr, unaligned_size, ret_addr);
++//	mmiotrace_ioremap(unaligned_phys_addr, unaligned_size, ret_addr, &init_mm);
+ 
+ 	return ret_addr;
+ err_free_area:
+@@ -300,7 +300,7 @@ void iounmap(volatile void __iomem *addr)
+ 	addr = (volatile void __iomem *)
+ 		(PAGE_MASK & (unsigned long __force)addr);
+ 
+-	mmiotrace_iounmap(addr);
++	mmiotrace_iounmap(addr, &init_mm);
+ 
+ 	/* Use the vm area unlocked, assuming the caller
+ 	   ensures there isn't another iounmap for the same address
+diff --git a/arch/x86/mm/kmmio.c b/arch/x86/mm/kmmio.c
+index 16ccbd7..a2ec6bb 100644
+--- a/arch/x86/mm/kmmio.c
++++ b/arch/x86/mm/kmmio.c
+@@ -33,6 +33,7 @@ struct kmmio_fault_page {
+ 	struct kmmio_fault_page *release_next;
+ 	unsigned long page; /* location of the fault page */
+ 	pteval_t old_presence; /* page presence prior to arming */
++	struct mm_struct *mm; /* mm context */
+ 	bool armed;
+ 
+ 	/*
+@@ -93,8 +94,21 @@ static struct kmmio_probe *get_kmmio_probe(unsigned long addr)
+ 	return NULL;
+ }
+ 
++struct kmmio_probe *get_outofband_kmmio_probe(unsigned long addr)
++{
++	struct kmmio_probe *p;
++
++	preempt_disable();
++	rcu_read_lock();
++	p = get_kmmio_probe(addr);
++	rcu_read_unlock();
++	preempt_enable_no_resched();
++	return p;
++}
++EXPORT_SYMBOL(get_outofband_kmmio_probe);
++
+ /* You must be holding RCU read lock. */
+-static struct kmmio_fault_page *get_kmmio_fault_page(unsigned long page)
++static struct kmmio_fault_page *get_kmmio_fault_page(unsigned long page, struct mm_struct *mm)
+ {
+ 	struct list_head *head;
+ 	struct kmmio_fault_page *f;
+@@ -102,7 +116,7 @@ static struct kmmio_fault_page *get_kmmio_fault_page(unsigned long page)
+ 	page &= PAGE_MASK;
+ 	head = kmmio_page_list(page);
+ 	list_for_each_entry_rcu(f, head, list) {
+-		if (f->page == page)
++		if ( (f->page == page) && (f->mm == mm) )
+ 			return f;
+ 	}
+ 	return NULL;
+@@ -125,15 +139,21 @@ static void clear_pte_presence(pte_t *pte, bool clear, pteval_t *old)
+ 	if (clear) {
+ 		*old = v & _PAGE_PRESENT;
+ 		v &= ~_PAGE_PRESENT;
+-	} else	/* presume this has been called with clear==true previously */
++		//v |= _PAGE_UNUSED1;
++	} else{	/* presume this has been called with clear==true previously */
+ 		v |= *old;
++//		v &= ~_PAGE_UNUSED1;
++	}
+ 	set_pte_atomic(pte, __pte(v));
+ }
++pte_t *tt_lookup_address(unsigned long address, unsigned int *level, struct mm_struct *mm);
+ 
+-static int clear_page_presence(struct kmmio_fault_page *f, bool clear)
++// TODO incorporate MM into the lookup adress
++static int clear_page_presence(struct kmmio_fault_page *f, bool clear, struct mm_struct *mm)
+ {
+ 	unsigned int level;
+-	pte_t *pte = lookup_address(f->page, &level);
++	//Other function to do that
++	pte_t *pte = tt_lookup_address(f->page, &level, mm);
+ 
+ 	if (!pte) {
+ 		pr_err("kmmio: no pte for page 0x%08lx\n", f->page);
+@@ -167,7 +187,7 @@ static int clear_page_presence(struct kmmio_fault_page *f, bool clear)
+  * Double disarming on the other hand is allowed, and may occur when a fault
+  * and mmiotrace shutdown happen simultaneously.
+  */
+-static int arm_kmmio_fault_page(struct kmmio_fault_page *f)
++static int arm_kmmio_fault_page(struct kmmio_fault_page *f, struct mm_struct *mm)
+ {
+ 	int ret;
+ 	WARN_ONCE(f->armed, KERN_ERR "kmmio page already armed.\n");
+@@ -175,16 +195,16 @@ static int arm_kmmio_fault_page(struct kmmio_fault_page *f)
+ 		pr_warning("kmmio double-arm: page 0x%08lx, ref %d, old %d\n",
+ 					f->page, f->count, !!f->old_presence);
+ 	}
+-	ret = clear_page_presence(f, true);
++	ret = clear_page_presence(f, true, mm);
+ 	WARN_ONCE(ret < 0, KERN_ERR "kmmio arming 0x%08lx failed.\n", f->page);
+ 	f->armed = true;
+ 	return ret;
+ }
+ 
+ /** Restore the given page to saved presence state. */
+-static void disarm_kmmio_fault_page(struct kmmio_fault_page *f)
++static void disarm_kmmio_fault_page(struct kmmio_fault_page *f, struct mm_struct *mm)
+ {
+-	int ret = clear_page_presence(f, false);
++	int ret = clear_page_presence(f, false, mm);
+ 	WARN_ONCE(ret < 0,
+ 			KERN_ERR "kmmio disarming 0x%08lx failed.\n", f->page);
+ 	f->armed = false;
+@@ -222,7 +242,7 @@ int kmmio_handler(struct pt_regs *regs, unsigned long addr)
+ 	preempt_disable();
+ 	rcu_read_lock();
+ 
+-	faultpage = get_kmmio_fault_page(addr);
++	faultpage = get_kmmio_fault_page(addr, current->mm);
+ 	if (!faultpage) {
+ 		/*
+ 		 * Either this page fault is not caused by kmmio, or
+@@ -258,7 +278,7 @@ int kmmio_handler(struct pt_regs *regs, unsigned long addr)
+ 					smp_processor_id(), addr);
+ 			pr_emerg("kmmio: previous hit was at 0x%08lx.\n",
+ 						ctx->addr);
+-			disarm_kmmio_fault_page(faultpage);
++			disarm_kmmio_fault_page(faultpage, current->mm);
+ 		}
+ 		goto no_kmmio_ctx;
+ 	}
+@@ -280,7 +300,7 @@ int kmmio_handler(struct pt_regs *regs, unsigned long addr)
+ 	regs->flags &= ~X86_EFLAGS_IF;
+ 
+ 	/* Now we set present bit in PTE and single step. */
+-	disarm_kmmio_fault_page(ctx->fpage);
++	disarm_kmmio_fault_page(ctx->fpage, current->mm);
+ 
+ 	/*
+ 	 * If another cpu accesses the same page while we are stepping,
+@@ -327,7 +347,7 @@ static int post_kmmio_handler(unsigned long condition, struct pt_regs *regs)
+ 	/* Prevent racing against release_kmmio_fault_page(). */
+ 	spin_lock(&kmmio_lock);
+ 	if (ctx->fpage->count)
+-		arm_kmmio_fault_page(ctx->fpage);
++		arm_kmmio_fault_page(ctx->fpage, current->mm);
+ 	spin_unlock(&kmmio_lock);
+ 
+ 	regs->flags &= ~X86_EFLAGS_TF;
+@@ -352,15 +372,15 @@ out:
+ }
+ 
+ /* You must be holding kmmio_lock. */
+-static int add_kmmio_fault_page(unsigned long page)
++static int add_kmmio_fault_page(unsigned long page, struct mm_struct *mm)
+ {
+ 	struct kmmio_fault_page *f;
+ 
+ 	page &= PAGE_MASK;
+-	f = get_kmmio_fault_page(page);
++	f = get_kmmio_fault_page(page, mm);
+ 	if (f) {
+ 		if (!f->count)
+-			arm_kmmio_fault_page(f);
++			arm_kmmio_fault_page(f, mm);
+ 		f->count++;
+ 		return 0;
+ 	}
+@@ -371,8 +391,9 @@ static int add_kmmio_fault_page(unsigned long page)
+ 
+ 	f->count = 1;
+ 	f->page = page;
++	f->mm = mm;
+ 
+-	if (arm_kmmio_fault_page(f)) {
++	if (arm_kmmio_fault_page(f, mm)) {
+ 		kfree(f);
+ 		return -1;
+ 	}
+@@ -384,19 +405,19 @@ static int add_kmmio_fault_page(unsigned long page)
+ 
+ /* You must be holding kmmio_lock. */
+ static void release_kmmio_fault_page(unsigned long page,
+-				struct kmmio_fault_page **release_list)
++				struct kmmio_fault_page **release_list, struct mm_struct *mm)
+ {
+ 	struct kmmio_fault_page *f;
+ 
+ 	page &= PAGE_MASK;
+-	f = get_kmmio_fault_page(page);
++	f = get_kmmio_fault_page(page, mm);
+ 	if (!f)
+ 		return;
+ 
+ 	f->count--;
+ 	BUG_ON(f->count < 0);
+ 	if (!f->count) {
+-		disarm_kmmio_fault_page(f);
++		disarm_kmmio_fault_page(f, mm);
+ 		f->release_next = *release_list;
+ 		*release_list = f;
+ 	}
+@@ -409,7 +430,7 @@ static void release_kmmio_fault_page(unsigned long page,
+  * mistakes by accessing addresses before the beginning or past the end of a
+  * mapping.
+  */
+-int register_kmmio_probe(struct kmmio_probe *p)
++int register_kmmio_probe(struct kmmio_probe *p, struct mm_struct *mm)
+ {
+ 	unsigned long flags;
+ 	int ret = 0;
+@@ -424,7 +445,7 @@ int register_kmmio_probe(struct kmmio_probe *p)
+ 	kmmio_count++;
+ 	list_add_rcu(&p->list, &kmmio_probes);
+ 	while (size < size_lim) {
+-		if (add_kmmio_fault_page(p->addr + size))
++		if (add_kmmio_fault_page(p->addr + size, mm))
+ 			pr_err("kmmio: Unable to set page fault.\n");
+ 		size += PAGE_SIZE;
+ 	}
+@@ -492,7 +513,7 @@ static void remove_kmmio_fault_pages(struct rcu_head *head)
+  * 3. rcu_free_kmmio_fault_pages()
+  *    Actally free the kmmio_fault_page structs as with RCU.
+  */
+-void unregister_kmmio_probe(struct kmmio_probe *p)
++void unregister_kmmio_probe(struct kmmio_probe *p ,struct mm_struct *mm)
+ {
+ 	unsigned long flags;
+ 	unsigned long size = 0;
+@@ -502,7 +523,7 @@ void unregister_kmmio_probe(struct kmmio_probe *p)
+ 
+ 	spin_lock_irqsave(&kmmio_lock, flags);
+ 	while (size < size_lim) {
+-		release_kmmio_fault_page(p->addr + size, &release_list);
++		release_kmmio_fault_page(p->addr + size, &release_list, mm);
+ 		size += PAGE_SIZE;
+ 	}
+ 	list_del_rcu(&p->list);
+diff --git a/arch/x86/mm/mmio-mod.c b/arch/x86/mm/mmio-mod.c
+index 132772a..c621e23 100644
+--- a/arch/x86/mm/mmio-mod.c
++++ b/arch/x86/mm/mmio-mod.c
+@@ -231,7 +231,7 @@ static void post(struct kmmio_probe *p, unsigned long condition,
+ }
+ 
+ static void ioremap_trace_core(resource_size_t offset, unsigned long size,
+-							void __iomem *addr)
++		void __iomem *addr, struct mm_struct *mm)
+ {
+ 	static atomic_t next_id;
+ 	struct remap_trace *trace = kmalloc(sizeof(*trace), GFP_KERNEL);
+@@ -252,6 +252,7 @@ static void ioremap_trace_core(resource_size_t offset, unsigned long size,
+ 		.probe = {
+ 			.addr = (unsigned long)addr,
+ 			.len = size,
++			.mm = mm,
+ 			.pre_handler = pre,
+ 			.post_handler = post,
+ 			.private = trace
+@@ -270,14 +271,14 @@ static void ioremap_trace_core(resource_size_t offset, unsigned long size,
+ 	mmio_trace_mapping(&map);
+ 	list_add_tail(&trace->list, &trace_list);
+ 	if (!nommiotrace)
+-		register_kmmio_probe(&trace->probe);
++		register_kmmio_probe(&trace->probe, mm);
+ 
+ not_enabled:
+ 	spin_unlock_irq(&trace_lock);
+ }
+ 
+ void mmiotrace_ioremap(resource_size_t offset, unsigned long size,
+-						void __iomem *addr)
++		void __iomem *addr, struct mm_struct *mm)
+ {
+ 	if (!is_enabled()) /* recheck and proper locking in *_core() */
+ 		return;
+@@ -286,10 +287,10 @@ void mmiotrace_ioremap(resource_size_t offset, unsigned long size,
+ 				(unsigned long long)offset, size, addr);
+ 	if ((filter_offset) && (offset != filter_offset))
+ 		return;
+-	ioremap_trace_core(offset, size, addr);
++	ioremap_trace_core(offset, size, addr, mm);
+ }
+ 
+-static void iounmap_trace_core(volatile void __iomem *addr)
++static int iounmap_trace_core(volatile void __iomem *addr, struct mm_struct *mm)
+ {
+ 	struct mmiotrace_map map = {
+ 		.phys = 0,
+@@ -301,38 +302,117 @@ static void iounmap_trace_core(volatile void __iomem *addr)
+ 	struct remap_trace *tmp;
+ 	struct remap_trace *found_trace = NULL;
+ 
+-	pr_debug(NAME "Unmapping %p.\n", addr);
+-
+ 	spin_lock_irq(&trace_lock);
+ 	if (!is_enabled())
+ 		goto not_enabled;
+ 
+ 	list_for_each_entry_safe(trace, tmp, &trace_list, list) {
+-		if ((unsigned long)addr == trace->probe.addr) {
++		if (((unsigned long)addr == trace->probe.addr) && 
++			(trace->probe.mm == mm)) {
+ 			if (!nommiotrace)
+-				unregister_kmmio_probe(&trace->probe);
++				unregister_kmmio_probe(&trace->probe, mm);
+ 			list_del(&trace->list);
+ 			found_trace = trace;
+ 			break;
+ 		}
+ 	}
+-	map.map_id = (found_trace) ? found_trace->id : -1;
+-	mmio_trace_mapping(&map);
++	if(found_trace){
++		map.map_id = found_trace->id;
++		map.phys = found_trace->phys;
++		map.virt = found_trace->probe.addr;
++		map.len = found_trace->probe.len;
++		mmio_trace_mapping(&map);
++	}
+ 
+ not_enabled:
+ 	spin_unlock_irq(&trace_lock);
+ 	if (found_trace) {
++		pr_debug(NAME "Unmapping %p.\n", addr);
+ 		synchronize_rcu(); /* unregister_kmmio_probe() requirement */
+ 		kfree(found_trace);
++		return 1;
++	}
++	return 0;
++}
++
++int mmiotrace_iounmap(volatile void __iomem *addr, struct mm_struct *mm)
++{
++//	might_sleep();
++	if (is_enabled()){ /* recheck and proper locking in *_core() */
++		return iounmap_trace_core(addr, mm);
+ 	}
++	return 0;
+ }
++#if 0
++	case MMIO_READ:
++		ret = trace_seq_printf(s,
++			"R %d %u.%06lu %d 0x%llx 0x%lx 0x%lx %d\n",
++			rw->width, secs, usec_rem, rw->map_id,
++			(unsigned long long)rw->phys,
++			rw->value, rw->pc, 0);
++		break;
++	case MMIO_WRITE:
++		ret = trace_seq_printf(s,
++			"W %d %u.%06lu %d 0x%llx 0x%lx 0x%lx %d\n",
++			rw->width, secs, usec_rem, rw->map_id,
++			(unsigned long long)rw->phys,
++			rw->value, rw->pc, 0);
++		break;
++Also need to look if the tracer is enabled
++struct mmiotrace_rw {
++	resource_size_t	phys;	/* PCI address of register */
++	unsigned long	value;
++	unsigned long	pc;	/* optional program counter */
++	int		map_id;
++	unsigned char	opcode;	/* one of MMIO_{READ,WRITE,UNKNOWN_OP} */
++	unsigned char	width;	/* size of register access in bytes */
++};
++	struct mmiotrace_rw *my_trace = &get_cpu_var(cpu_trace);
++
++This is the tracer function for kmmio
++	mmio_trace_rw(my_trace);
++
++
++	THE context is automatically taken with the kmmio probe hook i.e.
++	if you have the handler then you are on the list
+ 
+-void mmiotrace_iounmap(volatile void __iomem *addr)
++The problem with the KVM io bus is that we will need to search the list to find
++out if we are onto it.
++
++kvm_io_bus_write also does a range check for each access
++#endif
++//extern struct kmmio_probe *get_outofband_kmmio_probe(unsigned long addr, struct *mm);
++#include <linux/sched.h>
++
++void mmiotrace(struct mmiotrace_rw *mmio)
+ {
+-	might_sleep();
+-	if (is_enabled()) /* recheck and proper locking in *_core() */
+-		iounmap_trace_core(addr);
++	struct remap_trace *trace;
++	struct remap_trace *tmp;
++	unsigned long flags;
++	struct kmmio_probe *p;
++
++#if 0
++
++	Need something like this one:
++	list_for_each_entry_rcu(p, &kmmio_probes, list) {
++		if (addr >= p->addr && addr < (p->addr + p->len))
++			return p;
++	}
++#endif
++
++	spin_lock_irqsave(&trace_lock, flags);
++	if (is_enabled()){
++		list_for_each_entry_safe(trace, tmp, &trace_list, list) {
++			if (((unsigned long)mmio->phys == trace->phys) && 
++				(trace->probe.mm == current->mm)) {
++				mmio_trace_rw(mmio);
++				break;
++			}
++		}
++	}
++	spin_unlock_irqrestore(&trace_lock, flags);
+ }
++EXPORT_SYMBOL(mmiotrace);
+ 
+ int mmiotrace_printk(const char *fmt, ...)
+ {
+@@ -367,7 +447,7 @@ static void clear_trace_list(void)
+ 					"trace @0x%08lx, size 0x%lx.\n",
+ 					trace->probe.addr, trace->probe.len);
+ 		if (!nommiotrace)
+-			unregister_kmmio_probe(&trace->probe);
++			unregister_kmmio_probe(&trace->probe, NULL); //TODO remember mm!
+ 	}
+ 	synchronize_rcu(); /* unregister_kmmio_probe() requirement */
+ 
+diff --git a/arch/x86/mm/pageattr.c b/arch/x86/mm/pageattr.c
+index 89f7c96..930183e 100644
+--- a/arch/x86/mm/pageattr.c
++++ b/arch/x86/mm/pageattr.c
+@@ -363,6 +363,39 @@ pte_t *lookup_address(unsigned long address, unsigned int *level)
+ }
+ EXPORT_SYMBOL_GPL(lookup_address);
+ 
++pte_t *tt_lookup_address(unsigned long address, unsigned int *level, struct mm_struct *mm)
++{
++	pgd_t *pgd = pgd_offset(mm,address);
++	pud_t *pud;
++	pmd_t *pmd;
++
++	*level = PG_LEVEL_NONE;
++
++	if (pgd_none(*pgd))
++		return NULL;
++
++	pud = pud_offset(pgd, address);
++	if (pud_none(*pud))
++		return NULL;
++
++	*level = PG_LEVEL_1G;
++	if (pud_large(*pud) || !pud_present(*pud))
++		return (pte_t *)pud;
++
++	pmd = pmd_offset(pud, address);
++	if (pmd_none(*pmd))
++		return NULL;
++
++	*level = PG_LEVEL_2M;
++	if (pmd_large(*pmd) || !pmd_present(*pmd))
++		return (pte_t *)pmd;
++
++	*level = PG_LEVEL_4K;
++
++	return pte_offset_kernel(pmd, address);
++}
++EXPORT_SYMBOL_GPL(tt_lookup_address);
++
+ /*
+  * Set the new pmd in all the pgds we know about:
+  */
+diff --git a/include/linux/mmiotrace.h b/include/linux/mmiotrace.h
+index 97491f7..ca65c0c 100644
+--- a/include/linux/mmiotrace.h
++++ b/include/linux/mmiotrace.h
+@@ -19,6 +19,8 @@ struct kmmio_probe {
+ 	unsigned long		addr;
+ 	/* length of the probe region: */
+ 	unsigned long		len;
++	/* mm context */
++	struct mm_struct *mm;
+ 	/* Called before addr is executed: */
+ 	kmmio_pre_handler_t	pre_handler;
+ 	/* Called after addr is executed: */
+@@ -28,8 +30,8 @@ struct kmmio_probe {
+ 
+ extern unsigned int kmmio_count;
+ 
+-extern int register_kmmio_probe(struct kmmio_probe *p);
+-extern void unregister_kmmio_probe(struct kmmio_probe *p);
++extern int register_kmmio_probe(struct kmmio_probe *p, struct mm_struct *mm);
++extern void unregister_kmmio_probe(struct kmmio_probe *p, struct mm_struct *mm);
+ extern int kmmio_init(void);
+ extern void kmmio_cleanup(void);
+ 
+@@ -45,8 +47,8 @@ extern int kmmio_handler(struct pt_regs *regs, unsigned long addr);
+ 
+ /* Called from ioremap.c */
+ extern void mmiotrace_ioremap(resource_size_t offset, unsigned long size,
+-							void __iomem *addr);
+-extern void mmiotrace_iounmap(volatile void __iomem *addr);
++		void __iomem *addr, struct mm_struct *mm);
++extern int mmiotrace_iounmap(volatile void __iomem *addr, struct mm_struct *mm);
+ 
+ /* For anyone to insert markers. Remember trailing newline. */
+ extern int mmiotrace_printk(const char *fmt, ...)
+@@ -62,12 +64,12 @@ static inline int kmmio_handler(struct pt_regs *regs, unsigned long addr)
+ 	return 0;
+ }
+ 
+-static inline void mmiotrace_ioremap(resource_size_t offset,
+-					unsigned long size, void __iomem *addr)
++static inline void mmiotrace_ioremap(resource_size_t offset, unsigned long size,
++		void __iomem *addr, struct mm_struct *mm)
+ {
+ }
+ 
+-static inline void mmiotrace_iounmap(volatile void __iomem *addr)
++static inline int mmiotrace_iounmap(volatile void __iomem *addr)
+ {
+ }
+ 
+diff --git a/kernel/trace/trace_mmiotrace.c b/kernel/trace/trace_mmiotrace.c
+index 0acd834..8111270 100644
+--- a/kernel/trace/trace_mmiotrace.c
++++ b/kernel/trace/trace_mmiotrace.c
+@@ -240,8 +240,10 @@ static enum print_line_t mmio_print_map(struct trace_iterator *iter)
+ 		break;
+ 	case MMIO_UNPROBE:
+ 		ret = trace_seq_printf(s,
+-			"UNMAP %u.%06lu %d 0x%lx %d\n",
+-			secs, usec_rem, m->map_id, 0UL, 0);
++			"UNMAP %u.%06lu %d 0x%llx 0x%lx 0x%lx 0x%lx %d\n",
++			secs, usec_rem, m->map_id,
++			(unsigned long long)m->phys, m->virt, m->len,
++			0UL, 0);
+ 		break;
+ 	default:
+ 		ret = trace_seq_printf(s, "map what?\n");
+diff --git a/mm/memory.c b/mm/memory.c
+index 33d0bea..3c1b857 100644
+--- a/mm/memory.c
++++ b/mm/memory.c
+@@ -56,6 +56,7 @@
+ #include <linux/kallsyms.h>
+ #include <linux/swapops.h>
+ #include <linux/elf.h>
++#include <linux/mmiotrace.h>
+ 
+ #include <asm/io.h>
+ #include <asm/pgalloc.h>
+@@ -861,6 +862,25 @@ static unsigned long zap_pte_range(struct mmu_gather *tlb,
+ 
+ 		(*zap_work) -= PAGE_SIZE;
+ 
++		/* the proble is that we latch the PTE */
++		if(mmiotrace_iounmap((void*)addr, mm)){
++			pteval_t v = pte_val(ptent);
++			v |= _PAGE_PRESENT;
++			//Here we clear the pte but is it true always?
++			//
++			/* If I cleat this bit here it triggers a print_bad_pte #3
++			 *because ptent is read back later on
++
++			 Playing with the presetn bit is tricky
++			 might be better to use PROT_NONE instead???
++
++			 PROT_NONE is really PAGE_PRESENT cleared
++			 * */
++//			v &= ~_PAGE_UNUSED1;
++			set_pte_atomic(&ptent, __pte(v));
++		}
++			
++
+ 		if (pte_present(ptent)) {
+ 			struct page *page;
+ 
+@@ -883,6 +903,7 @@ static unsigned long zap_pte_range(struct mmu_gather *tlb,
+ 				     page->index > details->last_index))
+ 					continue;
+ 			}
++			// TODO here we read back
+ 			ptent = ptep_get_and_clear_full(mm, addr, pte,
+ 							tlb->fullmm);
+ 			tlb_remove_tlb_entry(tlb, pte, addr);
+@@ -1013,6 +1034,7 @@ static unsigned long unmap_page_range(struct mmu_gather *tlb,
+ 		details = NULL;
+ 
+ 	BUG_ON(addr >= end);
++
+ 	tlb_start_vma(tlb, vma);
+ 	pgd = pgd_offset(vma->vm_mm, addr);
+ 	do {
+@@ -1035,7 +1057,7 @@ static unsigned long unmap_page_range(struct mmu_gather *tlb,
+ /* No preempt: go for improved straight-line efficiency */
+ # define ZAP_BLOCK_SIZE	(1024 * PAGE_SIZE)
+ #endif
+-
++		
+ /**
+  * unmap_vmas - unmap a range of memory covered by a list of vma's
+  * @tlbp: address of the caller's struct mmu_gather
+@@ -1777,6 +1799,7 @@ static int remap_pte_range(struct mm_struct *mm, pmd_t *pmd,
+ 	do {
+ 		BUG_ON(!pte_none(*pte));
+ 		set_pte_at(mm, addr, pte, pte_mkspecial(pfn_pte(pfn, prot)));
++		mmiotrace_ioremap(pfn<<PAGE_SHIFT, PAGE_SIZE, (void*)addr, mm);
+ 		pfn++;
+ 	} while (pte++, addr += PAGE_SIZE, addr != end);
+ 	arch_leave_lazy_mmu_mode();
+@@ -1919,7 +1942,6 @@ int remap_pfn_range(struct vm_area_struct *vma, unsigned long addr,
+ 
+ 	if (err)
+ 		untrack_pfn_vma(vma, pfn, PAGE_ALIGN(size));
+-
+ 	return err;
+ }
+ EXPORT_SYMBOL(remap_pfn_range);
+@@ -3391,8 +3413,15 @@ static int follow_pte(struct mm_struct *mm, unsigned long address,
+ 	ptep = pte_offset_map_lock(mm, pmd, address, ptlp);
+ 	if (!ptep)
+ 		goto out;
+-	if (!pte_present(*ptep))
+-		goto unlock;
++	/*this is causing problem whith the MM dup core dup_mmap
++	 * because it needs to get the PTE in order to retrieve prot
++	 * MAYBE we could use another bit to trace on???
++	 */
++
++	//if(!(pte_flags(*ptep) & (_PAGE_UNUSED1)) ){
++		if (!pte_present(*ptep))
++			goto unlock;
++//	}
+ 	*ptepp = ptep;
+ 	return 0;
+ unlock:

@@ -1,0 +1,78 @@
+mount -t debugfs debugfs /sys/kernel/debug
+
+ echo mmiotrace > /sys/kernel/debug/tracing/current_tracer
+ cat /sys/kernel/debug/tracing/trace_pipe > mydump.txt &
+
+modprobe testmmiotrace mmio_address=0xf1000000
+
+
+ioremap_nocache sets up the trace point ( addr, len ) ==>ioremap_trace_core  ==> register_kmmio_probe
+
+The register_kmmio_probe does ftrace type of logging. Need another type of probe for emulation BACKEND
+
+ALSO for tracing mmap we need a way to insert the address in the tracer
+
+
+
+Probe are registered / unregistered using
+	-register_kmmio_probe
+	-unregister_kmmio_probe
+
+The probe has the following field:
+	.probe = {
+		.addr = (unsigned long)addr,
+		.len = size,
+		.pre_handler = pre,
+		.post_handler = post,
+		.private = trace
+	},
+
+ioremap register a kmmio probe / iounmap unregister the probe
+
+When a probe is registered usign -register_kmmio_probe, it will sniff for the vaddr.
+To do that is setup the pte for vaddr as not present.
+
+__do_page_fault(struct pt_regs *regs, unsigned long address,
+
+	Call kmmio_fault() -> kmmio_handler()
+		Check if address is in the range of any probe // retrieve the 'probe' 
+		Execute the pre handler
+		Put the cpu in debug mode at this instruction precisly
+		return;
+	
+pre handler()
+	Decode the instruction opcode / READ / WRITE; Decode the operand
+
+
+post_kmmio_handler() is invoked from the debug trap
+	Do some other logging
+	Resume execution;
+
+CPU will issue the real IO access.
+
+
+KVM // VDEVICE
+~~~~~~~~~~~~~~~~~
+
+Trying to track VM mmio access from the host requires a hook elsewhere than the page_fault handler on host.
+The MAP / UNMAP works ok though
+MAP 182.329195 1 0x100000 0x7fd94b11b000 0x1000 0x0 0
+MAP 182.329506 2 0x100000 0x7fd94b11a000 0x1000 0x0 0
+UNMAP 400.431766 2 0x100000 0x7fd94b11a000 0x1000 0x0 0
+UNMAP 400.431871 1 0x100000 0x7fd94b11b000 0x1000 0x0 0
+
+
+We know that the guest has his own sets of PTE in the VM which in theory is set the same than the host ( tlb stuff )
+So will a PTE not present in the guest will end up on the host?
+	Answer is NO. The sPTE itself needs to be setup accordingly BECAUSE KVM has it's own MMU with vt-x
+
+With the KVM layer, the MMIO operation are already all cooked for us:
+	static int vcpu_mmio_read(struct kvm_vcpu *vcpu, gpa_t addr, int len, void *v)
+	static int vcpu_mmio_write(struct kvm_vcpu *vcpu, gpa_t addr, int len,
+
+The KMMIO layer trap on the PTE; set X86 debug and trap; get the opcode and decode RD/WR/ SIZE then log
+	WE don't need this whole logic for KVM!!!
+
+What we need is a lookup table for KMMIO that kvm can use
+	then the remaining part of the framework can remain the same
+

@@ -1,0 +1,162 @@
+From 7237699344e6c189500e730fec9683cb6e1eb8d5 Mon Sep 17 00:00:00 2001
+From: Etienne <etmartin@etmartin-desktop.(none)>
+Date: Thu, 28 Jun 2012 13:11:43 -0400
+Subject: [PATCH 8/8] mmiotrace support with addr; End of prototype
+
+---
+ arch/x86/kvm/x86.c     |   26 +++++++++++++++++++++-
+ arch/x86/mm/kmmio.c    |   13 +++++++++++
+ arch/x86/mm/mmio-mod.c |   53 ++++++++++++++++++++++++++++++++++++++++++++++++
+ 3 files changed, 90 insertions(+), 2 deletions(-)
+
+diff --git a/arch/x86/kvm/x86.c b/arch/x86/kvm/x86.c
+index e6a0272..815606a 100644
+--- a/arch/x86/kvm/x86.c
++++ b/arch/x86/kvm/x86.c
+@@ -3014,6 +3014,8 @@ static void kvm_init_msr_list(void)
+ }
+ 
+ #include <linux/mmiotrace.h>
++extern void mmiotrace(struct mmiotrace_rw *mmio);
++
+ /* Do I have MM context at this stage???? if so then I can use the lookup
+  * directly in kmmio
+  */
+@@ -3021,22 +3023,42 @@ static int vcpu_mmio_write(struct kvm_vcpu *vcpu, gpa_t addr, int len,
+ 			   const void *v)
+ {
+ 	int rc;
++	struct mmiotrace_rw mmio;
++
+ 	if (vcpu->arch.apic &&
+ 	    !kvm_iodevice_write(&vcpu->arch.apic->dev, addr, len, v))
+ 		return 0;
++
+ 	rc = kvm_io_bus_write(vcpu->kvm, KVM_MMIO_BUS, addr, len, v);
+-	mmiotrace_printk("vcpu_mmio_write %lx %lx\n",addr,*(unsigned long*)v);
++
++	mmio.phys = addr;
++	mmio.width = len;
++	mmio.value = *(unsigned long*)v;
++	mmio.map_id = -1;
++	mmio.opcode = MMIO_WRITE;
++	mmiotrace(&mmio);
++
+ 	return rc;
+ }
+ 
+ static int vcpu_mmio_read(struct kvm_vcpu *vcpu, gpa_t addr, int len, void *v)
+ {
+ 	int rc;
++	struct mmiotrace_rw mmio;
++
+ 	if (vcpu->arch.apic &&
+ 	    !kvm_iodevice_read(&vcpu->arch.apic->dev, addr, len, v))
+ 		return 0;
++
+ 	rc = kvm_io_bus_read(vcpu->kvm, KVM_MMIO_BUS, addr, len, v);
+-	mmiotrace_printk("vcpu_mmio_read %lx %lx\n",addr,*(unsigned long*)v);
++
++	mmio.phys = addr;
++	mmio.width = len;
++	mmio.value = *(unsigned long*)v;
++	mmio.map_id = -1;
++	mmio.opcode = MMIO_READ;
++	mmiotrace(&mmio);
++
+ 	return rc;
+ }
+ 
+diff --git a/arch/x86/mm/kmmio.c b/arch/x86/mm/kmmio.c
+index 936a0e7..a2ec6bb 100644
+--- a/arch/x86/mm/kmmio.c
++++ b/arch/x86/mm/kmmio.c
+@@ -94,6 +94,19 @@ static struct kmmio_probe *get_kmmio_probe(unsigned long addr)
+ 	return NULL;
+ }
+ 
++struct kmmio_probe *get_outofband_kmmio_probe(unsigned long addr)
++{
++	struct kmmio_probe *p;
++
++	preempt_disable();
++	rcu_read_lock();
++	p = get_kmmio_probe(addr);
++	rcu_read_unlock();
++	preempt_enable_no_resched();
++	return p;
++}
++EXPORT_SYMBOL(get_outofband_kmmio_probe);
++
+ /* You must be holding RCU read lock. */
+ static struct kmmio_fault_page *get_kmmio_fault_page(unsigned long page, struct mm_struct *mm)
+ {
+diff --git a/arch/x86/mm/mmio-mod.c b/arch/x86/mm/mmio-mod.c
+index ae06a22..c621e23 100644
+--- a/arch/x86/mm/mmio-mod.c
++++ b/arch/x86/mm/mmio-mod.c
+@@ -359,8 +359,61 @@ int mmiotrace_iounmap(volatile void __iomem *addr, struct mm_struct *mm)
+ 			rw->value, rw->pc, 0);
+ 		break;
+ Also need to look if the tracer is enabled
++struct mmiotrace_rw {
++	resource_size_t	phys;	/* PCI address of register */
++	unsigned long	value;
++	unsigned long	pc;	/* optional program counter */
++	int		map_id;
++	unsigned char	opcode;	/* one of MMIO_{READ,WRITE,UNKNOWN_OP} */
++	unsigned char	width;	/* size of register access in bytes */
++};
++	struct mmiotrace_rw *my_trace = &get_cpu_var(cpu_trace);
++
++This is the tracer function for kmmio
++	mmio_trace_rw(my_trace);
++
++
++	THE context is automatically taken with the kmmio probe hook i.e.
++	if you have the handler then you are on the list
++
++The problem with the KVM io bus is that we will need to search the list to find
++out if we are onto it.
++
++kvm_io_bus_write also does a range check for each access
++#endif
++//extern struct kmmio_probe *get_outofband_kmmio_probe(unsigned long addr, struct *mm);
++#include <linux/sched.h>
++
++void mmiotrace(struct mmiotrace_rw *mmio)
++{
++	struct remap_trace *trace;
++	struct remap_trace *tmp;
++	unsigned long flags;
++	struct kmmio_probe *p;
++
++#if 0
++
++	Need something like this one:
++	list_for_each_entry_rcu(p, &kmmio_probes, list) {
++		if (addr >= p->addr && addr < (p->addr + p->len))
++			return p;
++	}
+ #endif
+ 
++	spin_lock_irqsave(&trace_lock, flags);
++	if (is_enabled()){
++		list_for_each_entry_safe(trace, tmp, &trace_list, list) {
++			if (((unsigned long)mmio->phys == trace->phys) && 
++				(trace->probe.mm == current->mm)) {
++				mmio_trace_rw(mmio);
++				break;
++			}
++		}
++	}
++	spin_unlock_irqrestore(&trace_lock, flags);
++}
++EXPORT_SYMBOL(mmiotrace);
++
+ int mmiotrace_printk(const char *fmt, ...)
+ {
+ 	int ret = 0;
+-- 
+1.7.0.4
+

@@ -1,0 +1,125 @@
+From 145099027bb2479f3ff83b9dea12847916525a63 Mon Sep 17 00:00:00 2001
+From: Etienne <etmartin@etmartin-desktop.(none)>
+Date: Tue, 26 Jun 2012 20:11:22 -0400
+Subject: [PATCH 2/8] kmmio unmap // struct mm working mmap/munmap
+
+---
+ arch/x86/mm/kmmio.c    |   10 ++++++----
+ arch/x86/mm/pageattr.c |   33 +++++++++++++++++++++++++++++++++
+ mm/memory.c            |    6 +++++-
+ 3 files changed, 44 insertions(+), 5 deletions(-)
+
+diff --git a/arch/x86/mm/kmmio.c b/arch/x86/mm/kmmio.c
+index 9a0a79a..6367e63 100644
+--- a/arch/x86/mm/kmmio.c
++++ b/arch/x86/mm/kmmio.c
+@@ -130,11 +130,13 @@ static void clear_pte_presence(pte_t *pte, bool clear, pteval_t *old)
+ 		v |= *old;
+ 	set_pte_atomic(pte, __pte(v));
+ }
++pte_t *tt_lookup_address(unsigned long address, unsigned int *level, struct mm_struct *mm);
+ 
+-static int clear_page_presence(struct kmmio_fault_page *f, bool clear)
++// TODO incorporate MM into the lookup adress
++static int clear_page_presence(struct kmmio_fault_page *f, bool clear, struct mm_struct *mm)
+ {
+ 	unsigned int level;
+-	pte_t *pte = lookup_address(f->page, &level);
++	pte_t *pte = tt_lookup_address(f->page, &level, mm);
+ 
+ 	if (!pte) {
+ 		pr_err("kmmio: no pte for page 0x%08lx\n", f->page);
+@@ -176,7 +178,7 @@ static int arm_kmmio_fault_page(struct kmmio_fault_page *f, struct mm_struct *mm
+ 		pr_warning("kmmio double-arm: page 0x%08lx, ref %d, old %d\n",
+ 					f->page, f->count, !!f->old_presence);
+ 	}
+-	ret = clear_page_presence(f, true);
++	ret = clear_page_presence(f, true, mm);
+ 	WARN_ONCE(ret < 0, KERN_ERR "kmmio arming 0x%08lx failed.\n", f->page);
+ 	f->armed = true;
+ 	return ret;
+@@ -185,7 +187,7 @@ static int arm_kmmio_fault_page(struct kmmio_fault_page *f, struct mm_struct *mm
+ /** Restore the given page to saved presence state. */
+ static void disarm_kmmio_fault_page(struct kmmio_fault_page *f, struct mm_struct *mm)
+ {
+-	int ret = clear_page_presence(f, false);
++	int ret = clear_page_presence(f, false, mm);
+ 	WARN_ONCE(ret < 0,
+ 			KERN_ERR "kmmio disarming 0x%08lx failed.\n", f->page);
+ 	f->armed = false;
+diff --git a/arch/x86/mm/pageattr.c b/arch/x86/mm/pageattr.c
+index 89f7c96..930183e 100644
+--- a/arch/x86/mm/pageattr.c
++++ b/arch/x86/mm/pageattr.c
+@@ -363,6 +363,39 @@ pte_t *lookup_address(unsigned long address, unsigned int *level)
+ }
+ EXPORT_SYMBOL_GPL(lookup_address);
+ 
++pte_t *tt_lookup_address(unsigned long address, unsigned int *level, struct mm_struct *mm)
++{
++	pgd_t *pgd = pgd_offset(mm,address);
++	pud_t *pud;
++	pmd_t *pmd;
++
++	*level = PG_LEVEL_NONE;
++
++	if (pgd_none(*pgd))
++		return NULL;
++
++	pud = pud_offset(pgd, address);
++	if (pud_none(*pud))
++		return NULL;
++
++	*level = PG_LEVEL_1G;
++	if (pud_large(*pud) || !pud_present(*pud))
++		return (pte_t *)pud;
++
++	pmd = pmd_offset(pud, address);
++	if (pmd_none(*pmd))
++		return NULL;
++
++	*level = PG_LEVEL_2M;
++	if (pmd_large(*pmd) || !pmd_present(*pmd))
++		return (pte_t *)pmd;
++
++	*level = PG_LEVEL_4K;
++
++	return pte_offset_kernel(pmd, address);
++}
++EXPORT_SYMBOL_GPL(tt_lookup_address);
++
+ /*
+  * Set the new pmd in all the pgds we know about:
+  */
+diff --git a/mm/memory.c b/mm/memory.c
+index be07719..406bbc4 100644
+--- a/mm/memory.c
++++ b/mm/memory.c
+@@ -1009,11 +1009,15 @@ static unsigned long unmap_page_range(struct mmu_gather *tlb,
+ {
+ 	pgd_t *pgd;
+ 	unsigned long next;
++	struct mm_struct *mm = vma->vm_mm;
+ 
+ 	if (details && !details->check_mapping && !details->nonlinear_vma)
+ 		details = NULL;
+ 
+ 	BUG_ON(addr >= end);
++	if(addr == 0x12340000)
++		mmiotrace_iounmap((void*)addr, mm);
++
+ 	tlb_start_vma(tlb, vma);
+ 	pgd = pgd_offset(vma->vm_mm, addr);
+ 	do {
+@@ -1036,7 +1040,7 @@ static unsigned long unmap_page_range(struct mmu_gather *tlb,
+ /* No preempt: go for improved straight-line efficiency */
+ # define ZAP_BLOCK_SIZE	(1024 * PAGE_SIZE)
+ #endif
+-
++		
+ /**
+  * unmap_vmas - unmap a range of memory covered by a list of vma's
+  * @tlbp: address of the caller's struct mmu_gather
+-- 
+1.7.0.4
+

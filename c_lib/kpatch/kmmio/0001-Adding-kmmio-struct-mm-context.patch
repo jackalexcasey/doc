@@ -1,0 +1,345 @@
+From 5c8127ece1c6d2d1c3fad413985e8367ea738052 Mon Sep 17 00:00:00 2001
+From: Etienne <etmartin@etmartin-desktop.(none)>
+Date: Tue, 26 Jun 2012 16:11:29 -0400
+Subject: [PATCH 1/8] Adding kmmio struct mm context
+
+---
+ arch/x86/mm/ioremap.c     |    4 ++--
+ arch/x86/mm/kmmio.c       |   40 +++++++++++++++++++++-------------------
+ arch/x86/mm/mmio-mod.c    |   18 +++++++++---------
+ include/linux/mmiotrace.h |   12 ++++++------
+ mm/memory.c               |    4 ++++
+ 5 files changed, 42 insertions(+), 36 deletions(-)
+
+diff --git a/arch/x86/mm/ioremap.c b/arch/x86/mm/ioremap.c
+index 99ecf31..6424ea4 100644
+--- a/arch/x86/mm/ioremap.c
++++ b/arch/x86/mm/ioremap.c
+@@ -169,7 +169,7 @@ static void __iomem *__ioremap_caller(resource_size_t phys_addr,
+ 		goto err_free_area;
+ 
+ 	ret_addr = (void __iomem *) (vaddr + offset);
+-	mmiotrace_ioremap(unaligned_phys_addr, unaligned_size, ret_addr);
++	mmiotrace_ioremap(unaligned_phys_addr, unaligned_size, ret_addr, &init_mm);
+ 
+ 	return ret_addr;
+ err_free_area:
+@@ -300,7 +300,7 @@ void iounmap(volatile void __iomem *addr)
+ 	addr = (volatile void __iomem *)
+ 		(PAGE_MASK & (unsigned long __force)addr);
+ 
+-	mmiotrace_iounmap(addr);
++	mmiotrace_iounmap(addr, &init_mm);
+ 
+ 	/* Use the vm area unlocked, assuming the caller
+ 	   ensures there isn't another iounmap for the same address
+diff --git a/arch/x86/mm/kmmio.c b/arch/x86/mm/kmmio.c
+index 16ccbd7..9a0a79a 100644
+--- a/arch/x86/mm/kmmio.c
++++ b/arch/x86/mm/kmmio.c
+@@ -33,6 +33,7 @@ struct kmmio_fault_page {
+ 	struct kmmio_fault_page *release_next;
+ 	unsigned long page; /* location of the fault page */
+ 	pteval_t old_presence; /* page presence prior to arming */
++	struct mm_struct *mm; /* mm context */
+ 	bool armed;
+ 
+ 	/*
+@@ -94,7 +95,7 @@ static struct kmmio_probe *get_kmmio_probe(unsigned long addr)
+ }
+ 
+ /* You must be holding RCU read lock. */
+-static struct kmmio_fault_page *get_kmmio_fault_page(unsigned long page)
++static struct kmmio_fault_page *get_kmmio_fault_page(unsigned long page, struct mm_struct *mm)
+ {
+ 	struct list_head *head;
+ 	struct kmmio_fault_page *f;
+@@ -102,7 +103,7 @@ static struct kmmio_fault_page *get_kmmio_fault_page(unsigned long page)
+ 	page &= PAGE_MASK;
+ 	head = kmmio_page_list(page);
+ 	list_for_each_entry_rcu(f, head, list) {
+-		if (f->page == page)
++		if ( (f->page == page) && (f->mm == mm) )
+ 			return f;
+ 	}
+ 	return NULL;
+@@ -167,7 +168,7 @@ static int clear_page_presence(struct kmmio_fault_page *f, bool clear)
+  * Double disarming on the other hand is allowed, and may occur when a fault
+  * and mmiotrace shutdown happen simultaneously.
+  */
+-static int arm_kmmio_fault_page(struct kmmio_fault_page *f)
++static int arm_kmmio_fault_page(struct kmmio_fault_page *f, struct mm_struct *mm)
+ {
+ 	int ret;
+ 	WARN_ONCE(f->armed, KERN_ERR "kmmio page already armed.\n");
+@@ -182,7 +183,7 @@ static int arm_kmmio_fault_page(struct kmmio_fault_page *f)
+ }
+ 
+ /** Restore the given page to saved presence state. */
+-static void disarm_kmmio_fault_page(struct kmmio_fault_page *f)
++static void disarm_kmmio_fault_page(struct kmmio_fault_page *f, struct mm_struct *mm)
+ {
+ 	int ret = clear_page_presence(f, false);
+ 	WARN_ONCE(ret < 0,
+@@ -222,7 +223,7 @@ int kmmio_handler(struct pt_regs *regs, unsigned long addr)
+ 	preempt_disable();
+ 	rcu_read_lock();
+ 
+-	faultpage = get_kmmio_fault_page(addr);
++	faultpage = get_kmmio_fault_page(addr, current->mm);
+ 	if (!faultpage) {
+ 		/*
+ 		 * Either this page fault is not caused by kmmio, or
+@@ -258,7 +259,7 @@ int kmmio_handler(struct pt_regs *regs, unsigned long addr)
+ 					smp_processor_id(), addr);
+ 			pr_emerg("kmmio: previous hit was at 0x%08lx.\n",
+ 						ctx->addr);
+-			disarm_kmmio_fault_page(faultpage);
++			disarm_kmmio_fault_page(faultpage, current->mm);
+ 		}
+ 		goto no_kmmio_ctx;
+ 	}
+@@ -280,7 +281,7 @@ int kmmio_handler(struct pt_regs *regs, unsigned long addr)
+ 	regs->flags &= ~X86_EFLAGS_IF;
+ 
+ 	/* Now we set present bit in PTE and single step. */
+-	disarm_kmmio_fault_page(ctx->fpage);
++	disarm_kmmio_fault_page(ctx->fpage, current->mm);
+ 
+ 	/*
+ 	 * If another cpu accesses the same page while we are stepping,
+@@ -327,7 +328,7 @@ static int post_kmmio_handler(unsigned long condition, struct pt_regs *regs)
+ 	/* Prevent racing against release_kmmio_fault_page(). */
+ 	spin_lock(&kmmio_lock);
+ 	if (ctx->fpage->count)
+-		arm_kmmio_fault_page(ctx->fpage);
++		arm_kmmio_fault_page(ctx->fpage, current->mm);
+ 	spin_unlock(&kmmio_lock);
+ 
+ 	regs->flags &= ~X86_EFLAGS_TF;
+@@ -352,15 +353,15 @@ out:
+ }
+ 
+ /* You must be holding kmmio_lock. */
+-static int add_kmmio_fault_page(unsigned long page)
++static int add_kmmio_fault_page(unsigned long page, struct mm_struct *mm)
+ {
+ 	struct kmmio_fault_page *f;
+ 
+ 	page &= PAGE_MASK;
+-	f = get_kmmio_fault_page(page);
++	f = get_kmmio_fault_page(page, mm);
+ 	if (f) {
+ 		if (!f->count)
+-			arm_kmmio_fault_page(f);
++			arm_kmmio_fault_page(f, mm);
+ 		f->count++;
+ 		return 0;
+ 	}
+@@ -371,8 +372,9 @@ static int add_kmmio_fault_page(unsigned long page)
+ 
+ 	f->count = 1;
+ 	f->page = page;
++	f->mm = mm;
+ 
+-	if (arm_kmmio_fault_page(f)) {
++	if (arm_kmmio_fault_page(f, mm)) {
+ 		kfree(f);
+ 		return -1;
+ 	}
+@@ -384,19 +386,19 @@ static int add_kmmio_fault_page(unsigned long page)
+ 
+ /* You must be holding kmmio_lock. */
+ static void release_kmmio_fault_page(unsigned long page,
+-				struct kmmio_fault_page **release_list)
++				struct kmmio_fault_page **release_list, struct mm_struct *mm)
+ {
+ 	struct kmmio_fault_page *f;
+ 
+ 	page &= PAGE_MASK;
+-	f = get_kmmio_fault_page(page);
++	f = get_kmmio_fault_page(page, mm);
+ 	if (!f)
+ 		return;
+ 
+ 	f->count--;
+ 	BUG_ON(f->count < 0);
+ 	if (!f->count) {
+-		disarm_kmmio_fault_page(f);
++		disarm_kmmio_fault_page(f, mm);
+ 		f->release_next = *release_list;
+ 		*release_list = f;
+ 	}
+@@ -409,7 +411,7 @@ static void release_kmmio_fault_page(unsigned long page,
+  * mistakes by accessing addresses before the beginning or past the end of a
+  * mapping.
+  */
+-int register_kmmio_probe(struct kmmio_probe *p)
++int register_kmmio_probe(struct kmmio_probe *p, struct mm_struct *mm)
+ {
+ 	unsigned long flags;
+ 	int ret = 0;
+@@ -424,7 +426,7 @@ int register_kmmio_probe(struct kmmio_probe *p)
+ 	kmmio_count++;
+ 	list_add_rcu(&p->list, &kmmio_probes);
+ 	while (size < size_lim) {
+-		if (add_kmmio_fault_page(p->addr + size))
++		if (add_kmmio_fault_page(p->addr + size, mm))
+ 			pr_err("kmmio: Unable to set page fault.\n");
+ 		size += PAGE_SIZE;
+ 	}
+@@ -492,7 +494,7 @@ static void remove_kmmio_fault_pages(struct rcu_head *head)
+  * 3. rcu_free_kmmio_fault_pages()
+  *    Actally free the kmmio_fault_page structs as with RCU.
+  */
+-void unregister_kmmio_probe(struct kmmio_probe *p)
++void unregister_kmmio_probe(struct kmmio_probe *p ,struct mm_struct *mm)
+ {
+ 	unsigned long flags;
+ 	unsigned long size = 0;
+@@ -502,7 +504,7 @@ void unregister_kmmio_probe(struct kmmio_probe *p)
+ 
+ 	spin_lock_irqsave(&kmmio_lock, flags);
+ 	while (size < size_lim) {
+-		release_kmmio_fault_page(p->addr + size, &release_list);
++		release_kmmio_fault_page(p->addr + size, &release_list, mm);
+ 		size += PAGE_SIZE;
+ 	}
+ 	list_del_rcu(&p->list);
+diff --git a/arch/x86/mm/mmio-mod.c b/arch/x86/mm/mmio-mod.c
+index 132772a..2714cfa 100644
+--- a/arch/x86/mm/mmio-mod.c
++++ b/arch/x86/mm/mmio-mod.c
+@@ -231,7 +231,7 @@ static void post(struct kmmio_probe *p, unsigned long condition,
+ }
+ 
+ static void ioremap_trace_core(resource_size_t offset, unsigned long size,
+-							void __iomem *addr)
++		void __iomem *addr, struct mm_struct *mm)
+ {
+ 	static atomic_t next_id;
+ 	struct remap_trace *trace = kmalloc(sizeof(*trace), GFP_KERNEL);
+@@ -270,14 +270,14 @@ static void ioremap_trace_core(resource_size_t offset, unsigned long size,
+ 	mmio_trace_mapping(&map);
+ 	list_add_tail(&trace->list, &trace_list);
+ 	if (!nommiotrace)
+-		register_kmmio_probe(&trace->probe);
++		register_kmmio_probe(&trace->probe, mm);
+ 
+ not_enabled:
+ 	spin_unlock_irq(&trace_lock);
+ }
+ 
+ void mmiotrace_ioremap(resource_size_t offset, unsigned long size,
+-						void __iomem *addr)
++		void __iomem *addr, struct mm_struct *mm)
+ {
+ 	if (!is_enabled()) /* recheck and proper locking in *_core() */
+ 		return;
+@@ -286,10 +286,10 @@ void mmiotrace_ioremap(resource_size_t offset, unsigned long size,
+ 				(unsigned long long)offset, size, addr);
+ 	if ((filter_offset) && (offset != filter_offset))
+ 		return;
+-	ioremap_trace_core(offset, size, addr);
++	ioremap_trace_core(offset, size, addr, mm);
+ }
+ 
+-static void iounmap_trace_core(volatile void __iomem *addr)
++static void iounmap_trace_core(volatile void __iomem *addr, struct mm_struct *mm)
+ {
+ 	struct mmiotrace_map map = {
+ 		.phys = 0,
+@@ -310,7 +310,7 @@ static void iounmap_trace_core(volatile void __iomem *addr)
+ 	list_for_each_entry_safe(trace, tmp, &trace_list, list) {
+ 		if ((unsigned long)addr == trace->probe.addr) {
+ 			if (!nommiotrace)
+-				unregister_kmmio_probe(&trace->probe);
++				unregister_kmmio_probe(&trace->probe, mm);
+ 			list_del(&trace->list);
+ 			found_trace = trace;
+ 			break;
+@@ -327,11 +327,11 @@ not_enabled:
+ 	}
+ }
+ 
+-void mmiotrace_iounmap(volatile void __iomem *addr)
++void mmiotrace_iounmap(volatile void __iomem *addr, struct mm_struct *mm)
+ {
+ 	might_sleep();
+ 	if (is_enabled()) /* recheck and proper locking in *_core() */
+-		iounmap_trace_core(addr);
++		iounmap_trace_core(addr, mm);
+ }
+ 
+ int mmiotrace_printk(const char *fmt, ...)
+@@ -367,7 +367,7 @@ static void clear_trace_list(void)
+ 					"trace @0x%08lx, size 0x%lx.\n",
+ 					trace->probe.addr, trace->probe.len);
+ 		if (!nommiotrace)
+-			unregister_kmmio_probe(&trace->probe);
++			unregister_kmmio_probe(&trace->probe, NULL); //TODO remember mm!
+ 	}
+ 	synchronize_rcu(); /* unregister_kmmio_probe() requirement */
+ 
+diff --git a/include/linux/mmiotrace.h b/include/linux/mmiotrace.h
+index 97491f7..307f1cd 100644
+--- a/include/linux/mmiotrace.h
++++ b/include/linux/mmiotrace.h
+@@ -28,8 +28,8 @@ struct kmmio_probe {
+ 
+ extern unsigned int kmmio_count;
+ 
+-extern int register_kmmio_probe(struct kmmio_probe *p);
+-extern void unregister_kmmio_probe(struct kmmio_probe *p);
++extern int register_kmmio_probe(struct kmmio_probe *p, struct mm_struct *mm);
++extern void unregister_kmmio_probe(struct kmmio_probe *p, struct mm_struct *mm);
+ extern int kmmio_init(void);
+ extern void kmmio_cleanup(void);
+ 
+@@ -45,8 +45,8 @@ extern int kmmio_handler(struct pt_regs *regs, unsigned long addr);
+ 
+ /* Called from ioremap.c */
+ extern void mmiotrace_ioremap(resource_size_t offset, unsigned long size,
+-							void __iomem *addr);
+-extern void mmiotrace_iounmap(volatile void __iomem *addr);
++		void __iomem *addr, struct mm_struct *mm);
++extern void mmiotrace_iounmap(volatile void __iomem *addr, struct mm_struct *mm);
+ 
+ /* For anyone to insert markers. Remember trailing newline. */
+ extern int mmiotrace_printk(const char *fmt, ...)
+@@ -62,8 +62,8 @@ static inline int kmmio_handler(struct pt_regs *regs, unsigned long addr)
+ 	return 0;
+ }
+ 
+-static inline void mmiotrace_ioremap(resource_size_t offset,
+-					unsigned long size, void __iomem *addr)
++static inline void mmiotrace_ioremap(resource_size_t offset, unsigned long size,
++		void __iomem *addr, struct mm_struct *mm)
+ {
+ }
+ 
+diff --git a/mm/memory.c b/mm/memory.c
+index 33d0bea..be07719 100644
+--- a/mm/memory.c
++++ b/mm/memory.c
+@@ -56,6 +56,7 @@
+ #include <linux/kallsyms.h>
+ #include <linux/swapops.h>
+ #include <linux/elf.h>
++#include <linux/mmiotrace.h>
+ 
+ #include <asm/io.h>
+ #include <asm/pgalloc.h>
+@@ -1920,6 +1921,9 @@ int remap_pfn_range(struct vm_area_struct *vma, unsigned long addr,
+ 	if (err)
+ 		untrack_pfn_vma(vma, pfn, PAGE_ALIGN(size));
+ 
++	addr = end - PAGE_ALIGN(size);
++	pfn += addr >> PAGE_SHIFT;
++	mmiotrace_ioremap(pfn<<PAGE_SHIFT, PAGE_ALIGN(size), (void*)addr, mm);
+ 	return err;
+ }
+ EXPORT_SYMBOL(remap_pfn_range);
+-- 
+1.7.0.4
+

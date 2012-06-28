@@ -1,0 +1,85 @@
+From b7b4fb93ff1e417e72a601599a64d3a1fa2ff656 Mon Sep 17 00:00:00 2001
+From: Etienne <etmartin@etmartin-desktop.(none)>
+Date: Wed, 27 Jun 2012 15:56:36 -0400
+Subject: [PATCH 7/8] Adding kvm mmio write / read to ftrace; foundation for device emulation
+
+---
+ arch/x86/kvm/x86.c     |   20 ++++++++++++--------
+ arch/x86/mm/mmio-mod.c |   17 +++++++++++++++++
+ 2 files changed, 29 insertions(+), 8 deletions(-)
+
+diff --git a/arch/x86/kvm/x86.c b/arch/x86/kvm/x86.c
+index 5a3785f..e6a0272 100644
+--- a/arch/x86/kvm/x86.c
++++ b/arch/x86/kvm/x86.c
+@@ -3013,27 +3013,31 @@ static void kvm_init_msr_list(void)
+ 	num_msrs_to_save = j;
+ }
+ 
++#include <linux/mmiotrace.h>
++/* Do I have MM context at this stage???? if so then I can use the lookup
++ * directly in kmmio
++ */
+ static int vcpu_mmio_write(struct kvm_vcpu *vcpu, gpa_t addr, int len,
+ 			   const void *v)
+ {
+-	printk("vcpu_mmio_write %lx %lx\n",addr,*(unsigned long*)v);
++	int rc;
+ 	if (vcpu->arch.apic &&
+ 	    !kvm_iodevice_write(&vcpu->arch.apic->dev, addr, len, v))
+ 		return 0;
+-
+-	return kvm_io_bus_write(vcpu->kvm, KVM_MMIO_BUS, addr, len, v);
++	rc = kvm_io_bus_write(vcpu->kvm, KVM_MMIO_BUS, addr, len, v);
++	mmiotrace_printk("vcpu_mmio_write %lx %lx\n",addr,*(unsigned long*)v);
++	return rc;
+ }
+ 
+ static int vcpu_mmio_read(struct kvm_vcpu *vcpu, gpa_t addr, int len, void *v)
+ {
+-	int err;
++	int rc;
+ 	if (vcpu->arch.apic &&
+ 	    !kvm_iodevice_read(&vcpu->arch.apic->dev, addr, len, v))
+ 		return 0;
+-
+-	err = kvm_io_bus_read(vcpu->kvm, KVM_MMIO_BUS, addr, len, v);
+-	printk("vcpu_mmio_read %lx %lx\n",addr, *(unsigned long*)v);
+-	return err;
++	rc = kvm_io_bus_read(vcpu->kvm, KVM_MMIO_BUS, addr, len, v);
++	mmiotrace_printk("vcpu_mmio_read %lx %lx\n",addr,*(unsigned long*)v);
++	return rc;
+ }
+ 
+ gpa_t kvm_mmu_gva_to_gpa_read(struct kvm_vcpu *vcpu, gva_t gva, u32 *error)
+diff --git a/arch/x86/mm/mmio-mod.c b/arch/x86/mm/mmio-mod.c
+index 16c1eff..ae06a22 100644
+--- a/arch/x86/mm/mmio-mod.c
++++ b/arch/x86/mm/mmio-mod.c
+@@ -343,6 +343,23 @@ int mmiotrace_iounmap(volatile void __iomem *addr, struct mm_struct *mm)
+ 	}
+ 	return 0;
+ }
++#if 0
++	case MMIO_READ:
++		ret = trace_seq_printf(s,
++			"R %d %u.%06lu %d 0x%llx 0x%lx 0x%lx %d\n",
++			rw->width, secs, usec_rem, rw->map_id,
++			(unsigned long long)rw->phys,
++			rw->value, rw->pc, 0);
++		break;
++	case MMIO_WRITE:
++		ret = trace_seq_printf(s,
++			"W %d %u.%06lu %d 0x%llx 0x%lx 0x%lx %d\n",
++			rw->width, secs, usec_rem, rw->map_id,
++			(unsigned long long)rw->phys,
++			rw->value, rw->pc, 0);
++		break;
++Also need to look if the tracer is enabled
++#endif
+ 
+ int mmiotrace_printk(const char *fmt, ...)
+ {
+-- 
+1.7.0.4
+
