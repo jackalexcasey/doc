@@ -1,0 +1,103 @@
+diff --git a/arch/x86/mm/kmmio.c b/arch/x86/mm/kmmio.c
+index 16ccbd7..f3b4e92 100644
+--- a/arch/x86/mm/kmmio.c
++++ b/arch/x86/mm/kmmio.c
+@@ -32,6 +32,7 @@ struct kmmio_fault_page {
+ 	struct list_head list;
+ 	struct kmmio_fault_page *release_next;
+ 	unsigned long page; /* location of the fault page */
++	struct task_struct *curr; /* current context */
+ 	pteval_t old_presence; /* page presence prior to arming */
+ 	bool armed;
+ 
+@@ -102,7 +103,7 @@ static struct kmmio_fault_page *get_kmmio_fault_page(unsigned long page)
+ 	page &= PAGE_MASK;
+ 	head = kmmio_page_list(page);
+ 	list_for_each_entry_rcu(f, head, list) {
+-		if (f->page == page)
++		if((f->page == page) && (f->curr == current))
+ 			return f;
+ 	}
+ 	return NULL;
+@@ -371,6 +372,7 @@ static int add_kmmio_fault_page(unsigned long page)
+ 
+ 	f->count = 1;
+ 	f->page = page;
++	f->curr = current;
+ 
+ 	if (arm_kmmio_fault_page(f)) {
+ 		kfree(f);
+diff --git a/arch/x86/mm/pageattr.c b/arch/x86/mm/pageattr.c
+index 89f7c96..9c6ddda 100644
+--- a/arch/x86/mm/pageattr.c
++++ b/arch/x86/mm/pageattr.c
+@@ -321,7 +321,8 @@ static inline pgprot_t static_protections(pgprot_t prot, unsigned long address,
+ 
+ 	return prot;
+ }
+-
++//TODO current->mm is NULL with the unmap path...
++#define pgd_offset_u(address) pgd_offset(current->mm, (address))
+ /*
+  * Lookup the page table entry for a virtual address. Return a pointer
+  * to the entry and the level of the mapping.
+@@ -338,8 +339,11 @@ pte_t *lookup_address(unsigned long address, unsigned int *level)
+ 
+ 	*level = PG_LEVEL_NONE;
+ 
+-	if (pgd_none(*pgd))
+-		return NULL;
++	if (pgd_none(*pgd)){
++		pgd = pgd_offset_u(address);
++		if(pgd_none(*pgd))
++			return NULL;
++	}
+ 
+ 	pud = pud_offset(pgd, address);
+ 	if (pud_none(*pud))
+diff --git a/mm/memory.c b/mm/memory.c
+index 33d0bea..7baa97a 100644
+--- a/mm/memory.c
++++ b/mm/memory.c
+@@ -56,6 +56,7 @@
+ #include <linux/kallsyms.h>
+ #include <linux/swapops.h>
+ #include <linux/elf.h>
++#include <linux/mmiotrace.h>
+ 
+ #include <asm/io.h>
+ #include <asm/pgalloc.h>
+@@ -861,6 +862,14 @@ static unsigned long zap_pte_range(struct mmu_gather *tlb,
+ 
+ 		(*zap_work) -= PAGE_SIZE;
+ 
++		/*
++		 * When armed kmmio fool this check
++		 * Also at this time current->mm is NULL
++		 * TODO
++		 */
++		if(addr == 0x12340000)
++			mmiotrace_iounmap((void*)addr);
++
+ 		if (pte_present(ptent)) {
+ 			struct page *page;
+ 
+@@ -1078,6 +1087,7 @@ unsigned long unmap_vmas(struct mmu_gather **tlbp,
+ 	 * mmu_notifier_invalidate_range_start can sleep. Don't initialize
+ 	 * mmu_gather until it completes
+ 	 */
++
+ 	mmu_notifier_invalidate_range_start(mm, start_addr, end_addr);
+ 	*tlbp = tlb_gather_mmu(mm, fullmm);
+ 	for ( ; vma && vma->vm_start < end_addr; vma = vma->vm_next) {
+@@ -1920,6 +1930,10 @@ int remap_pfn_range(struct vm_area_struct *vma, unsigned long addr,
+ 	if (err)
+ 		untrack_pfn_vma(vma, pfn, PAGE_ALIGN(size));
+ 
++	addr = end - PAGE_ALIGN(size);
++	pfn += addr >> PAGE_SHIFT;
++	mmiotrace_ioremap(pfn<<PAGE_SHIFT, PAGE_ALIGN(size), (void*)addr);
++
+ 	return err;
+ }
+ EXPORT_SYMBOL(remap_pfn_range);

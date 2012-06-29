@@ -1,0 +1,95 @@
+diff --git a/arch/x86/mm/fault.c b/arch/x86/mm/fault.c
+index b899fb7..2a26ace 100644
+--- a/arch/x86/mm/fault.c
++++ b/arch/x86/mm/fault.c
+@@ -42,10 +42,11 @@ enum x86_pf_error_code {
+  * Returns 0 if mmiotrace is disabled, or if the fault is not
+  * handled by mmiotrace:
+  */
+-static inline int kmmio_fault(struct pt_regs *regs, unsigned long addr)
++static inline int kmmio_fault(struct pt_regs *regs, unsigned long addr,
++	struct mm_struct *mm)
+ {
+ 	if (unlikely(is_kmmio_active()))
+-		if (kmmio_handler(regs, addr) == 1)
++		if (kmmio_handler(regs, addr, mm) == 1)
+ 			return -1;
+ 	return 0;
+ }
+@@ -991,7 +992,7 @@ static inline void __do_page_fault(struct pt_regs *regs, unsigned long address,
+ 		kmemcheck_hide(regs);
+ 	prefetchw(&mm->mmap_sem);
+ 
+-	if (unlikely(kmmio_fault(regs, address)))
++	if (unlikely(kmmio_fault(regs, address, mm)))
+ 		return;
+ 
+ 	/*
+diff --git a/arch/x86/mm/ioremap.c b/arch/x86/mm/ioremap.c
+index 99ecf31..4818843 100644
+--- a/arch/x86/mm/ioremap.c
++++ b/arch/x86/mm/ioremap.c
+@@ -169,7 +169,7 @@ static void __iomem *__ioremap_caller(resource_size_t phys_addr,
+ 		goto err_free_area;
+ 
+ 	ret_addr = (void __iomem *) (vaddr + offset);
+-	mmiotrace_ioremap(unaligned_phys_addr, unaligned_size, ret_addr);
++	mmiotrace_ioremap(unaligned_phys_addr, unaligned_size, ret_addr, NULL);
+ 
+ 	return ret_addr;
+ err_free_area:
+diff --git a/arch/x86/mm/kmmio.c b/arch/x86/mm/kmmio.c
+index 16ccbd7..471e92b 100644
+--- a/arch/x86/mm/kmmio.c
++++ b/arch/x86/mm/kmmio.c
+@@ -94,7 +94,8 @@ static struct kmmio_probe *get_kmmio_probe(unsigned long addr)
+ }
+ 
+ /* You must be holding RCU read lock. */
+-static struct kmmio_fault_page *get_kmmio_fault_page(unsigned long page)
++static struct kmmio_fault_page *get_kmmio_fault_page(unsigned long page, 
++	struct mm_struct *mm)
+ {
+ 	struct list_head *head;
+ 	struct kmmio_fault_page *f;
+@@ -102,7 +103,7 @@ static struct kmmio_fault_page *get_kmmio_fault_page(unsigned long page)
+ 	page &= PAGE_MASK;
+ 	head = kmmio_page_list(page);
+ 	list_for_each_entry_rcu(f, head, list) {
+-		if (f->page == page)
++		if ((f->page == page) && (f->mm == mm))
+ 			return f;
+ 	}
+ 	return NULL;
+@@ -205,7 +206,8 @@ static void disarm_kmmio_fault_page(struct kmmio_fault_page *f)
+  * Interrupts are disabled on entry as trap3 is an interrupt gate
+  * and they remain disabled thorough out this function.
+  */
+-int kmmio_handler(struct pt_regs *regs, unsigned long addr)
++int kmmio_handler(struct pt_regs *regs, unsigned long addr, 
++	struct mm_struct *mm)
+ {
+ 	struct kmmio_context *ctx;
+ 	struct kmmio_fault_page *faultpage;
+@@ -222,7 +224,7 @@ int kmmio_handler(struct pt_regs *regs, unsigned long addr)
+ 	preempt_disable();
+ 	rcu_read_lock();
+ 
+-	faultpage = get_kmmio_fault_page(addr);
++	faultpage = get_kmmio_fault_page(addr, mm);
+ 	if (!faultpage) {
+ 		/*
+ 		 * Either this page fault is not caused by kmmio, or
+diff --git a/arch/x86/mm/mmio-mod.c b/arch/x86/mm/mmio-mod.c
+index 132772a..8522a8d 100644
+--- a/arch/x86/mm/mmio-mod.c
++++ b/arch/x86/mm/mmio-mod.c
+@@ -277,7 +277,7 @@ not_enabled:
+ }
+ 
+ void mmiotrace_ioremap(resource_size_t offset, unsigned long size,
+-						void __iomem *addr)
++						void __iomem *addr, struct mm_struct *mm)
+ {
+ 	if (!is_enabled()) /* recheck and proper locking in *_core() */
+ 		return;

@@ -1,0 +1,248 @@
+commit acc52339fa576da095e99dec99859bafae67beb9
+Author: Etienne <etmartin@etmartin-desktop.(none)>
+Date:   Mon Jun 25 16:39:47 2012 -0400
+
+    Kmmio remap_pte_range working ( basic sniffing working )
+
+diff --git a/arch/x86/mm/fault.c b/arch/x86/mm/fault.c
+index b899fb7..2a26ace 100644
+--- a/arch/x86/mm/fault.c
++++ b/arch/x86/mm/fault.c
+@@ -42,10 +42,11 @@ enum x86_pf_error_code {
+  * Returns 0 if mmiotrace is disabled, or if the fault is not
+  * handled by mmiotrace:
+  */
+-static inline int kmmio_fault(struct pt_regs *regs, unsigned long addr)
++static inline int kmmio_fault(struct pt_regs *regs, unsigned long addr,
++	struct mm_struct *mm)
+ {
+ 	if (unlikely(is_kmmio_active()))
+-		if (kmmio_handler(regs, addr) == 1)
++		if (kmmio_handler(regs, addr, mm) == 1)
+ 			return -1;
+ 	return 0;
+ }
+@@ -991,7 +992,7 @@ static inline void __do_page_fault(struct pt_regs *regs, unsigned long address,
+ 		kmemcheck_hide(regs);
+ 	prefetchw(&mm->mmap_sem);
+ 
+-	if (unlikely(kmmio_fault(regs, address)))
++	if (unlikely(kmmio_fault(regs, address, mm)))
+ 		return;
+ 
+ 	/*
+diff --git a/arch/x86/mm/ioremap.c b/arch/x86/mm/ioremap.c
+index 99ecf31..4818843 100644
+--- a/arch/x86/mm/ioremap.c
++++ b/arch/x86/mm/ioremap.c
+@@ -169,7 +169,7 @@ static void __iomem *__ioremap_caller(resource_size_t phys_addr,
+ 		goto err_free_area;
+ 
+ 	ret_addr = (void __iomem *) (vaddr + offset);
+-	mmiotrace_ioremap(unaligned_phys_addr, unaligned_size, ret_addr);
++	mmiotrace_ioremap(unaligned_phys_addr, unaligned_size, ret_addr, NULL);
+ 
+ 	return ret_addr;
+ err_free_area:
+diff --git a/arch/x86/mm/kmmio.c b/arch/x86/mm/kmmio.c
+index 16ccbd7..6bb1d41 100644
+--- a/arch/x86/mm/kmmio.c
++++ b/arch/x86/mm/kmmio.c
+@@ -34,6 +34,7 @@ struct kmmio_fault_page {
+ 	unsigned long page; /* location of the fault page */
+ 	pteval_t old_presence; /* page presence prior to arming */
+ 	bool armed;
++	struct mm_struct *mm;
+ 
+ 	/*
+ 	 * Number of times this page has been registered as a part
+@@ -94,7 +95,8 @@ static struct kmmio_probe *get_kmmio_probe(unsigned long addr)
+ }
+ 
+ /* You must be holding RCU read lock. */
+-static struct kmmio_fault_page *get_kmmio_fault_page(unsigned long page)
++static struct kmmio_fault_page *get_kmmio_fault_page(unsigned long page,
++	struct mm_struct *mm)
+ {
+ 	struct list_head *head;
+ 	struct kmmio_fault_page *f;
+@@ -102,8 +104,15 @@ static struct kmmio_fault_page *get_kmmio_fault_page(unsigned long page)
+ 	page &= PAGE_MASK;
+ 	head = kmmio_page_list(page);
+ 	list_for_each_entry_rcu(f, head, list) {
+-		if (f->page == page)
+-			return f;
++		/* in-kernel ioremap doesn't track current */
++		if(f->mm){
++			if((f->page == page) && (f->mm == mm))
++				return f;
++		}
++		else{
++			if (f->page == page)
++				return f;
++		}
+ 	}
+ 	return NULL;
+ }
+@@ -205,7 +214,8 @@ static void disarm_kmmio_fault_page(struct kmmio_fault_page *f)
+  * Interrupts are disabled on entry as trap3 is an interrupt gate
+  * and they remain disabled thorough out this function.
+  */
+-int kmmio_handler(struct pt_regs *regs, unsigned long addr)
++int kmmio_handler(struct pt_regs *regs, unsigned long addr,
++	struct mm_struct *mm)
+ {
+ 	struct kmmio_context *ctx;
+ 	struct kmmio_fault_page *faultpage;
+@@ -222,7 +232,7 @@ int kmmio_handler(struct pt_regs *regs, unsigned long addr)
+ 	preempt_disable();
+ 	rcu_read_lock();
+ 
+-	faultpage = get_kmmio_fault_page(addr);
++	faultpage = get_kmmio_fault_page(addr, mm);
+ 	if (!faultpage) {
+ 		/*
+ 		 * Either this page fault is not caused by kmmio, or
+@@ -357,7 +367,7 @@ static int add_kmmio_fault_page(unsigned long page)
+ 	struct kmmio_fault_page *f;
+ 
+ 	page &= PAGE_MASK;
+-	f = get_kmmio_fault_page(page);
++	f = get_kmmio_fault_page(page, current->mm);
+ 	if (f) {
+ 		if (!f->count)
+ 			arm_kmmio_fault_page(f);
+@@ -389,7 +399,7 @@ static void release_kmmio_fault_page(unsigned long page,
+ 	struct kmmio_fault_page *f;
+ 
+ 	page &= PAGE_MASK;
+-	f = get_kmmio_fault_page(page);
++	f = get_kmmio_fault_page(page, current->mm);
+ 	if (!f)
+ 		return;
+ 
+diff --git a/arch/x86/mm/mmio-mod.c b/arch/x86/mm/mmio-mod.c
+index 132772a..5257825 100644
+--- a/arch/x86/mm/mmio-mod.c
++++ b/arch/x86/mm/mmio-mod.c
+@@ -231,7 +231,7 @@ static void post(struct kmmio_probe *p, unsigned long condition,
+ }
+ 
+ static void ioremap_trace_core(resource_size_t offset, unsigned long size,
+-							void __iomem *addr)
++	void __iomem *addr, struct mm_struct *mm)
+ {
+ 	static atomic_t next_id;
+ 	struct remap_trace *trace = kmalloc(sizeof(*trace), GFP_KERNEL);
+@@ -277,7 +277,7 @@ not_enabled:
+ }
+ 
+ void mmiotrace_ioremap(resource_size_t offset, unsigned long size,
+-						void __iomem *addr)
++		void __iomem *addr, struct mm_struct *mm)
+ {
+ 	if (!is_enabled()) /* recheck and proper locking in *_core() */
+ 		return;
+@@ -286,7 +286,7 @@ void mmiotrace_ioremap(resource_size_t offset, unsigned long size,
+ 				(unsigned long long)offset, size, addr);
+ 	if ((filter_offset) && (offset != filter_offset))
+ 		return;
+-	ioremap_trace_core(offset, size, addr);
++	ioremap_trace_core(offset, size, addr, mm);
+ }
+ 
+ static void iounmap_trace_core(volatile void __iomem *addr)
+diff --git a/arch/x86/mm/pageattr.c b/arch/x86/mm/pageattr.c
+index 89f7c96..78adc54 100644
+--- a/arch/x86/mm/pageattr.c
++++ b/arch/x86/mm/pageattr.c
+@@ -322,6 +322,8 @@ static inline pgprot_t static_protections(pgprot_t prot, unsigned long address,
+ 	return prot;
+ }
+ 
++#define pgd_offset_u(address) pgd_offset(current->mm, (address))
++
+ /*
+  * Lookup the page table entry for a virtual address. Return a pointer
+  * to the entry and the level of the mapping.
+@@ -338,8 +340,11 @@ pte_t *lookup_address(unsigned long address, unsigned int *level)
+ 
+ 	*level = PG_LEVEL_NONE;
+ 
+-	if (pgd_none(*pgd))
+-		return NULL;
++	if (pgd_none(*pgd)){
++		pgd = pgd_offset_u(address);
++		if(pgd_none(*pgd))
++			return NULL;
++	}
+ 
+ 	pud = pud_offset(pgd, address);
+ 	if (pud_none(*pud))
+diff --git a/include/linux/mmiotrace.h b/include/linux/mmiotrace.h
+index 97491f7..24cfbda 100644
+--- a/include/linux/mmiotrace.h
++++ b/include/linux/mmiotrace.h
+@@ -41,11 +41,12 @@ static inline int is_kmmio_active(void)
+ }
+ 
+ /* Called from page fault handler. */
+-extern int kmmio_handler(struct pt_regs *regs, unsigned long addr);
++extern int kmmio_handler(struct pt_regs *regs, unsigned long addr,
++	struct mm_struct *mm);
+ 
+ /* Called from ioremap.c */
+ extern void mmiotrace_ioremap(resource_size_t offset, unsigned long size,
+-							void __iomem *addr);
++		void __iomem *addr, struct mm_struct *mm);
+ extern void mmiotrace_iounmap(volatile void __iomem *addr);
+ 
+ /* For anyone to insert markers. Remember trailing newline. */
+@@ -57,13 +58,14 @@ static inline int is_kmmio_active(void)
+ 	return 0;
+ }
+ 
+-static inline int kmmio_handler(struct pt_regs *regs, unsigned long addr)
++static inline int kmmio_handler(struct pt_regs *regs, unsigned long addr,
++	struct mm_struct *mm)
+ {
+ 	return 0;
+ }
+ 
+ static inline void mmiotrace_ioremap(resource_size_t offset,
+-					unsigned long size, void __iomem *addr)
++		unsigned long size, void __iomem *addr, struct mm_struct *mm)
+ {
+ }
+ 
+diff --git a/mm/memory.c b/mm/memory.c
+index 33d0bea..1b1f014 100644
+--- a/mm/memory.c
++++ b/mm/memory.c
+@@ -56,6 +56,7 @@
+ #include <linux/kallsyms.h>
+ #include <linux/swapops.h>
+ #include <linux/elf.h>
++#include <linux/mmiotrace.h>
+ 
+ #include <asm/io.h>
+ #include <asm/pgalloc.h>
+@@ -906,6 +907,10 @@ static unsigned long zap_pte_range(struct mmu_gather *tlb,
+ 				trace_mm_filemap_userunmap(mm, addr);
+ 			}
+ 			page_remove_rmap(page);
++
++			//TODO
++			//mmiotrace_iounmap((void*)addr);
++
+ 			if (unlikely(page_mapcount(page) < 0))
+ 				print_bad_pte(vma, addr, ptent, page);
+ 			tlb_remove_page(tlb, page);
+@@ -1777,6 +1782,7 @@ static int remap_pte_range(struct mm_struct *mm, pmd_t *pmd,
+ 	do {
+ 		BUG_ON(!pte_none(*pte));
+ 		set_pte_at(mm, addr, pte, pte_mkspecial(pfn_pte(pfn, prot)));
++		mmiotrace_ioremap(pfn<<PAGE_SHIFT,PAGE_SIZE, (void*)addr, mm);
+ 		pfn++;
+ 	} while (pte++, addr += PAGE_SIZE, addr != end);
+ 	arch_leave_lazy_mmu_mode();

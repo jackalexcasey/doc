@@ -1,0 +1,208 @@
+From daa5fba227d6670f0ed4be063e331dcfecfbec3b Mon Sep 17 00:00:00 2001
+From: Etienne <etmartin@etmartin-desktop.(none)>
+Date: Thu, 28 Jun 2012 16:51:00 -0400
+Subject: [PATCH 1/2] Stable V1 with mmu notifier clean up; Missing (current->mm ) invalidate
+
+---
+ arch/x86/mm/kmmio.c         |    8 ++++++-
+ arch/x86/mm/mmio-mod.c      |   12 ++++++++++
+ arch/x86/mm/pageattr.c      |   33 +++++++++++++++++++++++++++
+ drivers/uio/uio_dma_proxy.c |   51 +++++++++++++++++++++++++++++++++++++++++++
+ 4 files changed, 103 insertions(+), 1 deletions(-)
+
+diff --git a/arch/x86/mm/kmmio.c b/arch/x86/mm/kmmio.c
+index 16ccbd7..9d8baf0 100644
+--- a/arch/x86/mm/kmmio.c
++++ b/arch/x86/mm/kmmio.c
+@@ -130,10 +130,16 @@ static void clear_pte_presence(pte_t *pte, bool clear, pteval_t *old)
+ 	set_pte_atomic(pte, __pte(v));
+ }
+ 
++extern pte_t *lookup_uaddress(unsigned long address, unsigned int *level);
+ static int clear_page_presence(struct kmmio_fault_page *f, bool clear)
+ {
+ 	unsigned int level;
+-	pte_t *pte = lookup_address(f->page, &level);
++	pte_t *pte;
++	
++	if(f->page >= TASK_SIZE_MAX)
++		pte = lookup_address(f->page, &level);
++	else
++		pte = lookup_uaddress(f->page, &level);
+ 
+ 	if (!pte) {
+ 		pr_err("kmmio: no pte for page 0x%08lx\n", f->page);
+diff --git a/arch/x86/mm/mmio-mod.c b/arch/x86/mm/mmio-mod.c
+index 132772a..cd4bbb0 100644
+--- a/arch/x86/mm/mmio-mod.c
++++ b/arch/x86/mm/mmio-mod.c
+@@ -217,6 +217,16 @@ static void post(struct kmmio_probe *p, unsigned long condition,
+ 		BUG();
+ 	}
+ 
++#if 0
++ 49 +   /* read long is regs->dx // modify get_ins_reg_val to return ptr to register instead of value 
++  50 +    *writel long is in regs->bx
++   51 +    * */
++    52 +// regs->dx = 0xdeedbeef;
++	 53 +   show_registers(regs);
++Here we dispatch to vdevice base on the physical addr scheme***************
++#endif
++
++
+ 	switch (my_reason->type) {
+ 	case REG_READ:
+ 		my_trace->value = get_ins_reg_val(my_reason->ip, regs);
+@@ -288,6 +298,7 @@ void mmiotrace_ioremap(resource_size_t offset, unsigned long size,
+ 		return;
+ 	ioremap_trace_core(offset, size, addr);
+ }
++EXPORT_SYMBOL(mmiotrace_ioremap);
+ 
+ static void iounmap_trace_core(volatile void __iomem *addr)
+ {
+@@ -333,6 +344,7 @@ void mmiotrace_iounmap(volatile void __iomem *addr)
+ 	if (is_enabled()) /* recheck and proper locking in *_core() */
+ 		iounmap_trace_core(addr);
+ }
++EXPORT_SYMBOL(mmiotrace_iounmap);
+ 
+ int mmiotrace_printk(const char *fmt, ...)
+ {
+diff --git a/arch/x86/mm/pageattr.c b/arch/x86/mm/pageattr.c
+index 89f7c96..d9d4551 100644
+--- a/arch/x86/mm/pageattr.c
++++ b/arch/x86/mm/pageattr.c
+@@ -363,6 +363,39 @@ pte_t *lookup_address(unsigned long address, unsigned int *level)
+ }
+ EXPORT_SYMBOL_GPL(lookup_address);
+ 
++pte_t *lookup_uaddress(unsigned long address, unsigned int *level)
++{
++	pgd_t *pgd = pgd_offset(current->mm, address);
++	pud_t *pud;
++	pmd_t *pmd;
++
++	*level = PG_LEVEL_NONE;
++
++	if (pgd_none(*pgd))
++		return NULL;
++
++	pud = pud_offset(pgd, address);
++	if (pud_none(*pud))
++		return NULL;
++
++	*level = PG_LEVEL_1G;
++	if (pud_large(*pud) || !pud_present(*pud))
++		return (pte_t *)pud;
++
++	pmd = pmd_offset(pud, address);
++	if (pmd_none(*pmd))
++		return NULL;
++
++	*level = PG_LEVEL_2M;
++	if (pmd_large(*pmd) || !pmd_present(*pmd))
++		return (pte_t *)pmd;
++
++	*level = PG_LEVEL_4K;
++
++	return pte_offset_kernel(pmd, address);
++}
++EXPORT_SYMBOL_GPL(lookup_uaddress);
++
+ /*
+  * Set the new pmd in all the pgds we know about:
+  */
+diff --git a/drivers/uio/uio_dma_proxy.c b/drivers/uio/uio_dma_proxy.c
+index da5e68b..81238f5 100644
+--- a/drivers/uio/uio_dma_proxy.c
++++ b/drivers/uio/uio_dma_proxy.c
+@@ -18,6 +18,7 @@
+ #include <linux/uio_dma_proxy.h>
+ #include <linux/ctype.h>
+ #include <linux/string.h>
++#include <linux/mmiotrace.h>
+ 
+ static int debug=0;
+ MODULE_PARM_DESC(debug, "");
+@@ -298,6 +299,45 @@ static const struct vm_operations_struct vm_ops = {
+ 	.close = unmap,
+ };
+ 
++#ifdef CONFIG_MMU_NOTIFIER
++#include <linux/mmu_notifier.h>
++
++struct dummy{
++	struct work_struct work;
++	struct mm_struct *mm;
++	void *addr;
++};
++
++static struct dummy dump;
++
++static void notifier_release(struct mmu_notifier *mn,
++				     struct mm_struct *mm)
++{
++	mmiotrace_iounmap(dump.addr);
++//	struct vm_area_struct * mmap;		/* list of VMAs */
++	printk("HHHHHHHHHEEEEEEEEEEEEEEEE!!!!\n");
++}
++
++static struct mmu_notifier mn;
++static const struct mmu_notifier_ops mmu_notifier_ops = {
++	.release		= notifier_release,
++};
++
++void hwid_error_isr(struct work_struct *work)
++{
++	struct dummy *priv = container_of(work, struct dummy, work);
++	mn.ops = &mmu_notifier_ops;
++
++	/* We cannot register mmu_notifier when in mmap context */
++	if(mmu_notifier_register(&mn, priv->mm)<0){
++		printk("hwid_error_isr ERRORRRRR");
++	}
++	else
++		printk("mmu_notifier_register WORKS");
++	return;
++}
++#endif
++
+ static int mmap(struct uio_info *info, struct vm_area_struct *vma)
+ {
+ 	int err,flag;
+@@ -375,6 +415,7 @@ static int mmap(struct uio_info *info, struct vm_area_struct *vma)
+ 	UDRV_DPRINTK("mmap: %lx,%lx,%lx,%lx,%lx \n",vma->vm_start,
+ 		vma->vm_end, vma->vm_end - vma->vm_start, vma->vm_pgoff, info->mem[0].addr);
+ 
++/* There is a BUG in here */
+ 	err = remap_pfn_range(vma,
+ 		vma->vm_start,
+ 		(info->mem[0].addr >> PAGE_SHIFT) + vma->vm_pgoff,
+@@ -387,6 +428,14 @@ static int mmap(struct uio_info *info, struct vm_area_struct *vma)
+ 	vma->vm_ops = &vm_ops;
+ 	vma->vm_private_data = NULL;
+ 
++	mmiotrace_ioremap( info->mem[0].addr,
++		vma->vm_end - vma->vm_start, (void *)vma->vm_start);
++
++	dump.mm = current->mm;
++	dump.addr = (void *)vma->vm_start;
++	printk("Scehduling WORK\n");
++	schedule_work(&dump.work);
++	
+ 	return err;
+ }
+ 
+@@ -471,6 +520,8 @@ static int __devinit probe(struct platform_device *dev)
+ 
+ 	platform_set_drvdata(dev, info);
+ 
++	INIT_WORK(&dump.work, hwid_error_isr);
++
+ 	return 0;
+ 
+ out:
+-- 
+1.7.0.4
+

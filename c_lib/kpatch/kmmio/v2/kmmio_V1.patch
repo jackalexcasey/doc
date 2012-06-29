@@ -1,0 +1,233 @@
+diff --git a/arch/x86/mm/fault.c b/arch/x86/mm/fault.c
+index b899fb7..e467232 100644
+--- a/arch/x86/mm/fault.c
++++ b/arch/x86/mm/fault.c
+@@ -991,6 +991,9 @@ static inline void __do_page_fault(struct pt_regs *regs, unsigned long address,
+ 		kmemcheck_hide(regs);
+ 	prefetchw(&mm->mmap_sem);
+ 
++	if(address&0xffff0000 == 0x12340000)
++		printk("FAULT %lx\n",address);
++
+ 	if (unlikely(kmmio_fault(regs, address)))
+ 		return;
+ 
+diff --git a/arch/x86/mm/kmmio.c b/arch/x86/mm/kmmio.c
+index 16ccbd7..1366576 100644
+--- a/arch/x86/mm/kmmio.c
++++ b/arch/x86/mm/kmmio.c
+@@ -32,6 +32,7 @@ struct kmmio_fault_page {
+ 	struct list_head list;
+ 	struct kmmio_fault_page *release_next;
+ 	unsigned long page; /* location of the fault page */
++	struct mm_struct *mm; /* context */
+ 	pteval_t old_presence; /* page presence prior to arming */
+ 	bool armed;
+ 
+@@ -102,7 +103,7 @@ static struct kmmio_fault_page *get_kmmio_fault_page(unsigned long page)
+ 	page &= PAGE_MASK;
+ 	head = kmmio_page_list(page);
+ 	list_for_each_entry_rcu(f, head, list) {
+-		if (f->page == page)
++		if((f->page == page) && (f->mm == current->mm))
+ 			return f;
+ 	}
+ 	return NULL;
+@@ -139,6 +140,8 @@ static int clear_page_presence(struct kmmio_fault_page *f, bool clear)
+ 		pr_err("kmmio: no pte for page 0x%08lx\n", f->page);
+ 		return -1;
+ 	}
++	printk(KERN_ALERT
++		"PTE VAL pte:%08llx \n",(long long)pte_val(*pte));
+ 
+ 	switch (level) {
+ 	case PG_LEVEL_2M:
+@@ -151,6 +154,8 @@ static int clear_page_presence(struct kmmio_fault_page *f, bool clear)
+ 		pr_err("kmmio: unexpected page level 0x%x.\n", level);
+ 		return -1;
+ 	}
++	printk(KERN_ALERT
++		"AAAAPTE VAL pte:%08llx \n",(long long)pte_val(*pte));
+ 
+ 	__flush_tlb_one(f->page);
+ 	return 0;
+@@ -371,6 +376,7 @@ static int add_kmmio_fault_page(unsigned long page)
+ 
+ 	f->count = 1;
+ 	f->page = page;
++	f->mm = current->mm;
+ 
+ 	if (arm_kmmio_fault_page(f)) {
+ 		kfree(f);
+@@ -388,18 +394,23 @@ static void release_kmmio_fault_page(unsigned long page,
+ {
+ 	struct kmmio_fault_page *f;
+ 
++printk("release_kmmio_fault_page %s\n",current->comm);
+ 	page &= PAGE_MASK;
+ 	f = get_kmmio_fault_page(page);
+-	if (!f)
++	if (!f){
++		printk("%p -> %p \n",f->mm,current->mm);
+ 		return;
++	}
+ 
+ 	f->count--;
+ 	BUG_ON(f->count < 0);
+ 	if (!f->count) {
++	printk("release DISARM _kmmio_fault_page\n");
+ 		disarm_kmmio_fault_page(f);
+ 		f->release_next = *release_list;
+ 		*release_list = f;
+ 	}
++	printk("COUNT   !!!!release DISARM _kmmio_fault_page\n");
+ }
+ 
+ /*
+diff --git a/arch/x86/mm/mmio-mod.c b/arch/x86/mm/mmio-mod.c
+index 132772a..75c09db 100644
+--- a/arch/x86/mm/mmio-mod.c
++++ b/arch/x86/mm/mmio-mod.c
+@@ -282,6 +282,8 @@ void mmiotrace_ioremap(resource_size_t offset, unsigned long size,
+ 	if (!is_enabled()) /* recheck and proper locking in *_core() */
+ 		return;
+ 
++// Check if this is user space
++
+ 	pr_debug(NAME "ioremap_*(0x%llx, 0x%lx) = %p\n",
+ 				(unsigned long long)offset, size, addr);
+ 	if ((filter_offset) && (offset != filter_offset))
+diff --git a/arch/x86/mm/pageattr.c b/arch/x86/mm/pageattr.c
+index 89f7c96..78adc54 100644
+--- a/arch/x86/mm/pageattr.c
++++ b/arch/x86/mm/pageattr.c
+@@ -322,6 +322,8 @@ static inline pgprot_t static_protections(pgprot_t prot, unsigned long address,
+ 	return prot;
+ }
+ 
++#define pgd_offset_u(address) pgd_offset(current->mm, (address))
++
+ /*
+  * Lookup the page table entry for a virtual address. Return a pointer
+  * to the entry and the level of the mapping.
+@@ -338,8 +340,11 @@ pte_t *lookup_address(unsigned long address, unsigned int *level)
+ 
+ 	*level = PG_LEVEL_NONE;
+ 
+-	if (pgd_none(*pgd))
+-		return NULL;
++	if (pgd_none(*pgd)){
++		pgd = pgd_offset_u(address);
++		if(pgd_none(*pgd))
++			return NULL;
++	}
+ 
+ 	pud = pud_offset(pgd, address);
+ 	if (pud_none(*pud))
+diff --git a/mm/memory.c b/mm/memory.c
+index 33d0bea..8342d81 100644
+--- a/mm/memory.c
++++ b/mm/memory.c
+@@ -56,6 +56,7 @@
+ #include <linux/kallsyms.h>
+ #include <linux/swapops.h>
+ #include <linux/elf.h>
++#include <linux/mmiotrace.h>
+ 
+ #include <asm/io.h>
+ #include <asm/pgalloc.h>
+@@ -539,8 +540,10 @@ struct page *vm_normal_page(struct vm_area_struct *vma, unsigned long addr,
+ 			goto check_pfn;
+ 		if (vma->vm_flags & (VM_PFNMAP | VM_MIXEDMAP))
+ 			return NULL;
+-		if (!is_zero_pfn(pfn))
++		if (!is_zero_pfn(pfn)){
++			printk("%s %d\n",__FILE__,__LINE__);
+ 			print_bad_pte(vma, addr, pte, NULL);
++		}
+ 		return NULL;
+ 	}
+ 
+@@ -565,6 +568,7 @@ struct page *vm_normal_page(struct vm_area_struct *vma, unsigned long addr,
+ 		return NULL;
+ check_pfn:
+ 	if (unlikely(pfn > highest_memmap_pfn)) {
++		printk("%s %d\n",__FILE__,__LINE__);
+ 		print_bad_pte(vma, addr, pte, NULL);
+ 		return NULL;
+ 	}
+@@ -860,7 +864,11 @@ static unsigned long zap_pte_range(struct mmu_gather *tlb,
+ 		}
+ 
+ 		(*zap_work) -= PAGE_SIZE;
++		
++		if(addr == 0x12340000)
++			mmiotrace_iounmap((void*)addr);
+ 
++		/* this is the check that break when kmmio is armed */
+ 		if (pte_present(ptent)) {
+ 			struct page *page;
+ 
+@@ -906,8 +914,13 @@ static unsigned long zap_pte_range(struct mmu_gather *tlb,
+ 				trace_mm_filemap_userunmap(mm, addr);
+ 			}
+ 			page_remove_rmap(page);
+-			if (unlikely(page_mapcount(page) < 0))
++
++			//TODO
++			//mmiotrace_iounmap((void*)addr);
++			if (unlikely(page_mapcount(page) < 0)){
++				printk("%s %d\n",__FILE__,__LINE__);
+ 				print_bad_pte(vma, addr, ptent, page);
++			}
+ 			tlb_remove_page(tlb, page);
+ 			continue;
+ 		}
+@@ -918,15 +931,19 @@ static unsigned long zap_pte_range(struct mmu_gather *tlb,
+ 		if (unlikely(details))
+ 			continue;
+ 		if (pte_file(ptent)) {
+-			if (unlikely(!(vma->vm_flags & VM_NONLINEAR)))
++			if (unlikely(!(vma->vm_flags & VM_NONLINEAR))){
++				printk("%s %d\n",__FILE__,__LINE__);
+ 				print_bad_pte(vma, addr, ptent, NULL);
++			}
+ 		} else {
+ 			swp_entry_t ent = pte_to_swp_entry(ptent);
+ 
+ 			if (!is_migration_entry(ent))
+ 				swap_usage--;
+-			if (unlikely(!free_swap_and_cache(ent)))
++			if (unlikely(!free_swap_and_cache(ent))){
++				printk("%s %d\n",__FILE__,__LINE__);
+ 				print_bad_pte(vma, addr, ptent, NULL);
++			}
+ 		}
+ 		pte_clear_not_present_full(mm, addr, pte, tlb->fullmm);
+ 	} while (pte++, addr += PAGE_SIZE, (addr != end && *zap_work > 0));
+@@ -1920,6 +1937,9 @@ int remap_pfn_range(struct vm_area_struct *vma, unsigned long addr,
+ 	if (err)
+ 		untrack_pfn_vma(vma, pfn, PAGE_ALIGN(size));
+ 
++	addr = end - PAGE_ALIGN(size);
++	pfn += addr >> PAGE_SHIFT;
++	mmiotrace_ioremap(pfn<<PAGE_SHIFT, PAGE_ALIGN(size), (void*)addr);
+ 	return err;
+ }
+ EXPORT_SYMBOL(remap_pfn_range);
+@@ -2635,6 +2655,7 @@ static int do_swap_page(struct mm_struct *mm, struct vm_area_struct *vma,
+ 		} else if (is_hwpoison_entry(entry)) {
+ 			ret = VM_FAULT_HWPOISON;
+ 		} else {
++			printk("%s %d\n",__FILE__,__LINE__);
+ 			print_bad_pte(vma, address, orig_pte, NULL);
+ 			ret = VM_FAULT_SIGBUS;
+ 		}
+@@ -3119,6 +3140,7 @@ static int do_nonlinear_fault(struct mm_struct *mm, struct vm_area_struct *vma,
+ 		/*
+ 		 * Page table corrupted: show pte and kill process.
+ 		 */
++		printk("%s %d\n",__FILE__,__LINE__);
+ 		print_bad_pte(vma, address, orig_pte, NULL);
+ 		return VM_FAULT_SIGBUS;
+ 	}

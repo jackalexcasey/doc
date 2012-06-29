@@ -1,0 +1,91 @@
+diff --git a/arch/x86/mm/fault.c b/arch/x86/mm/fault.c
+index b899fb7..bcd96cc 100644
+--- a/arch/x86/mm/fault.c
++++ b/arch/x86/mm/fault.c
+@@ -991,8 +991,18 @@ static inline void __do_page_fault(struct pt_regs *regs, unsigned long address,
+ 		kmemcheck_hide(regs);
+ 	prefetchw(&mm->mmap_sem);
+ 
++#if 0
+ 	if (unlikely(kmmio_fault(regs, address)))
+ 		return;
++#else
++	/* The fault is monitored only against the address range
++	 * and it can conflict against other user space VMA's
++	 */
++	if((address&0xffff0000) == 0x12340000){
++		printk("PAGE_FAULT in range \n\n");
++		kmmio_fault(regs, address);
++	}
++#endif
+ 
+ 	/*
+ 	 * We fault-in kernel-space virtual memory on-demand. The
+diff --git a/arch/x86/mm/pageattr.c b/arch/x86/mm/pageattr.c
+index 89f7c96..78adc54 100644
+--- a/arch/x86/mm/pageattr.c
++++ b/arch/x86/mm/pageattr.c
+@@ -322,6 +322,8 @@ static inline pgprot_t static_protections(pgprot_t prot, unsigned long address,
+ 	return prot;
+ }
+ 
++#define pgd_offset_u(address) pgd_offset(current->mm, (address))
++
+ /*
+  * Lookup the page table entry for a virtual address. Return a pointer
+  * to the entry and the level of the mapping.
+@@ -338,8 +340,11 @@ pte_t *lookup_address(unsigned long address, unsigned int *level)
+ 
+ 	*level = PG_LEVEL_NONE;
+ 
+-	if (pgd_none(*pgd))
+-		return NULL;
++	if (pgd_none(*pgd)){
++		pgd = pgd_offset_u(address);
++		if(pgd_none(*pgd))
++			return NULL;
++	}
+ 
+ 	pud = pud_offset(pgd, address);
+ 	if (pud_none(*pud))
+diff --git a/mm/memory.c b/mm/memory.c
+index 33d0bea..a87f5c0 100644
+--- a/mm/memory.c
++++ b/mm/memory.c
+@@ -56,6 +56,7 @@
+ #include <linux/kallsyms.h>
+ #include <linux/swapops.h>
+ #include <linux/elf.h>
++#include <linux/mmiotrace.h>
+ 
+ #include <asm/io.h>
+ #include <asm/pgalloc.h>
+@@ -906,7 +907,7 @@ static unsigned long zap_pte_range(struct mmu_gather *tlb,
+ 				trace_mm_filemap_userunmap(mm, addr);
+ 			}
+ 			page_remove_rmap(page);
+-			if (unlikely(page_mapcount(page) < 0))
++			if (unlikely(page_mapcount(page) < 0)) //TODO
+ 				print_bad_pte(vma, addr, ptent, page);
+ 			tlb_remove_page(tlb, page);
+ 			continue;
+@@ -1866,7 +1867,8 @@ int remap_pfn_range(struct vm_area_struct *vma, unsigned long addr,
+ 	unsigned long next;
+ 	unsigned long end = addr + PAGE_ALIGN(size);
+ 	struct mm_struct *mm = vma->vm_mm;
+-	int err;
++	int err,saved_pfn = pfn;
++	unsigned long saved_addr = addr;
+ 
+ 	/*
+ 	 * Physically remapped pages are special. Tell the
+@@ -1920,6 +1922,9 @@ int remap_pfn_range(struct vm_area_struct *vma, unsigned long addr,
+ 	if (err)
+ 		untrack_pfn_vma(vma, pfn, PAGE_ALIGN(size));
+ 
++	/* TODO VMA with multiple page ... */
++	mmiotrace_ioremap(saved_pfn<<PAGE_SHIFT,size,(void*)saved_addr);
++
+ 	return err;
+ }
+ EXPORT_SYMBOL(remap_pfn_range);

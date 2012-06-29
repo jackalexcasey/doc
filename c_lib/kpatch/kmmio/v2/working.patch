@@ -1,0 +1,194 @@
+diff --git a/drivers/uio/hwid.h b/drivers/uio/hwid.h
+index 0663f16..124a412 100644
+--- a/drivers/uio/hwid.h
++++ b/drivers/uio/hwid.h
+@@ -46,15 +46,6 @@ struct vbdf_lookup{
+ 
+ 	/* hwid topology path */
+ 	char hwid[_POSIX_PATH_MAX];
+-
+-	/* PCI error code */
+-	int err_code;
+-	int err_state;
+-	int err_code_ack;
+-	int err_result;
+-
+-	/* Opaque */
+-	void *opaque;
+ };
+ 
+ struct hwid_req{
+@@ -71,15 +62,64 @@ struct hwid_table{
+ 	struct hwid_req req;
+ };
+ 
+-#ifdef __KERNEL__
++/**
++ * TLP Header
++ */
++struct qemu_header_log_regs {
++	unsigned int dw0;
++	unsigned int dw1;
++	unsigned int dw2;
++	unsigned int dw3;
++};
+ 
+-static inline int get_irq_status(void *ptr)
+-{
+-	void __iomem *reg=ptr+HWID_STATUS;
+-	return readl(reg);
+-}
++/**
++ * PCI error information
++ */
++struct qemu_pci_error_information{
++	/** Channel state */
++	unsigned int channel_state;
++
++	unsigned int error_dev_num;
++	unsigned int id;
++
++	/** Severity */
++	unsigned int severity;
++
++	unsigned int multi_error_valid;
++
++	unsigned int first_error;
++	unsigned int tlp_header_valid;
++
++	/** COR/UNCOR Error Status */
++	unsigned int status;
++	/** COR/UNCOR Error Mask */
++	unsigned int mask;
++
++	struct qemu_header_log_regs tlp; /* TLP Header */
++};
++
++struct aer_fifo{
++	/* Guest B:D.F */
++	int g_busnr;
++	int g_devnr;
++	int g_fcnnr;
++
++	/* Host B:D.F */
++	int h_busnr;
++	int h_devnr;
++	int h_fcnnr;
++
++	/* hwid topology path */
++	char hwid[_POSIX_PATH_MAX];
++
++	/* AER information */
++	int err_code;
++	struct qemu_pci_error_information aer_info;
++};
++
++#ifdef __KERNEL__
+ 
+-static inline void signal_irq_status(void *ptr, int slot)
++static inline void signal_irq_status(void *ptr, unsigned long slot)
+ {
+ 	void __iomem *reg=ptr+HWID_STATUS;
+ 	writel(slot,reg);
+diff --git a/drivers/uio/udrv_aer.c b/drivers/uio/udrv_aer.c
+index 441280f..63e81ff 100644
+--- a/drivers/uio/udrv_aer.c
++++ b/drivers/uio/udrv_aer.c
+@@ -222,6 +222,7 @@ int udrv_aer_get_info(struct uio_info *info,
+ {
+ 	int rc;
+ 	struct udrv_priv *priv = info->priv;
++	//TODO we could probably have the fifo to carry user_aer_err_info DIRECTLY
+ 	struct user_aer_err_info aer_info;
+ 	struct aer_fifo aer;
+ 
+diff --git a/drivers/uio/udrv_hp.c b/drivers/uio/udrv_hp.c
+index 72cfde3..cefe797 100644
+--- a/drivers/uio/udrv_hp.c
++++ b/drivers/uio/udrv_hp.c
+@@ -77,19 +77,20 @@ static struct pci_device_id hwid_pci_tbl[] = {
+ /* ---------------------------------------------------------- */
+ void hwid_error_isr(struct work_struct *work)
+ {
+-	int nbelem;
++	int rc;
+ 	struct pci_dev *pdev;
+ 	struct pci_error_handlers *err;
+-	struct vbdf_lookup *lookup;
+ 	struct hwid_info *priv = container_of(work, struct hwid_info, work);
+ 	int err_detected;
+ 	char err_msg[256];
++	struct aer_fifo aer;
+ 
+-	while( (nbelem = get_irq_status(priv->regptr)) != -1){
+-		lookup = &((struct hwid_table *)priv->fileptr)->lookup[nbelem];
+-
+-		pdev = pci_get_bus_and_slot(lookup->g_busnr,
+-			PCI_DEVFN(lookup->g_devnr,lookup->g_fcnnr));
++	while(1){
++		signal_irq_status(priv->regptr, (unsigned long)&aer);
++		if(aer.err_code == 0xdeadbeef)
++			break;
++		pdev = pci_get_bus_and_slot(aer.g_busnr,
++			PCI_DEVFN(aer.g_devnr,aer.g_fcnnr));
+ 		if (!pdev){
+ 			printk(KERN_INFO "pci_get_bus_and_slot not found\n");
+ 			err = NULL;
+@@ -109,17 +110,16 @@ void hwid_error_isr(struct work_struct *work)
+ 			err_detected=0;
+ 
+ 		snprintf(err_msg,256,"%02x:%02x.%x -> %02x:%02x.%x ",
+-			lookup->g_busnr,lookup->g_devnr,lookup->g_fcnnr,
+-			lookup->h_busnr,lookup->h_devnr,lookup->h_fcnnr);
++			aer.g_busnr,aer.g_devnr,aer.g_fcnnr,
++			aer.h_busnr,aer.h_devnr,aer.h_fcnnr);
+ 
+-		switch(lookup->err_code){
+-			lookup->err_result = RESULT_NONE;
++		switch(aer.err_code){
+ 
+ 			case ERROR_DETECTED:
+ 				printk(KERN_INFO "pcieport %s AER: Uncorrected error received\n",err_msg);
+ 				printk(KERN_INFO "pci %s broadcast error_detected message\n",err_msg);
+ 				if(err_detected)
+-					lookup->err_result=err->error_detected(pdev,lookup->err_state);
++					err->error_detected(pdev,aer.aer_info.channel_state);
+ 				else
+ 					printk(KERN_ERR "pci %s device has no driver\n",err_msg);
+ 			break;
+@@ -127,19 +127,19 @@ void hwid_error_isr(struct work_struct *work)
+ 			case MMIO_ENABLED:
+ 				printk(KERN_INFO "pci %s broadcast mmio_enabled message\n",err_msg);
+ 				if(err_detected && err->mmio_enabled)
+-					lookup->err_result=err->mmio_enabled(pdev);
++					err->mmio_enabled(pdev);
+ 			break;
+ 
+ 			case LINK_RESET:
+ 				printk(KERN_INFO "pci %s broadcast link_reset message\n",err_msg);
+ 				if(err_detected && err->link_reset)
+-					lookup->err_result=err->link_reset(pdev);
++					err->link_reset(pdev);
+ 			break;
+ 
+ 			case SLOT_RESET:
+ 				printk(KERN_INFO "pci %s broadcast slot_reset message\n",err_msg);
+ 				if(err_detected && err->slot_reset)
+-					lookup->err_result=err->slot_reset(pdev);
++					err->slot_reset(pdev);
+ 			break;
+ 
+ 			case RESUME:
+@@ -153,12 +153,6 @@ void hwid_error_isr(struct work_struct *work)
+ 				BUG();
+ 			break;
+ 		}
+-		/* This is the ACK for libudrv host */
+-		lookup->err_code_ack=lookup->err_code;
+-
+-		/* This is the ACK for the hwid protocol */
+-		signal_irq_status(priv->regptr, nbelem);
+-
+ 		/* Release pci device */
+ 		pci_dev_put(pdev);
+ 	}

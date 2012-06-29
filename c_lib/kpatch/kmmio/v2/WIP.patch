@@ -1,0 +1,83 @@
+diff --git a/arch/x86/mm/fault.c b/arch/x86/mm/fault.c
+index b899fb7..0d9d8ac 100644
+--- a/arch/x86/mm/fault.c
++++ b/arch/x86/mm/fault.c
+@@ -760,6 +760,8 @@ __bad_area_nosemaphore(struct pt_regs *regs, unsigned long error_code,
+ 		tsk->thread.error_code	= error_code | (address >= TASK_SIZE);
+ 		tsk->thread.trap_no	= 14;
+ 
++		printk(" HIT %lx \n",address);
++
+ 		force_sig_info_fault(SIGSEGV, si_code, address, tsk, 0);
+ 
+ 		return;
+@@ -1131,6 +1133,7 @@ retry:
+ 	 */
+ good_area:
+ 	if (unlikely(access_error(error_code, write, vma))) {
++		printk("HEEEEEEEE");
+ 		bad_area_access_error(regs, error_code, address);
+ 		return;
+ 	}
+@@ -1172,6 +1175,14 @@ good_area:
+ 
+ 	check_v8086_mode(regs, address, tsk);
+ 
++	/* 
++	 * PTEs are setup at this point
++	 */
++	if(address == 0x12345000){
++		printk("22222DFGDFGDFG");
++		mmiotrace_ioremap(0x1111, 4096,0x12345000);
++	}
++
+ 	up_read(&mm->mmap_sem);
+ }
+ 
+diff --git a/arch/x86/mm/mmio-mod.c b/arch/x86/mm/mmio-mod.c
+index 132772a..cd218de 100644
+--- a/arch/x86/mm/mmio-mod.c
++++ b/arch/x86/mm/mmio-mod.c
+@@ -288,6 +288,7 @@ void mmiotrace_ioremap(resource_size_t offset, unsigned long size,
+ 		return;
+ 	ioremap_trace_core(offset, size, addr);
+ }
++EXPORT_SYMBOL(mmiotrace_ioremap);
+ 
+ static void iounmap_trace_core(volatile void __iomem *addr)
+ {
+diff --git a/mm/mmap.c b/mm/mmap.c
+index 52dd852..905ac4a 100644
+--- a/mm/mmap.c
++++ b/mm/mmap.c
+@@ -986,6 +986,8 @@ void vm_stat_account(struct mm_struct *mm, unsigned long flags,
+ /*
+  * The caller must hold down_write(&current->mm->mmap_sem).
+  */
++extern void mmiotrace_ioremap(resource_size_t offset, unsigned long size,
++						void __iomem *addr);
+ 
+ unsigned long do_mmap_pgoff(struct file *file, unsigned long addr,
+ 			unsigned long len, unsigned long prot,
+@@ -1118,8 +1120,19 @@ unsigned long do_mmap_pgoff(struct file *file, unsigned long addr,
+ 	error = security_file_mmap(file, reqprot, prot, flags, addr, 0);
+ 	if (error)
+ 		return error;
+-
+-	return mmap_region(file, addr, len, flags, vm_flags, pgoff);
++	
++	{
++		unsigned long rc;
++
++		rc = mmap_region(file, addr, len, flags, vm_flags, pgoff);
++#if 0
++		if(addr == 0x12345000){
++			printk("111DFGDFGDFG");
++			mmiotrace_ioremap(0x1111, len,rc);
++		}
++#endif
++		return rc;
++	}
+ }
+ EXPORT_SYMBOL(do_mmap_pgoff);
+ 

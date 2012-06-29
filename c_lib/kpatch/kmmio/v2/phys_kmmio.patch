@@ -1,0 +1,46 @@
+diff --git a/arch/x86/mm/kmmio.c b/arch/x86/mm/kmmio.c
+index 16ccbd7..e2208f4 100644
+--- a/arch/x86/mm/kmmio.c
++++ b/arch/x86/mm/kmmio.c
+@@ -228,8 +228,31 @@ int kmmio_handler(struct pt_regs *regs, unsigned long addr)
+ 		 * Either this page fault is not caused by kmmio, or
+ 		 * another CPU just pulled the kmmio probe from under
+ 		 * our feet. The latter case should not be possible.
++		 * OR
++		 * The probe is using physical address in that case mark the probe
++		 * as physical so that it can go to the emulation layer directly
++		 *
++		 * NOTE:There can be an overlap between physical addr and logical
++		 *
++		 * The entry into the fault is always virtual; If this virtual cookie is
++		 * coming from a mmap we want to know the backing physaddr
++		 * IF this virtual cookie is coming from ioremap then we conflict we ioremap
++		 * sniffer.
++		 *
++		 * This is complete bullshit because I need a PTE to work with initially so 
++		 * I need the vaddr
++		 * 	OKOKOK the dispatch is based on physaddr since multiple vaddr can point to the same thing
+ 		 */
+-		goto no_kmmio;
++		unsigned int level;
++		pte_t *ptep;
++
++		ptep = lookup_address(addr, &level);
++		if(!ptep)
++			goto no_kmmio;
++
++		faultpage = get_kmmio_fault_page(pte_pfn(*ptep)<<PAGE_SHIFT);
++		if(!faultpage)
++			goto no_kmmio;
+ 	}
+ 
+ 	ctx = &get_cpu_var(kmmio_ctx);
+@@ -268,7 +291,7 @@ int kmmio_handler(struct pt_regs *regs, unsigned long addr)
+ 	ctx->probe = get_kmmio_probe(addr);
+ 	ctx->saved_flags = (regs->flags & (X86_EFLAGS_TF | X86_EFLAGS_IF));
+ 	ctx->addr = addr;
+-
++	
+ 	if (ctx->probe && ctx->probe->pre_handler)
+ 		ctx->probe->pre_handler(ctx->probe, regs, addr);
+ 

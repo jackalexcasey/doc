@@ -1,0 +1,271 @@
+diff --git a/arch/x86/mm/fault.c b/arch/x86/mm/fault.c
+index b899fb7..91702b0 100644
+--- a/arch/x86/mm/fault.c
++++ b/arch/x86/mm/fault.c
+@@ -991,8 +991,15 @@ static inline void __do_page_fault(struct pt_regs *regs, unsigned long address,
+ 		kmemcheck_hide(regs);
+ 	prefetchw(&mm->mmap_sem);
+ 
+-	if (unlikely(kmmio_fault(regs, address)))
+-		return;
++	/* The fault is monitored only against the address range
++	 * and it can conflict against other user space VMA's
++	 */
++	if((address&0xffff0000) == 0x12340000){
++		printk("PAGE_FAULT in range \n\n");
++		kmmio_fault(regs, address);
++		/*if (unlikely(kmmio_fault(regs, address)))
++			return;*/
++	}
+ 
+ 	/*
+ 	 * We fault-in kernel-space virtual memory on-demand. The
+diff --git a/arch/x86/mm/kmmio.c b/arch/x86/mm/kmmio.c
+index 16ccbd7..9e956e7 100644
+--- a/arch/x86/mm/kmmio.c
++++ b/arch/x86/mm/kmmio.c
+@@ -130,14 +130,20 @@ static void clear_pte_presence(pte_t *pte, bool clear, pteval_t *old)
+ 	set_pte_atomic(pte, __pte(v));
+ }
+ 
++extern pte_t *lookup_u_address(unsigned long address, unsigned int *level);
+ static int clear_page_presence(struct kmmio_fault_page *f, bool clear)
+ {
+ 	unsigned int level;
+ 	pte_t *pte = lookup_address(f->page, &level);
+ 
+ 	if (!pte) {
+-		pr_err("kmmio: no pte for page 0x%08lx\n", f->page);
+-		return -1;
++		/* From the page_fault I have current context but is it the same form the dis notifier ??? */
++		pr_err("trying user PTE\n");
++		pte = lookup_u_address(f->page, &level);
++		if(!pte){
++			pr_err("kmmio: no pte for page 0x%08lx\n", f->page);
++			return -1;
++		}
+ 	}
+ 
+ 	switch (level) {
+@@ -145,6 +151,7 @@ static int clear_page_presence(struct kmmio_fault_page *f, bool clear)
+ 		clear_pmd_presence((pmd_t *)pte, clear, &f->old_presence);
+ 		break;
+ 	case PG_LEVEL_4K:
++		printk("clear_pte_presence\n");
+ 		clear_pte_presence(pte, clear, &f->old_presence);
+ 		break;
+ 	default:
+@@ -211,6 +218,7 @@ int kmmio_handler(struct pt_regs *regs, unsigned long addr)
+ 	struct kmmio_fault_page *faultpage;
+ 	int ret = 0; /* default to fault not handled */
+ 
++	printk("kmmio_handler %lx\n",addr);
+ 	/*
+ 	 * Preemption is now disabled to prevent process switch during
+ 	 * single stepping. We can only handle one active kmmio trace
+@@ -231,6 +239,7 @@ int kmmio_handler(struct pt_regs *regs, unsigned long addr)
+ 		 */
+ 		goto no_kmmio;
+ 	}
++	printk("kmmio_handler FAULT PAGE\n");
+ 
+ 	ctx = &get_cpu_var(kmmio_ctx);
+ 	if (ctx->active) {
+@@ -269,9 +278,13 @@ int kmmio_handler(struct pt_regs *regs, unsigned long addr)
+ 	ctx->saved_flags = (regs->flags & (X86_EFLAGS_TF | X86_EFLAGS_IF));
+ 	ctx->addr = addr;
+ 
++	printk("PRE HANDLER\n");
++
+ 	if (ctx->probe && ctx->probe->pre_handler)
+ 		ctx->probe->pre_handler(ctx->probe, regs, addr);
+ 
++	printk("PPPPPPPPPPRE HANDLER\n");
++
+ 	/*
+ 	 * Enable single-stepping and disable interrupts for the faulting
+ 	 * context. Local interrupts must not get enabled during stepping.
+@@ -282,6 +295,8 @@ int kmmio_handler(struct pt_regs *regs, unsigned long addr)
+ 	/* Now we set present bit in PTE and single step. */
+ 	disarm_kmmio_fault_page(ctx->fpage);
+ 
++	printk("DISARM HANDLER\n");
++
+ 	/*
+ 	 * If another cpu accesses the same page while we are stepping,
+ 	 * the access will not be caught. It will simply succeed and the
+@@ -324,6 +339,7 @@ static int post_kmmio_handler(unsigned long condition, struct pt_regs *regs)
+ 	if (ctx->probe && ctx->probe->post_handler)
+ 		ctx->probe->post_handler(ctx->probe, condition, regs);
+ 
++	printk("--->post_kmmio_handler\n");
+ 	/* Prevent racing against release_kmmio_fault_page(). */
+ 	spin_lock(&kmmio_lock);
+ 	if (ctx->fpage->count)
+@@ -539,6 +555,7 @@ kmmio_die_notifier(struct notifier_block *nb, unsigned long val, void *args)
+ {
+ 	struct die_args *arg = args;
+ 
++	printk("********kmmio_die_notifier*****");
+ 	if (val == DIE_DEBUG && (arg->err & DR_STEP))
+ 		if (post_kmmio_handler(arg->err, arg->regs) == 1)
+ 			return NOTIFY_STOP;
+diff --git a/arch/x86/mm/mmio-mod.c b/arch/x86/mm/mmio-mod.c
+index 132772a..bf8159d 100644
+--- a/arch/x86/mm/mmio-mod.c
++++ b/arch/x86/mm/mmio-mod.c
+@@ -148,6 +148,7 @@ static void pre(struct kmmio_probe *p, struct pt_regs *regs,
+ 	const enum reason_type type = get_ins_type(instptr);
+ 	struct remap_trace *trace = p->private;
+ 
++	printk("PRE_______ \n");
+ 	/* it doesn't make sense to have more than one active trace per cpu */
+ 	if (my_reason->active_traces)
+ 		die_kmmio_nesting_error(regs, addr);
+@@ -202,14 +203,19 @@ static void pre(struct kmmio_probe *p, struct pt_regs *regs,
+ 	}
+ 	put_cpu_var(cpu_trace);
+ 	put_cpu_var(pf_reason);
++	printk("PRE_______ DONE\n");
+ }
+ 
++extern  void show_registers(struct pt_regs *regs);
++
+ static void post(struct kmmio_probe *p, unsigned long condition,
+ 							struct pt_regs *regs)
+ {
+ 	struct trap_reason *my_reason = &get_cpu_var(pf_reason);
+ 	struct mmiotrace_rw *my_trace = &get_cpu_var(cpu_trace);
+ 
++	printk("_____________POST\n");
++
+ 	/* this should always return the active_trace count to 0 */
+ 	my_reason->active_traces--;
+ 	if (my_reason->active_traces) {
+@@ -225,9 +231,12 @@ static void post(struct kmmio_probe *p, unsigned long condition,
+ 		break;
+ 	}
+ 
++	show_registers(regs);
++
+ 	mmio_trace_rw(my_trace);
+ 	put_cpu_var(cpu_trace);
+ 	put_cpu_var(pf_reason);
++	printk("_____________POST DONE\n");
+ }
+ 
+ static void ioremap_trace_core(resource_size_t offset, unsigned long size,
+@@ -288,6 +297,7 @@ void mmiotrace_ioremap(resource_size_t offset, unsigned long size,
+ 		return;
+ 	ioremap_trace_core(offset, size, addr);
+ }
++EXPORT_SYMBOL(mmiotrace_ioremap);
+ 
+ static void iounmap_trace_core(volatile void __iomem *addr)
+ {
+diff --git a/arch/x86/mm/pageattr.c b/arch/x86/mm/pageattr.c
+index 89f7c96..b60aadc 100644
+--- a/arch/x86/mm/pageattr.c
++++ b/arch/x86/mm/pageattr.c
+@@ -322,6 +322,48 @@ static inline pgprot_t static_protections(pgprot_t prot, unsigned long address,
+ 	return prot;
+ }
+ 
++#define pgd_offset_u(address) pgd_offset(current->mm, (address))
++/*
++ * Lookup the page table entry for a virtual address. Return a pointer
++ * to the entry and the level of the mapping.
++ *
++ * Note: We return pud and pmd either when the entry is marked large
++ * or when the present bit is not set. Otherwise we would return a
++ * pointer to a nonexisting mapping.
++ */
++pte_t *lookup_u_address(unsigned long address, unsigned int *level)
++{
++	pgd_t *pgd = pgd_offset_u(address);
++	pud_t *pud;
++	pmd_t *pmd;
++
++	*level = PG_LEVEL_NONE;
++
++	if (pgd_none(*pgd))
++		return NULL;
++
++	pud = pud_offset(pgd, address);
++	if (pud_none(*pud))
++		return NULL;
++
++	*level = PG_LEVEL_1G;
++	if (pud_large(*pud) || !pud_present(*pud))
++		return (pte_t *)pud;
++
++	pmd = pmd_offset(pud, address);
++	if (pmd_none(*pmd))
++		return NULL;
++
++	*level = PG_LEVEL_2M;
++	if (pmd_large(*pmd) || !pmd_present(*pmd))
++		return (pte_t *)pmd;
++
++	*level = PG_LEVEL_4K;
++
++	return pte_offset_kernel(pmd, address);
++}
++EXPORT_SYMBOL_GPL(lookup_u_address);
++
+ /*
+  * Lookup the page table entry for a virtual address. Return a pointer
+  * to the entry and the level of the mapping.
+diff --git a/mm/memory.c b/mm/memory.c
+index 33d0bea..faf3ea8 100644
+--- a/mm/memory.c
++++ b/mm/memory.c
+@@ -906,7 +906,7 @@ static unsigned long zap_pte_range(struct mmu_gather *tlb,
+ 				trace_mm_filemap_userunmap(mm, addr);
+ 			}
+ 			page_remove_rmap(page);
+-			if (unlikely(page_mapcount(page) < 0))
++			if (unlikely(page_mapcount(page) < 0)) //TODOOOOOOO
+ 				print_bad_pte(vma, addr, ptent, page);
+ 			tlb_remove_page(tlb, page);
+ 			continue;
+@@ -1859,6 +1859,10 @@ static inline int remap_pud_range(struct mm_struct *mm, pgd_t *pgd,
+  *
+  *  Note: this is only safe if the mm semaphore is held when called.
+  */
++extern void mmiotrace_ioremap(resource_size_t offset, unsigned long size,
++	void __iomem *addr);
++extern pte_t *lookup_u_address(unsigned long address, unsigned int *level);
++
+ int remap_pfn_range(struct vm_area_struct *vma, unsigned long addr,
+ 		    unsigned long pfn, unsigned long size, pgprot_t prot)
+ {
+@@ -1866,7 +1870,8 @@ int remap_pfn_range(struct vm_area_struct *vma, unsigned long addr,
+ 	unsigned long next;
+ 	unsigned long end = addr + PAGE_ALIGN(size);
+ 	struct mm_struct *mm = vma->vm_mm;
+-	int err;
++	int err,saved_pfn = pfn;
++	unsigned long saved_addr = addr;
+ 
+ 	/*
+ 	 * Physically remapped pages are special. Tell the
+@@ -1920,6 +1925,18 @@ int remap_pfn_range(struct vm_area_struct *vma, unsigned long addr,
+ 	if (err)
+ 		untrack_pfn_vma(vma, pfn, PAGE_ALIGN(size));
+ 
++	{
++		unsigned int level;
++		pte_t *pte = lookup_u_address(saved_addr , &level);
++		printk("remap_pfn_range: vaddr = %lx/%lx paddr = %lx size = %lx\n",saved_addr,addr,saved_pfn,size);
++		if(!pte)
++			printk("NO PTE\n");
++
++		mmiotrace_ioremap(saved_pfn<<PAGE_SHIFT,size,(void*)saved_addr);
++	}
++
++
++
+ 	return err;
+ }
+ EXPORT_SYMBOL(remap_pfn_range);

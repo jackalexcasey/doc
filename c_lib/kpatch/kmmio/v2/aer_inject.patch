@@ -1,0 +1,144 @@
+diff --git a/drivers/pci/pcie/aer/aer_inject.c b/drivers/pci/pcie/aer/aer_inject.c
+index 86265b2..4bc584d 100644
+--- a/drivers/pci/pcie/aer/aer_inject.c
++++ b/drivers/pci/pcie/aer/aer_inject.c
+@@ -26,19 +26,6 @@
+ #include <linux/stddef.h>
+ #include "aerdrv.h"
+ 
+-struct aer_error_inj {
+-	u8 bus;
+-	u8 dev;
+-	u8 fn;
+-	u32 uncor_status;
+-	u32 cor_status;
+-	u32 header_log0;
+-	u32 header_log1;
+-	u32 header_log2;
+-	u32 header_log3;
+-	u16 domain;
+-};
+-
+ struct aer_error {
+ 	struct list_head list;
+ 	u16 domain;
+@@ -312,7 +299,7 @@ static int find_aer_device(struct pci_dev *dev, struct pcie_device **result)
+ 	return device_for_each_child(&dev->dev, result, find_aer_device_iter);
+ }
+ 
+-static int aer_inject(struct aer_error_inj *einj)
++int aer_inject(struct aer_error_inj *einj)
+ {
+ 	struct aer_error *err, *rperr;
+ 	struct aer_error *err_alloc = NULL, *rperr_alloc = NULL;
+@@ -447,6 +434,7 @@ out_put:
+ 	pci_dev_put(dev);
+ 	return ret;
+ }
++EXPORT_SYMBOL_GPL(aer_inject);
+ 
+ static ssize_t aer_inject_write(struct file *filp, const char __user *ubuf,
+ 				size_t usize, loff_t *off)
+diff --git a/drivers/pci/pcie/aer/aerdrv.h b/drivers/pci/pcie/aer/aerdrv.h
+index bf09718..f50be0b 100644
+--- a/drivers/pci/pcie/aer/aerdrv.h
++++ b/drivers/pci/pcie/aer/aerdrv.h
+@@ -35,6 +35,19 @@
+ 					PCI_ERR_UNC_UNX_COMP|		\
+ 					PCI_ERR_UNC_MALF_TLP)
+ 
++struct aer_error_inj {
++	u8 bus;
++	u8 dev;
++	u8 fn;
++	u32 uncor_status;
++	u32 cor_status;
++	u32 header_log0;
++	u32 header_log1;
++	u32 header_log2;
++	u32 header_log3;
++	u16 domain;
++};
++
+ struct header_log_regs {
+ 	unsigned int dw0;
+ 	unsigned int dw1;
+@@ -122,6 +135,7 @@ extern void aer_isr(struct work_struct *work);
+ extern void aer_print_error(struct pci_dev *dev, struct aer_err_info *info);
+ extern void aer_print_port_info(struct pci_dev *dev, struct aer_err_info *info);
+ extern irqreturn_t aer_irq(int irq, void *context);
++int aer_inject(struct aer_error_inj *einj);
+ 
+ #ifdef CONFIG_ACPI
+ extern int aer_osc_setup(struct pcie_device *pciedev);
+diff --git a/drivers/uio/Kconfig b/drivers/uio/Kconfig
+index 92d1838..504266b 100644
+--- a/drivers/uio/Kconfig
++++ b/drivers/uio/Kconfig
+@@ -96,6 +96,7 @@ config UIO_PCI_GENERIC
+ 
+ config UIO_PCI_PROXY
+ 	tristate "PCI proxy for User space"
++	depends on PCIEAER_INJECT
+ 	default n
+ 
+ config UIO_DMA_PROXY
+diff --git a/drivers/uio/udrv_hp.c b/drivers/uio/udrv_hp.c
+index bf334aa..6ebbdad 100644
+--- a/drivers/uio/udrv_hp.c
++++ b/drivers/uio/udrv_hp.c
+@@ -72,18 +72,43 @@ static struct pci_device_id hwid_pci_tbl[] = {
+ 	{} /* 0 terminated list. */
+ };
+ 
++
+ /* ---------------------------------------------------------- */
+ /* ------------------ QEMU hwid interface ------------------- */
+ /* ---------------------------------------------------------- */
+ void hwid_error_isr(struct work_struct *work)
+ {
+-	struct pci_dev *pdev;
+-	struct pci_error_handlers *err;
+ 	struct hwid_info *priv = container_of(work, struct hwid_info, work);
++	struct pci_error_handlers *err;
++	struct aer_error_inj inj;
++	struct aer_fifo aer;
++
++/*
++	struct pci_dev *pdev;
++
+ 	int err_detected;
+ 	char err_msg[256];
+-	struct aer_fifo aer;
++*/
++
++	while(1){
++		signal_irq_status(priv->regptr, (unsigned long)&aer);
++		if(aer.err_code == 0xdeadbeef)
++			break;
++
++		inj.bus = aer.g_busnr;
++		inj.dev = aer.g_devnr;
++		inj.fn = aer.g_fcnnr;
++		inj.uncor_status = aer.aer_info.status;
++		//cor_status
++		inj.header_log0 = aer.aer_info.tlp.dw0;
++		inj.header_log1 = aer.aer_info.tlp.dw1;
++		inj.header_log2 = aer.aer_info.tlp.dw2;
++		inj.header_log3 = aer.aer_info.tlp.dw3;
++		inj.domain = 0;
++		aer_inject(&inj);
++	}
+ 
++#if 0
+ 	while(1){
+ 		signal_irq_status(priv->regptr, (unsigned long)&aer);
+ 		if(aer.err_code == 0xdeadbeef)
+@@ -155,6 +180,7 @@ void hwid_error_isr(struct work_struct *work)
+ 		/* Release pci device */
+ 		pci_dev_put(pdev);
+ 	}
++#endif
+ }
+ 
+ static irqreturn_t hwid_msix_handler(int irq, void *opaque)

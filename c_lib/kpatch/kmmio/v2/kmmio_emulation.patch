@@ -1,0 +1,77 @@
+diff --git a/arch/x86/mm/fault.c b/arch/x86/mm/fault.c
+index 2a26ace..e5c8981 100644
+--- a/arch/x86/mm/fault.c
++++ b/arch/x86/mm/fault.c
+@@ -1136,6 +1136,19 @@ good_area:
+ 		return;
+ 	}
+ 
++// TODO trace ummio HERE
++
++	/* If I have a way to identified remap_pfn_range mapping then
++	 * I don't care about who in user space does it since ...
++	 *
++	 * The problem is that one P can remap /dev/a at addr 123 and
++	 * anothe P can remap /dev/b at addr 123 SO now what probe is this.
++	 *
++	 *
++	 * NOTE we have current context from the page_fault_handler()
++	 * so we could demultiplex on this first
++	 */
++
+ 	/*
+ 	 * If for any reason at all we couldn't handle the fault,
+ 	 * make sure we exit gracefully rather than endlessly redo
+diff --git a/arch/x86/mm/mmio-mod.c b/arch/x86/mm/mmio-mod.c
+index 5257825..b26a763 100644
+--- a/arch/x86/mm/mmio-mod.c
++++ b/arch/x86/mm/mmio-mod.c
+@@ -139,6 +139,7 @@ static void die_kmmio_nesting_error(struct pt_regs *regs, unsigned long addr)
+ 	BUG();
+ }
+ 
++extern void show_registers(struct pt_regs *regs);
+ static void pre(struct kmmio_probe *p, struct pt_regs *regs,
+ 						unsigned long addr)
+ {
+@@ -176,6 +177,7 @@ static void pre(struct kmmio_probe *p, struct pt_regs *regs,
+ 	 * on event ordering?
+ 	 */
+ 
++
+ 	switch (type) {
+ 	case REG_READ:
+ 		my_trace->opcode = MMIO_READ;
+@@ -216,9 +218,15 @@ static void post(struct kmmio_probe *p, unsigned long condition,
+ 		pr_emerg(NAME "unexpected post handler");
+ 		BUG();
+ 	}
++	/* read long is regs->dx // modify get_ins_reg_val to return ptr to register instead of value 
++	 *writel long is in regs->bx
++	 * */
++//	regs->dx = 0xdeedbeef;
++	show_registers(regs);
+ 
+ 	switch (my_reason->type) {
+ 	case REG_READ:
++
+ 		my_trace->value = get_ins_reg_val(my_reason->ip, regs);
+ 		break;
+ 	default:
+diff --git a/mm/memory.c b/mm/memory.c
+index 1b1f014..c9856af 100644
+--- a/mm/memory.c
++++ b/mm/memory.c
+@@ -1782,6 +1782,12 @@ static int remap_pte_range(struct mm_struct *mm, pmd_t *pmd,
+ 	do {
+ 		BUG_ON(!pte_none(*pte));
+ 		set_pte_at(mm, addr, pte, pte_mkspecial(pfn_pte(pfn, prot)));
++		/*
++		 * User space mmap kernel pfn into user VMA. Here we intercept
++		 * and track that IO mmapping
++		 * Because we have more than one context to follow (when compare
++		 * to &init_mm for ioremap we need a way to track addr -> user
++		 */
+ 		mmiotrace_ioremap(pfn<<PAGE_SHIFT,PAGE_SIZE, (void*)addr, mm);
+ 		pfn++;
+ 	} while (pte++, addr += PAGE_SIZE, addr != end);
