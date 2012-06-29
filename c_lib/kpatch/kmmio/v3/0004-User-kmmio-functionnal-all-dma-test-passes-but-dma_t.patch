@@ -1,0 +1,66 @@
+From f38ddc773d279dde5e970d8961fff1fbc7ec8feb Mon Sep 17 00:00:00 2001
+From: Etienne <etmartin@etmartin-desktop.(none)>
+Date: Fri, 29 Jun 2012 11:59:10 -0400
+Subject: [PATCH 4/5] User kmmio functionnal; all dma test passes but dma_t8 / clone PFN is not too good
+
+---
+ arch/x86/mm/pat.c |   10 ++++++++++
+ mm/memory.c       |    7 -------
+ 2 files changed, 10 insertions(+), 7 deletions(-)
+
+diff --git a/arch/x86/mm/pat.c b/arch/x86/mm/pat.c
+index 207cae2..3c8c122 100644
+--- a/arch/x86/mm/pat.c
++++ b/arch/x86/mm/pat.c
+@@ -16,6 +16,7 @@
+ #include <linux/mm.h>
+ #include <linux/fs.h>
+ #include <linux/rbtree.h>
++#include <linux/mmiotrace.h>
+ 
+ #include <asm/cacheflush.h>
+ #include <asm/processor.h>
+@@ -861,6 +862,15 @@ int track_pfn_vma_copy(struct vm_area_struct *vma)
+ 	pgprot_t pgprot;
+ 
+ 	if (is_linear_pfn_mapping(vma)) {
++		/* 
++		 * We are about to copy a VMA that has PFN mapping with potentially
++		 * mmio tracking PTE i.e. _PAGE_PRESENT PTE clear. This is fooling the
++		 * check on the PTE.
++		 * Either we fix the pte_present macro or drop the tracking...
++		 * This needs some re-work
++		 */
++		user_mmiotrace_iounmap((void*)vma->vm_start, vma->vm_mm);
++
+ 		/*
+ 		 * reserve the whole chunk covered by vma. We need the
+ 		 * starting address and protection from pte.
+diff --git a/mm/memory.c b/mm/memory.c
+index dd359e6..08920c5 100644
+--- a/mm/memory.c
++++ b/mm/memory.c
+@@ -805,12 +805,6 @@ int copy_page_range(struct mm_struct *dst_mm, struct mm_struct *src_mm,
+ 		 * We do not free on error cases below as remove_vma
+ 		 * gets called on error from higher level routine
+ 		 */
+-		/* 
+-		 * We are about to copy a VMA that has PFN mapping with potentially
+-		 * mmio tracking PTE i.e. _PAGE_PRESENT PTE clear. This is fooling the
+-		 * check on the PTE.
+-		 * Either we fix the pte_present macro or drop the tracking...
+-		 */
+ 		ret = track_pfn_vma_copy(vma);
+ 		if (ret)
+ 			return ret;
+@@ -3403,7 +3397,6 @@ static int follow_pte(struct mm_struct *mm, unsigned long address,
+ 	ptep = pte_offset_map_lock(mm, pmd, address, ptlp);
+ 	if (!ptep)
+ 		goto out;
+-	//TODO
+ 	if (!pte_present(*ptep))
+ 		goto unlock;
+ 	*ptepp = ptep;
+-- 
+1.7.0.4
+

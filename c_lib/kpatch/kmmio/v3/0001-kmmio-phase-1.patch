@@ -1,0 +1,178 @@
+From a4160c2cbb8ad485a9395534a6f20c665523e1e5 Mon Sep 17 00:00:00 2001
+From: Etienne <etmartin@etmartin-desktop.(none)>
+Date: Fri, 29 Jun 2012 10:37:57 -0400
+Subject: [PATCH 1/5] kmmio phase#1
+
+---
+ arch/x86/mm/kmmio.c       |    8 +++++++-
+ arch/x86/mm/mmio-mod.c    |   29 +++++++++++++++++++++++++++++
+ arch/x86/mm/pageattr.c    |   33 +++++++++++++++++++++++++++++++++
+ include/linux/mmiotrace.h |    7 +++++++
+ mm/memory.c               |    8 +++++++-
+ 5 files changed, 83 insertions(+), 2 deletions(-)
+
+diff --git a/arch/x86/mm/kmmio.c b/arch/x86/mm/kmmio.c
+index 16ccbd7..9d8baf0 100644
+--- a/arch/x86/mm/kmmio.c
++++ b/arch/x86/mm/kmmio.c
+@@ -130,10 +130,16 @@ static void clear_pte_presence(pte_t *pte, bool clear, pteval_t *old)
+ 	set_pte_atomic(pte, __pte(v));
+ }
+ 
++extern pte_t *lookup_uaddress(unsigned long address, unsigned int *level);
+ static int clear_page_presence(struct kmmio_fault_page *f, bool clear)
+ {
+ 	unsigned int level;
+-	pte_t *pte = lookup_address(f->page, &level);
++	pte_t *pte;
++	
++	if(f->page >= TASK_SIZE_MAX)
++		pte = lookup_address(f->page, &level);
++	else
++		pte = lookup_uaddress(f->page, &level);
+ 
+ 	if (!pte) {
+ 		pr_err("kmmio: no pte for page 0x%08lx\n", f->page);
+diff --git a/arch/x86/mm/mmio-mod.c b/arch/x86/mm/mmio-mod.c
+index 132772a..ab244da 100644
+--- a/arch/x86/mm/mmio-mod.c
++++ b/arch/x86/mm/mmio-mod.c
+@@ -334,6 +334,34 @@ void mmiotrace_iounmap(volatile void __iomem *addr)
+ 		iounmap_trace_core(addr);
+ }
+ 
++/*
++ * user_mmiotrace_ioremap is called from remap_pfn_range which hold
++ * mmap->sem. This is preventing us from registering with MMU_notifier
++ * so we schedule another context for doing so on our behalf
++ *
++ * The motivation of mmu_notifier is to get a handle when unmap is called
++ * BEFORE any PTE are check for validity
++ */
++void user_mmiotrace_ioremap(resource_size_t offset, unsigned long size,
++	void __iomem *addr, struct mm_struct *mm)
++{
++	if (!is_enabled()) /* recheck and proper locking in *_core() */
++		return;
++
++	pr_debug(NAME "user_mmiotrace_ioremap_*(0x%llx, 0x%lx) = %p / %p\n",
++			(unsigned long long)offset, size, addr, mm);
++}
++EXPORT_SYMBOL(user_mmiotrace_ioremap);
++
++void user_mmiotrace_iounmap(volatile void __iomem *addr, struct mm_struct *mm)
++{
++	if (!is_enabled()) /* recheck and proper locking in *_core() */
++		return;
++
++	pr_debug(NAME "user_mmiotrace_iounmap_%p / %p\n",addr, mm);
++}
++EXPORT_SYMBOL(user_mmiotrace_iounmap);
++
+ int mmiotrace_printk(const char *fmt, ...)
+ {
+ 	int ret = 0;
+@@ -479,3 +507,4 @@ void disable_mmiotrace(void)
+ out:
+ 	mutex_unlock(&mmiotrace_mutex);
+ }
++
+diff --git a/arch/x86/mm/pageattr.c b/arch/x86/mm/pageattr.c
+index 89f7c96..d9d4551 100644
+--- a/arch/x86/mm/pageattr.c
++++ b/arch/x86/mm/pageattr.c
+@@ -363,6 +363,39 @@ pte_t *lookup_address(unsigned long address, unsigned int *level)
+ }
+ EXPORT_SYMBOL_GPL(lookup_address);
+ 
++pte_t *lookup_uaddress(unsigned long address, unsigned int *level)
++{
++	pgd_t *pgd = pgd_offset(current->mm, address);
++	pud_t *pud;
++	pmd_t *pmd;
++
++	*level = PG_LEVEL_NONE;
++
++	if (pgd_none(*pgd))
++		return NULL;
++
++	pud = pud_offset(pgd, address);
++	if (pud_none(*pud))
++		return NULL;
++
++	*level = PG_LEVEL_1G;
++	if (pud_large(*pud) || !pud_present(*pud))
++		return (pte_t *)pud;
++
++	pmd = pmd_offset(pud, address);
++	if (pmd_none(*pmd))
++		return NULL;
++
++	*level = PG_LEVEL_2M;
++	if (pmd_large(*pmd) || !pmd_present(*pmd))
++		return (pte_t *)pmd;
++
++	*level = PG_LEVEL_4K;
++
++	return pte_offset_kernel(pmd, address);
++}
++EXPORT_SYMBOL_GPL(lookup_uaddress);
++
+ /*
+  * Set the new pmd in all the pgds we know about:
+  */
+diff --git a/include/linux/mmiotrace.h b/include/linux/mmiotrace.h
+index 97491f7..f85eaf4 100644
+--- a/include/linux/mmiotrace.h
++++ b/include/linux/mmiotrace.h
+@@ -48,6 +48,13 @@ extern void mmiotrace_ioremap(resource_size_t offset, unsigned long size,
+ 							void __iomem *addr);
+ extern void mmiotrace_iounmap(volatile void __iomem *addr);
+ 
++
++/* Called from remap_pfn_range */
++extern void user_mmiotrace_ioremap(resource_size_t offset, unsigned long size,
++			void __iomem *addr, struct mm_struct *mm);
++
++extern void user_mmiotrace_iounmap(volatile void __iomem *addr, struct mm_struct *mm);
++
+ /* For anyone to insert markers. Remember trailing newline. */
+ extern int mmiotrace_printk(const char *fmt, ...)
+ 				__attribute__ ((format (printf, 1, 2)));
+diff --git a/mm/memory.c b/mm/memory.c
+index 33d0bea..08920c5 100644
+--- a/mm/memory.c
++++ b/mm/memory.c
+@@ -56,6 +56,7 @@
+ #include <linux/kallsyms.h>
+ #include <linux/swapops.h>
+ #include <linux/elf.h>
++#include <linux/mmiotrace.h>
+ 
+ #include <asm/io.h>
+ #include <asm/pgalloc.h>
+@@ -1093,8 +1094,10 @@ unsigned long unmap_vmas(struct mmu_gather **tlbp,
+ 		if (vma->vm_flags & VM_ACCOUNT)
+ 			*nr_accounted += (end - start) >> PAGE_SHIFT;
+ 
+-		if (unlikely(is_pfn_mapping(vma)))
++		if (unlikely(is_pfn_mapping(vma))){
++			user_mmiotrace_iounmap((void*)start, mm);
+ 			untrack_pfn_vma(vma, 0, 0);
++		}
+ 
+ 		while (start != end) {
+ 			if (!tlb_start_valid) {
+@@ -1920,6 +1923,9 @@ int remap_pfn_range(struct vm_area_struct *vma, unsigned long addr,
+ 	if (err)
+ 		untrack_pfn_vma(vma, pfn, PAGE_ALIGN(size));
+ 
++	addr = end - PAGE_ALIGN(size);
++	pfn += addr >> PAGE_SHIFT;
++	user_mmiotrace_ioremap(pfn<<PAGE_SHIFT, PAGE_ALIGN(size), (void*)addr, mm);
+ 	return err;
+ }
+ EXPORT_SYMBOL(remap_pfn_range);
+-- 
+1.7.0.4
+

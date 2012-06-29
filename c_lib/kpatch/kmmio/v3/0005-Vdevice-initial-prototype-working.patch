@@ -1,0 +1,263 @@
+From d5652f8c501e613a4c874c54d44dd5efd5b1009e Mon Sep 17 00:00:00 2001
+From: Etienne <etmartin@etmartin-desktop.(none)>
+Date: Fri, 29 Jun 2012 15:15:14 -0400
+Subject: [PATCH 5/5] Vdevice initial prototype working!
+
+---
+ arch/x86/mm/mmio-mod.c       |    4 ++
+ drivers/Makefile             |    2 +
+ drivers/misc/vdevice.c       |   45 ++++++++++++++++++++
+ drivers/vdev/Makefile        |    2 +
+ drivers/vdev/vdev_dispatch.c |   92 ++++++++++++++++++++++++++++++++++++++++++
+ include/linux/vdev.h         |   25 +++++++++++
+ 6 files changed, 170 insertions(+), 0 deletions(-)
+ create mode 100644 drivers/vdev/Makefile
+ create mode 100644 drivers/vdev/vdev_dispatch.c
+ create mode 100644 include/linux/vdev.h
+
+diff --git a/arch/x86/mm/mmio-mod.c b/arch/x86/mm/mmio-mod.c
+index f42d98a..3ddd937 100644
+--- a/arch/x86/mm/mmio-mod.c
++++ b/arch/x86/mm/mmio-mod.c
+@@ -33,6 +33,7 @@
+ #include <asm/atomic.h>
+ #include <linux/percpu.h>
+ #include <linux/cpu.h>
++#include <linux/vdev.h>
+ 
+ #include "pf_in.h"
+ 
+@@ -226,6 +227,9 @@ static void post(struct kmmio_probe *p, unsigned long condition,
+ 	}
+ 
+ 	mmio_trace_rw(my_trace);
++	vdev_dispatch_io(my_trace);
++
++	/* Here we callback into vdev with mytrace information */
+ 	put_cpu_var(cpu_trace);
+ 	put_cpu_var(pf_reason);
+ }
+diff --git a/drivers/Makefile b/drivers/Makefile
+index a9f7541..c12015a 100644
+--- a/drivers/Makefile
++++ b/drivers/Makefile
+@@ -113,3 +113,5 @@ obj-$(CONFIG_STAGING)		+= staging/
+ obj-y				+= platform/
+ obj-y				+= ieee802154/
+ #obj-m				+= panini/
++obj-y				+= vdev/
++
+diff --git a/drivers/misc/vdevice.c b/drivers/misc/vdevice.c
+index f94d0fd..4c109f8 100644
+--- a/drivers/misc/vdevice.c
++++ b/drivers/misc/vdevice.c
+@@ -19,6 +19,7 @@
+ #include <linux/bigphysarea.h>
+ #include <linux/platform_device.h>
+ #include <linux/vdevice.h>
++#include <linux/vdev.h>
+ 
+ #define DRIVER_VERSION	"0.01"
+ #define DRIVER_AUTHOR	"Etienne Martineau <etmartin@cisco.com>"
+@@ -165,10 +166,40 @@ static int pci_write(struct pci_bus *bus, unsigned int devfn, int where, int siz
+ 	return vfcn_write(dev,where,size,value);
+ }
+ 
++static u8 vdev_readb(resource_size_t addr)
++{
++	printk("%d %lx\n",__LINE__, addr);
++}
++static u16 vdev_readw(resource_size_t addr)
++{
++	printk("%d %lx\n",__LINE__, addr);
++}
++static u32 vdev_readl(resource_size_t addr)
++{
++	printk("%d %lx\n",__LINE__, addr);
++}
++static void vdev_writeb(resource_size_t addr, u8 val)
++{
++	printk("%d %lx\n",__LINE__, addr);
++}
++static void vdev_writew(resource_size_t addr, u16 val)
++{
++	printk("%d %lx\n",__LINE__, addr);
++}
++static void vdev_writel(resource_size_t addr, u32 val)
++{
++	printk("%d %lx\n",__LINE__, addr);
++}
++
+ static int vdevice_fixup(struct vdev *dev)
+ {
+ 	struct pci_dev *vdev = dev->vdev;
+ 	uint8_t *config = dev->config;
++	struct vdev_io *io;
++
++	io = kzalloc(GFP_KERNEL, sizeof(struct vdev_io));
++	if(!io)
++		BUG();
+ 
+ 	if(vdev->vendor == 0x1137 && ((vdev->device&0xfff0)==0x2340)){ /* MSI-X virtual device */
+ 		/* 
+@@ -179,6 +210,20 @@ static int vdevice_fixup(struct vdev *dev)
+ 		vdev->resource[2].end = vdev->resource[0].end;
+ 		/* Change config space accordingly */
+ 		*(uint32_t *)(&config[base_addr_lookup[2]]) = *(uint32_t *)(&config[base_addr_lookup[0]]);
++
++		io->base = vdev->resource[2].start;
++		io->len = vdev->resource[2].end - vdev->resource[2].start;
++		io->readb=vdev_readb;
++		io->readw=vdev_readw;
++		io->readl=vdev_readl;
++		io->writeb=vdev_writeb;
++		io->writew=vdev_writew;
++		io->writel=vdev_writel;
++		if(vdev_register_io(io))
++			printk("ERROR vdev_register_io\n");
++		else
++			printk("vdev_register_io OK\n");
++
+ 	}
+ 	return 0;
+ }
+diff --git a/drivers/vdev/Makefile b/drivers/vdev/Makefile
+new file mode 100644
+index 0000000..0d471fb
+--- /dev/null
++++ b/drivers/vdev/Makefile
+@@ -0,0 +1,2 @@
++obj-y += vdev.o
++vdev-y := vdev_dispatch.o
+diff --git a/drivers/vdev/vdev_dispatch.c b/drivers/vdev/vdev_dispatch.c
+new file mode 100644
+index 0000000..e27f0fd
+--- /dev/null
++++ b/drivers/vdev/vdev_dispatch.c
+@@ -0,0 +1,92 @@
++#include <linux/module.h>
++#include <linux/mmiotrace.h>
++#include <linux/debugfs.h>
++#include <linux/uaccess.h>
++#include <linux/io.h>
++#include <linux/version.h>
++#include <linux/kallsyms.h>
++#include <linux/vdev.h>
++
++#include <asm/pgtable.h>
++
++static DEFINE_SPINLOCK(vdev_lock);
++static LIST_HEAD(vdev_list);
++
++static struct vdev_io *vdev_search(struct mmiotrace_rw *io)
++{
++	struct vdev_io *p;
++	resource_size_t addr = io->phys;
++
++	spin_lock(&vdev_lock);
++	list_for_each_entry(p, &vdev_list, list){
++		if (addr >= p->base && addr < (p->base + p->len)){
++			spin_unlock(&vdev_lock);
++			return p;
++		}
++	}
++	spin_unlock(&vdev_lock);
++	return NULL;
++}
++
++/*
++ * Will need pt_regs to feed back the value from read
++ */
++int vdev_dispatch_io(struct mmiotrace_rw *io)
++{
++	struct vdev_io *p;
++	resource_size_t addr = io->phys;
++
++	p = vdev_search(io);
++	if(!p)
++		return 0;
++	
++	if(io->opcode == MMIO_READ){
++		switch(io->width){
++			case 1:
++				if(p->readb)
++					p->readb(addr);
++			break;
++			case 2:
++				if(p->readw)
++					p->readw(addr);
++			break;
++			case 4:
++				if(p->readl)
++					p->readl(addr);
++			break;
++			default:
++				printk("Invalid io size %d\n",io->width);
++			break;
++		}
++	}
++
++	if(io->opcode == MMIO_WRITE){
++		switch(io->width){
++			case 1:
++				if(p->writeb)
++					p->writeb(addr,io->value);
++			break;
++			case 2:
++				if(p->writew)
++					p->writew(addr,io->value);
++			break;
++			case 4:
++				if(p->writel)
++					p->writel(addr,io->value);
++			break;
++			default:
++				printk("Invalid io size %d\n",io->width);
++			break;
++		}
++	}
++}
++EXPORT_SYMBOL(vdev_dispatch_io);
++
++int vdev_register_io(struct vdev_io *vdev)
++{
++	spin_lock(&vdev_lock);
++	list_add(&vdev->list, &vdev_list);
++	spin_unlock(&vdev_lock);
++	return 0;
++}
++EXPORT_SYMBOL(vdev_register_io);
+diff --git a/include/linux/vdev.h b/include/linux/vdev.h
+new file mode 100644
+index 0000000..28a39df
+--- /dev/null
++++ b/include/linux/vdev.h
+@@ -0,0 +1,25 @@
++#ifndef __VDEV__H__
++#define __VDEV__H__
++
++#include <linux/device.h>
++#include <linux/module.h>
++#include <linux/pci.h>
++#include <linux/mmiotrace.h>
++
++struct vdev_io{
++	struct list_head list;
++	//TODO use pci_resource instead
++	resource_size_t	base;	/* Base PCI address */
++	unsigned long	len;	/* mapping size */
++	u8 (*readb)(resource_size_t addr);
++	u16 (*readw)(resource_size_t addr);
++	u32 (*readl)(resource_size_t addr);
++	void (*writeb)(resource_size_t addr, u8 val);
++	void (*writew)(resource_size_t addr, u16 val);
++	void (*writel)(resource_size_t addr, u32 val);
++};
++
++int vdev_dispatch_io(struct mmiotrace_rw *io);
++int vdev_register_io(struct vdev_io *vdev);
++
++#endif
+-- 
+1.7.0.4
+
