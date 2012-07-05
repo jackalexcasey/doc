@@ -1,0 +1,46 @@
+From 82830c360bf5dc4c63fb44b6346d4fb34822aa59 Mon Sep 17 00:00:00 2001
+From: Etienne <etmartin@etmartin-desktop.(none)>
+Date: Thu, 5 Jul 2012 15:04:50 -0400
+Subject: [PATCH 8/8] Comment updates for kmmio
+
+---
+ drivers/misc/vdevice.c       |    2 +-
+ drivers/vdev/vdev_dispatch.c |    9 +++++++++
+ 2 files changed, 10 insertions(+), 1 deletions(-)
+
+diff --git a/drivers/misc/vdevice.c b/drivers/misc/vdevice.c
+index 5735c5a..89a1ef6 100644
+--- a/drivers/misc/vdevice.c
++++ b/drivers/misc/vdevice.c
+@@ -201,7 +201,7 @@ int vdev_writel(struct vdev_resource *vdev_resource, resource_size_t offset, u32
+ 
+ #if 0
+ /* There is a problem when runnint virtual device with kmmio emulation
+- * in a VM for the MSI; register are truncated somehow...
++ * in a VM for the MSI; register are truncated somehow...*/
+ 	if(offset == 0x98){
+ 		printk("DUMP\n");
+ 		ptr = (volatile u32*)vdev_resource->opaque;
+diff --git a/drivers/vdev/vdev_dispatch.c b/drivers/vdev/vdev_dispatch.c
+index 1525595..fb389a5 100644
+--- a/drivers/vdev/vdev_dispatch.c
++++ b/drivers/vdev/vdev_dispatch.c
+@@ -41,6 +41,15 @@ static struct vdev_io *vdev_search(struct mmiotrace_rw *mmio, int *res, resource
+ }
+ 
+ /*
++ * virtual device register for emulation using vdev_register_io
++ *
++ * The mmap / ioremap arm the tracing subsystem. i.e. all access are traped
++ * logged and emulated IF they where register before.
++ *
++ * We should use another type of arm that goes through only if the 
++ * emulation back end is present
++ * ; maybe we could check if the emulation device
++ * is in effect for that range instead of taking to whole thing??
+  */
+ int vdev_dispatch_io(struct mmiotrace_rw *mmio, unsigned long *val)
+ {
+-- 
+1.7.0.4
+

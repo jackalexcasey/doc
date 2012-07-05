@@ -1,0 +1,29 @@
+From fb343593650deb8ec6e21a44256fbc406d7d5770 Mon Sep 17 00:00:00 2001
+From: Etienne <etmartin@etmartin-desktop.(none)>
+Date: Fri, 29 Jun 2012 11:16:40 -0400
+Subject: [PATCH 3/8] Comment updates
+
+---
+ mm/memory.c |    6 ++++++
+ 1 files changed, 6 insertions(+), 0 deletions(-)
+
+diff --git a/mm/memory.c b/mm/memory.c
+index 7fc7aaf..dd359e6 100644
+--- a/mm/memory.c
++++ b/mm/memory.c
+@@ -805,6 +805,12 @@ int copy_page_range(struct mm_struct *dst_mm, struct mm_struct *src_mm,
+ 		 * We do not free on error cases below as remove_vma
+ 		 * gets called on error from higher level routine
+ 		 */
++		/* 
++		 * We are about to copy a VMA that has PFN mapping with potentially
++		 * mmio tracking PTE i.e. _PAGE_PRESENT PTE clear. This is fooling the
++		 * check on the PTE.
++		 * Either we fix the pte_present macro or drop the tracking...
++		 */
+ 		ret = track_pfn_vma_copy(vma);
+ 		if (ret)
+ 			return ret;
+-- 
+1.7.0.4
+

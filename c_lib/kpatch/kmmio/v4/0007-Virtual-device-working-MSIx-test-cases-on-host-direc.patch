@@ -1,0 +1,472 @@
+From dea65bd6edbb1f86dcf26a6cf26ebb5dbea7cc38 Mon Sep 17 00:00:00 2001
+From: Etienne <etmartin@etmartin-desktop.(none)>
+Date: Thu, 5 Jul 2012 12:26:32 -0400
+Subject: [PATCH 7/8] Virtual device working MSIx test cases on host directly;
+ Problem when testing on guest:
+  190 +/* There is a problem when runnint virtual device with kmmio emulation
+  191 + * in a VM for the MSI; register are truncated somehow...
+
+Adding instruction decoder to feed the readed value
+Adding readd writed
+Proper debugging support
+---
+ arch/x86/mm/mmio-mod.c       |   19 ++++++-
+ arch/x86/mm/pf_in.c          |   59 +++++++++++++++++++++
+ arch/x86/mm/pf_in.h          |    1 +
+ drivers/misc/vdevice.c       |  118 ++++++++++++++++++++++++++++++++++++++----
+ drivers/vdev/vdev_dispatch.c |   73 +++++++++++++++++---------
+ include/linux/vdev.h         |    3 +-
+ 6 files changed, 237 insertions(+), 36 deletions(-)
+
+diff --git a/arch/x86/mm/mmio-mod.c b/arch/x86/mm/mmio-mod.c
+index 1faaa76..9918b52 100644
+--- a/arch/x86/mm/mmio-mod.c
++++ b/arch/x86/mm/mmio-mod.c
+@@ -208,6 +208,8 @@ static void pre(struct kmmio_probe *p, struct pt_regs *regs,
+ static void post(struct kmmio_probe *p, unsigned long condition,
+ 							struct pt_regs *regs)
+ {
++	int rc;
++	unsigned long val;
+ 	struct trap_reason *my_reason = &get_cpu_var(pf_reason);
+ 	struct mmiotrace_rw *my_trace = &get_cpu_var(cpu_trace);
+ 
+@@ -218,10 +220,25 @@ static void post(struct kmmio_probe *p, unsigned long condition,
+ 		BUG();
+ 	}
+ 
+-	vdev_dispatch_io(my_trace, regs);
++	/* 
++	 * Here vdev_dispatch_io looks if the current address belongs
++	 * to the emulation layer; If it does it returns 0
++	 */
++	val = 0;
++	rc = vdev_dispatch_io(my_trace,&val);
+ 
+ 	switch (my_reason->type) {
+ 	case REG_READ:
++		/* 
++		 * set_ins_reg_val walk the instruction sets and identify the register
++		 * that contain the readed value. For the emulation case we replace that
++		 * value with the emulated one returned from vdev_dispatch_io.
++		 * 	show_registers(regs);
++		 * 	The trace decoding is performed after to maintain consistency
++		 */
++		if(rc==0)
++			set_ins_reg_val(my_reason->ip, regs, val);
++
+ 		my_trace->value = get_ins_reg_val(my_reason->ip, regs);
+ 		break;
+ 	default:
+diff --git a/arch/x86/mm/pf_in.c b/arch/x86/mm/pf_in.c
+index df3d5c8..b6520c3 100644
+--- a/arch/x86/mm/pf_in.c
++++ b/arch/x86/mm/pf_in.c
+@@ -407,6 +407,65 @@ static unsigned long *get_reg_w32(int no, struct pt_regs *regs)
+ 	return rv;
+ }
+ 
++void set_ins_reg_val(unsigned long ins_addr, struct pt_regs *regs, unsigned long value)
++{
++	unsigned int opcode;
++	unsigned char mod_rm;
++	int reg;
++	unsigned char *p;
++	struct prefix_bits prf;
++	int i;
++	unsigned long rv;
++
++	p = (unsigned char *)ins_addr;
++	p += skip_prefix(p, &prf);
++	p += get_opcode(p, &opcode);
++	for (i = 0; i < ARRAY_SIZE(reg_rop); i++)
++		if (reg_rop[i] == opcode) {
++			rv = REG_READ;
++			goto do_work;
++		}
++
++	for (i = 0; i < ARRAY_SIZE(reg_wop); i++)
++		if (reg_wop[i] == opcode) {
++			rv = REG_WRITE;
++			goto do_work;
++		}
++
++	printk(KERN_ERR "mmiotrace: Not a register instruction, opcode "
++							"0x%02x\n", opcode);
++	goto err;
++
++do_work:
++	mod_rm = *p;
++	reg = ((mod_rm >> 3) & 0x7) | (prf.rexr << 3);
++	switch (get_ins_reg_width(ins_addr)) {
++	case 1:
++		*get_reg_w8(reg, prf.rex, regs) = (unsigned char)value;
++		break;
++
++	case 2:
++		*(unsigned short *)get_reg_w32(reg, regs) = (unsigned short)value;
++		break;
++
++	case 4:
++		*(unsigned int *)get_reg_w32(reg, regs) = (unsigned int)value;
++		break;
++
++#ifdef __amd64__
++	case 8:
++		*(unsigned long *)get_reg_w32(reg, regs) = (unsigned long) value;
++		break;
++#endif
++
++	default:
++		printk(KERN_ERR "mmiotrace: Error width# %d\n", reg);
++	}
++
++err:
++	return;
++}
++
+ unsigned long get_ins_reg_val(unsigned long ins_addr, struct pt_regs *regs)
+ {
+ 	unsigned int opcode;
+diff --git a/arch/x86/mm/pf_in.h b/arch/x86/mm/pf_in.h
+index e05341a..2e103e4 100644
+--- a/arch/x86/mm/pf_in.h
++++ b/arch/x86/mm/pf_in.h
+@@ -35,5 +35,6 @@ enum reason_type get_ins_type(unsigned long ins_addr);
+ unsigned int get_ins_mem_width(unsigned long ins_addr);
+ unsigned long get_ins_reg_val(unsigned long ins_addr, struct pt_regs *regs);
+ unsigned long get_ins_imm_val(unsigned long ins_addr);
++void set_ins_reg_val(unsigned long ins_addr, struct pt_regs *regs, unsigned long value);
+ 
+ #endif /* __PF_H_ */
+diff --git a/drivers/misc/vdevice.c b/drivers/misc/vdevice.c
+index 68df351..5735c5a 100644
+--- a/drivers/misc/vdevice.c
++++ b/drivers/misc/vdevice.c
+@@ -138,7 +138,7 @@ u8 vdev_readb(struct vdev_resource *vdev_resource, resource_size_t offset)
+ 	struct resource *resource=&vdev_resource->resource;
+ 
+ 	val = *ptr;
+-	printk("readb phys %lx = %x \n",(unsigned long) (resource->start + offset), val);
++	DPRINTK("readb phys %lx = %x \n",(unsigned long) (resource->start + offset), val);
+ 	return val;
+ }
+ u16 vdev_readw(struct vdev_resource *vdev_resource, resource_size_t offset)
+@@ -148,7 +148,7 @@ u16 vdev_readw(struct vdev_resource *vdev_resource, resource_size_t offset)
+ 	struct resource *resource=&vdev_resource->resource;
+ 
+ 	val = *ptr;
+-	printk("readw phys %lx = %x \n",(unsigned long) (resource->start + offset), val);
++	DPRINTK("readw phys %lx = %x \n",(unsigned long) (resource->start + offset), val);
+ 	return val;
+ }
+ u32 vdev_readl(struct vdev_resource *vdev_resource, resource_size_t offset)
+@@ -158,7 +158,7 @@ u32 vdev_readl(struct vdev_resource *vdev_resource, resource_size_t offset)
+ 	struct resource *resource=&vdev_resource->resource;
+ 
+ 	val = *ptr;
+-	printk("readl phys %lx = %x \n",(unsigned long) (resource->start + offset), val);
++	DPRINTK("readl phys %lx = %x \n",(unsigned long) (resource->start + offset), val);
+ 	return val;
+ }
+ u64 vdev_readd(struct vdev_resource *vdev_resource, resource_size_t offset)
+@@ -168,7 +168,7 @@ u64 vdev_readd(struct vdev_resource *vdev_resource, resource_size_t offset)
+ 	struct resource *resource=&vdev_resource->resource;
+ 
+ 	val = *ptr;
+-	printk("readd phys %lx = %lx \n",(unsigned long) (resource->start + offset), val);
++	DPRINTK("readd phys %lx = %lx \n",(unsigned long) (resource->start + offset), val);
+ 	return val;
+ }
+ 
+@@ -178,7 +178,7 @@ int vdev_writeb(struct vdev_resource *vdev_resource, resource_size_t offset, u8
+ 	struct resource *resource=&vdev_resource->resource;
+ 
+ 	*ptr = val;
+-	printk("writeb phys %lx val %x\n",(unsigned long)(resource->start + offset), val);
++	DPRINTK("writeb phys %lx val %x\n",(unsigned long)(resource->start + offset), val);
+ 	return 0;
+ }
+ int vdev_writew(struct vdev_resource *vdev_resource, resource_size_t offset, u16 val)
+@@ -187,19 +187,112 @@ int vdev_writew(struct vdev_resource *vdev_resource, resource_size_t offset, u16
+ 	struct resource *resource=&vdev_resource->resource;
+ 
+ 	*ptr = val;
+-	printk("writew phys %lx val %x\n",(unsigned long)(resource->start + offset), val);
++	DPRINTK("writew phys %lx val %x\n",(unsigned long)(resource->start + offset), val);
+ 	return 0;
+ }
+ int vdev_writel(struct vdev_resource *vdev_resource, resource_size_t offset, u32 val)
+ {
++	int x;
+ 	volatile u32 *ptr = (volatile u32*)vdev_resource->opaque + offset;
+ 	struct resource *resource=&vdev_resource->resource;
+ 
+ 	*ptr = val;
+-	printk("writel phys %lx val %x\n",(unsigned long)(resource->start + offset), val);
++	DPRINTK("writel phys %lx val %x\n",(unsigned long)(resource->start + offset), val);
++
++#if 0
++/* There is a problem when runnint virtual device with kmmio emulation
++ * in a VM for the MSI; register are truncated somehow...
++	if(offset == 0x98){
++		printk("DUMP\n");
++		ptr = (volatile u32*)vdev_resource->opaque;
++		for(x=0;x<=0x98;x+=4){
++			printk("%x -> %lx\n",x,ptr[x]);
++		}
++	}
++#endif
++	return 0;
++}
++
++int vdev_writed(struct vdev_resource *vdev_resource, resource_size_t offset, u64 val)
++{
++	volatile u64 *ptr = (volatile u64*)vdev_resource->opaque + offset;
++	struct resource *resource=&vdev_resource->resource;
++
++	*ptr = val;
++	DPRINTK("writed phys %lx val %x\n",(unsigned long)(resource->start + offset), val);
+ 	return 0;
+ }
+ 
++void test_io(struct pci_dev *dev)
++{
++	int nr,x;
++	void *bar0, *bar2;
++	unsigned char *bbar0,*bbar2;
++	unsigned short *wbar0,*wbar2;
++	unsigned int *lbar0,*lbar2;
++	unsigned long *dbar0,*dbar2;
++
++	bar0=pci_iomap(dev, 0, 0);
++	if(!bar0){
++		DPRINTK("Cannot mmap BAR0\n");
++		return;
++	}
++
++	bar2=pci_iomap(dev, 2, 0);
++	if(!bar2){
++		DPRINTK("Cannot mmap BAR2\n");
++		return;
++	}
++	
++	bbar0=bar0;
++	wbar0=bar0;
++	lbar0=bar0;
++	dbar0=bar0;
++
++	bbar2=bar2;
++	wbar2=bar2;
++	lbar2=bar2;
++	dbar2=bar2;
++
++	nr = 5;
++
++	DPRINTK("\nBAR2 write bytes");
++	for(x=0;x<nr;x++){
++		bbar2[x] = x;
++	}
++	DPRINTK("\nBAR2 read bytes");
++	for(x=0;x<nr;x++){
++		DPRINTK("_%x_",bbar2[x]);
++	}
++
++	DPRINTK("\nBAR2 write short");
++	for(x=0;x<nr;x++){
++		wbar2[x] = x;
++	}
++	DPRINTK("\nBAR2 read short");
++	for(x=0;x<nr;x++){
++		DPRINTK("_%x_",wbar2[x]);
++	}
++
++	DPRINTK("\nBAR2 write long");
++	for(x=0;x<nr;x++){
++		lbar2[x] = x;
++	}
++	DPRINTK("\nBAR2 read long");
++	for(x=0;x<nr;x++){
++		DPRINTK("_%x_",lbar2[x]);
++	}
++
++	DPRINTK("\nBAR2 write double");
++	for(x=0;x<nr;x++){
++		dbar2[x] = x;
++	}
++	DPRINTK("\nBAR2 read double");
++	for(x=0;x<nr;x++){
++		DPRINTK("_%x_",dbar2[x]);
++	}
++}
++
+ static struct vdev_io *vdev_register(struct pci_dev *dev)
+ {
+ 	int x, len;
+@@ -216,6 +309,7 @@ static struct vdev_io *vdev_register(struct pci_dev *dev)
+ 	io->writeb=vdev_writeb;
+ 	io->writew=vdev_writew;
+ 	io->writel=vdev_writel;
++	io->writed=vdev_writed;
+ 
+ 	for(x=0;x<PCI_NUM_RESOURCES;x++){
+ 		if(dev->resource[x].start){
+@@ -230,7 +324,11 @@ static struct vdev_io *vdev_register(struct pci_dev *dev)
+ 		}
+ 	}
+ 	vdev_register_io(io);
+-	printk("vdev_register_io OK\n");
++	DPRINTK("vdev_register_io OK\n");
++
++	if(debug)
++		test_io(dev);
++
+ 	return io;
+ }
+ 
+@@ -371,8 +469,8 @@ static ssize_t write(struct file * filep, const char __user * buf,
+ 			int x;
+ 			for(x=0;x<256;x++){
+ 				if(!(x%16))
+-					printk("\n%4o: ",x/2);
+-				printk("%2x ",(unsigned char)dev->config[x]);
++					DPRINTK("\n%4o: ",x/2);
++				DPRINTK("%2x ",(unsigned char)dev->config[x]);
+ 			}
+ 		}
+ 		/* Find the target device / downstream port */
+diff --git a/drivers/vdev/vdev_dispatch.c b/drivers/vdev/vdev_dispatch.c
+index 28995db..1525595 100644
+--- a/drivers/vdev/vdev_dispatch.c
++++ b/drivers/vdev/vdev_dispatch.c
+@@ -41,62 +41,87 @@ static struct vdev_io *vdev_search(struct mmiotrace_rw *mmio, int *res, resource
+ }
+ 
+ /*
+- * Will need pt_regs to feed back the value from read
+- * TODO add the ressource # to the call	
+  */
+-int vdev_dispatch_io(struct mmiotrace_rw *mmio, struct pt_regs *regs)
++int vdev_dispatch_io(struct mmiotrace_rw *mmio, unsigned long *val)
+ {
+ 	int res;
++	unsigned long value;
+ 	resource_size_t offset;
+ 	struct vdev_io *io;
+ 
+ 	io = vdev_search(mmio, &res, &offset);
+ 	if(!io)
+-		return 0;
++		return -1;
+ 
+ 	if(mmio->opcode == MMIO_READ){
+ 		switch(mmio->width){
+ 			case 1:
+-				if(io->readb)
+-					regs->dx = io->readb(&io->vdev_resource[res],offset);
+-				break;
++				if(io->readb){
++					value = io->readb(&io->vdev_resource[res],offset);
++					*val = value;
++					return 0;
++				}
++				return -1;
+ 			case 2:
+-				if(io->readw)
+-					regs->dx = io->readw(&io->vdev_resource[res],offset);
+-				break;
++				if(io->readw){
++					value = io->readw(&io->vdev_resource[res],offset);
++					*val = value;
++					return 0;
++				}
++				return -1;
+ 			case 4:
+-				if(io->readl)
+-					regs->dx = io->readl(&io->vdev_resource[res],offset);
+-				break;
++				if(io->readl){
++					value = io->readl(&io->vdev_resource[res],offset);
++					*val = value;
++					return 0;
++				}
++				return -1;
+ 			case 8:
+-				if(io->readd)
+-					regs->dx = io->readd(&io->vdev_resource[res],offset);
+-				break;
++				if(io->readd){
++					value = io->readd(&io->vdev_resource[res],offset);
++					*val = value;
++					return 0;
++				}
++				return -1;
+ 			default:
+ 				printk("Invalid io size %d\n",mmio->width);
+-			break;
++				return -1;
+ 		}
+ 	}
+ 
+ 	if(mmio->opcode == MMIO_WRITE){
+ 		switch(mmio->width){
+ 			case 1:
+-				if(io->writeb)
++				if(io->writeb){
+ 					io->writeb(&io->vdev_resource[res],offset, mmio->value);
+-			break;
++					return 0;
++				}
++				return -1;
+ 			case 2:
+-				if(io->writew)
++				if(io->writew){
+ 					io->writew(&io->vdev_resource[res],offset, mmio->value);
+-			break;
++					return 0;
++				}
++				return -1;
+ 			case 4:
+-				if(io->writel)
++				if(io->writel){
+ 					io->writel(&io->vdev_resource[res],offset, mmio->value);
+-			break;
++					return 0;
++				}
++				return -1;
++			case 8:
++				if(io->writed){
++					io->writed(&io->vdev_resource[res],offset, mmio->value);
++					return 0;
++				}
++				return -1;
+ 			default:
+ 				printk("Invalid io size %d\n",mmio->width);
+-			break;
++				return -1;
+ 		}
+ 	}
++
++	return -1;
+ }
+ EXPORT_SYMBOL(vdev_dispatch_io);
+ 
+diff --git a/include/linux/vdev.h b/include/linux/vdev.h
+index e75a964..284dc1e 100644
+--- a/include/linux/vdev.h
++++ b/include/linux/vdev.h
+@@ -21,9 +21,10 @@ struct vdev_io{
+ 	int (*writeb)(struct vdev_resource *vdev_resource, resource_size_t offset, u8 val);
+ 	int (*writew)(struct vdev_resource *vdev_resource, resource_size_t offset, u16 val);
+ 	int (*writel)(struct vdev_resource *vdev_resource, resource_size_t offset, u32 val);
++	int (*writed)(struct vdev_resource *vdev_resource, resource_size_t offset, u64 val);
+ };
+ 
+-int vdev_dispatch_io(struct mmiotrace_rw *io, struct pt_regs *regs);
++int vdev_dispatch_io(struct mmiotrace_rw *mmio, unsigned long *val);
+ int vdev_register_io(struct vdev_io *vdev);
+ int vdev_unregister_io(struct vdev_io *vdev);
+ 
+-- 
+1.7.0.4
+

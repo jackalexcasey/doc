@@ -1,0 +1,653 @@
+From c997d8cc2f7451424a3d0df29dda3b21afdc9b6c Mon Sep 17 00:00:00 2001
+From: Etienne <etmartin@etmartin-desktop.(none)>
+Date: Wed, 4 Jul 2012 14:11:44 -0400
+Subject: [PATCH 6/8] Adaptation of vdevice to use the emulation backend
+ adaptation backend clean-up
+ Require regs-> for the returned value...
+
+---
+ arch/x86/mm/mmio-mod.c       |    4 +-
+ drivers/misc/vdevice.c       |  325 ++++++++++++------------------------------
+ drivers/vdev/vdev_dispatch.c |  103 +++++++++-----
+ include/linux/vdev.h         |   25 ++--
+ include/linux/vdevice.h      |    7 +-
+ 5 files changed, 178 insertions(+), 286 deletions(-)
+
+diff --git a/arch/x86/mm/mmio-mod.c b/arch/x86/mm/mmio-mod.c
+index 3ddd937..1faaa76 100644
+--- a/arch/x86/mm/mmio-mod.c
++++ b/arch/x86/mm/mmio-mod.c
+@@ -218,6 +218,8 @@ static void post(struct kmmio_probe *p, unsigned long condition,
+ 		BUG();
+ 	}
+ 
++	vdev_dispatch_io(my_trace, regs);
++
+ 	switch (my_reason->type) {
+ 	case REG_READ:
+ 		my_trace->value = get_ins_reg_val(my_reason->ip, regs);
+@@ -227,7 +229,7 @@ static void post(struct kmmio_probe *p, unsigned long condition,
+ 	}
+ 
+ 	mmio_trace_rw(my_trace);
+-	vdev_dispatch_io(my_trace);
++
+ 
+ 	/* Here we callback into vdev with mytrace information */
+ 	put_cpu_var(cpu_trace);
+diff --git a/drivers/misc/vdevice.c b/drivers/misc/vdevice.c
+index 4c109f8..68df351 100644
+--- a/drivers/misc/vdevice.c
++++ b/drivers/misc/vdevice.c
+@@ -43,41 +43,6 @@ static DEFINE_SPINLOCK(vfcn_list_lock);
+ static DEFINE_MUTEX(mutex);
+ static struct pci_ops local_pci_root_ops;
+ static struct pci_dev *Gpdev;
+-static const unsigned long base_addr_lookup[MAX_RESOURCE]={
+-	PCI_BASE_ADDRESS_0,
+-	PCI_BASE_ADDRESS_1,
+-	PCI_BASE_ADDRESS_2,
+-	PCI_BASE_ADDRESS_3,
+-	PCI_BASE_ADDRESS_4,
+-	PCI_BASE_ADDRESS_5
+-};
+-
+-static inline uint16_t
+-pci_get_word(const uint8_t *config)
+-{
+-	return *((const uint16_t *)config);
+-}
+-
+-/*
+- * This driver is only used for internal validation
+- */
+-static int __devinit probe(struct pci_dev *dev,
+-	const struct pci_device_id *id)
+-{
+-	DPRINTK("DUMMY probe\n");
+-	return 0;
+-}
+-
+-static void __devexit remove(struct pci_dev *dev)
+-{
+-	DPRINTK("DUMMY remove\n");
+-}
+-
+-static struct pci_driver driver = {
+-	.name		= "fake",
+-	.probe		= probe,
+-	.remove		= remove,
+-};
+ 
+ static void vdevice_add(struct vdev *dev)
+ {
+@@ -166,156 +131,117 @@ static int pci_write(struct pci_bus *bus, unsigned int devfn, int where, int siz
+ 	return vfcn_write(dev,where,size,value);
+ }
+ 
+-static u8 vdev_readb(resource_size_t addr)
++u8 vdev_readb(struct vdev_resource *vdev_resource, resource_size_t offset)
++{
++	u8 val;
++	volatile u8 *ptr = (volatile u8*)vdev_resource->opaque + offset;
++	struct resource *resource=&vdev_resource->resource;
++
++	val = *ptr;
++	printk("readb phys %lx = %x \n",(unsigned long) (resource->start + offset), val);
++	return val;
++}
++u16 vdev_readw(struct vdev_resource *vdev_resource, resource_size_t offset)
+ {
+-	printk("%d %lx\n",__LINE__, addr);
++	u16 val;
++	volatile u16 *ptr = (volatile u16*)vdev_resource->opaque + offset;
++	struct resource *resource=&vdev_resource->resource;
++
++	val = *ptr;
++	printk("readw phys %lx = %x \n",(unsigned long) (resource->start + offset), val);
++	return val;
+ }
+-static u16 vdev_readw(resource_size_t addr)
++u32 vdev_readl(struct vdev_resource *vdev_resource, resource_size_t offset)
+ {
+-	printk("%d %lx\n",__LINE__, addr);
++	u32 val;
++	volatile u32 *ptr = (volatile u32*)vdev_resource->opaque + offset;
++	struct resource *resource=&vdev_resource->resource;
++
++	val = *ptr;
++	printk("readl phys %lx = %x \n",(unsigned long) (resource->start + offset), val);
++	return val;
+ }
+-static u32 vdev_readl(resource_size_t addr)
++u64 vdev_readd(struct vdev_resource *vdev_resource, resource_size_t offset)
+ {
+-	printk("%d %lx\n",__LINE__, addr);
++	u64 val;
++	volatile u64 *ptr = (volatile u64*)vdev_resource->opaque + offset;
++	struct resource *resource=&vdev_resource->resource;
++
++	val = *ptr;
++	printk("readd phys %lx = %lx \n",(unsigned long) (resource->start + offset), val);
++	return val;
+ }
+-static void vdev_writeb(resource_size_t addr, u8 val)
++
++int vdev_writeb(struct vdev_resource *vdev_resource, resource_size_t offset, u8 val)
+ {
+-	printk("%d %lx\n",__LINE__, addr);
++	volatile u8 *ptr = (volatile u8*)vdev_resource->opaque + offset;
++	struct resource *resource=&vdev_resource->resource;
++
++	*ptr = val;
++	printk("writeb phys %lx val %x\n",(unsigned long)(resource->start + offset), val);
++	return 0;
+ }
+-static void vdev_writew(resource_size_t addr, u16 val)
++int vdev_writew(struct vdev_resource *vdev_resource, resource_size_t offset, u16 val)
+ {
+-	printk("%d %lx\n",__LINE__, addr);
++	volatile u16 *ptr = (volatile u16*)vdev_resource->opaque + offset;
++	struct resource *resource=&vdev_resource->resource;
++
++	*ptr = val;
++	printk("writew phys %lx val %x\n",(unsigned long)(resource->start + offset), val);
++	return 0;
+ }
+-static void vdev_writel(resource_size_t addr, u32 val)
++int vdev_writel(struct vdev_resource *vdev_resource, resource_size_t offset, u32 val)
+ {
+-	printk("%d %lx\n",__LINE__, addr);
++	volatile u32 *ptr = (volatile u32*)vdev_resource->opaque + offset;
++	struct resource *resource=&vdev_resource->resource;
++
++	*ptr = val;
++	printk("writel phys %lx val %x\n",(unsigned long)(resource->start + offset), val);
++	return 0;
+ }
+ 
+-static int vdevice_fixup(struct vdev *dev)
++static struct vdev_io *vdev_register(struct pci_dev *dev)
+ {
+-	struct pci_dev *vdev = dev->vdev;
+-	uint8_t *config = dev->config;
++	int x, len;
+ 	struct vdev_io *io;
+ 
+-	io = kzalloc(GFP_KERNEL, sizeof(struct vdev_io));
++	io = kzalloc(sizeof(struct vdev_io), GFP_KERNEL);
+ 	if(!io)
+ 		BUG();
+ 
+-	if(vdev->vendor == 0x1137 && ((vdev->device&0xfff0)==0x2340)){ /* MSI-X virtual device */
+-		/* 
+-		 * BAR0 aliase BAR2; This one doesn't trap in the emulation layer
+-		*/
+-		DPRINTK("Fix up %s %x:%x.%x","virtual device",vdev->bus->number,PCI_SLOT(vdev->devfn), PCI_FUNC(vdev->devfn));
+-		vdev->resource[2].start = vdev->resource[0].start;
+-		vdev->resource[2].end = vdev->resource[0].end;
+-		/* Change config space accordingly */
+-		*(uint32_t *)(&config[base_addr_lookup[2]]) = *(uint32_t *)(&config[base_addr_lookup[0]]);
+-
+-		io->base = vdev->resource[2].start;
+-		io->len = vdev->resource[2].end - vdev->resource[2].start;
+-		io->readb=vdev_readb;
+-		io->readw=vdev_readw;
+-		io->readl=vdev_readl;
+-		io->writeb=vdev_writeb;
+-		io->writew=vdev_writew;
+-		io->writel=vdev_writel;
+-		if(vdev_register_io(io))
+-			printk("ERROR vdev_register_io\n");
+-		else
+-			printk("vdev_register_io OK\n");
+-
+-	}
+-	return 0;
+-}
+-
+-static void bar_restore(struct vdev *dev)
+-{
+-	int x;
+-	struct pci_dev *vdev = dev->vdev;
+-	uint8_t *config = dev->config;
+-
+-	for(x=0;x<MAX_RESOURCE;x++){
+-		if(dev->res[x]){
+-			/* Restore resource */
+-			vdev->resource[x].start = dev->resource_org[x].start;
+-			vdev->resource[x].end = dev->resource_org[x].end;
+-			/* Restore config space */
+-			*(uint32_t *)(&config[base_addr_lookup[x]]) = vdev->resource[x].start;
+-			bigphysarea_free_pages(dev->res[x]);
+-			dev->res[x]=NULL;
+-		}	
++	io->readb=vdev_readb;
++	io->readw=vdev_readw;
++	io->readl=vdev_readl;
++	io->readd=vdev_readd;
++	io->writeb=vdev_writeb;
++	io->writew=vdev_writew;
++	io->writel=vdev_writel;
++
++	for(x=0;x<PCI_NUM_RESOURCES;x++){
++		if(dev->resource[x].start){
++			len = dev->resource[x].end - dev->resource[x].start;
++			io->vdev_resource[x].opaque = kzalloc(len, GFP_KERNEL);
++			if(!io->vdev_resource[x].opaque)
++				BUG();
++			io->vdev_resource[x].resource.start = dev->resource[x].start;
++			io->vdev_resource[x].resource.end = dev->resource[x].end;
++			DPRINTK("Resource %d size %x; %lx %lx\n",x,len, io->vdev_resource[x].resource.start,
++					io->vdev_resource[x].resource.end);
++		}
+ 	}
++	vdev_register_io(io);
++	printk("vdev_register_io OK\n");
++	return io;
+ }
+ 
+-/*
+- * BAR ressource are allocated by the kernel but there is
+- * no real memory behind it (no physical device for those IO slots)
+- * For that reason we put memory behind each BAR.
+- *
+- * TODO the resource mapping doesn't match but this is mostly
+- * fine because we disabled range checking for virtual device PCI id
+- * in core kernel
+- */
+-static int bar_adjust(struct vdev *dev)
++static void vdev_unregister(struct vdev *dev)
+ {
+-	int x, nores=1;
+-	struct pci_dev *vdev = dev->vdev;
+-	uint8_t *config = dev->config;
+-	dma_addr_t addr;
+-	int size;
+-	int pagenr;
+-
+-	for(x=0;x<MAX_RESOURCE;x++){
+-		if(!pci_resource_start(vdev,x))
+-			continue;
+-
+-		nores=0;
+-		size = (pci_resource_end(vdev, x) - pci_resource_start(vdev, x));
+-		pagenr = (size>>PAGE_SHIFT) +1;
+-		DPRINTK(" pci_resource_start(dev, %d) %x ",x,pci_resource_start(vdev, x) );
+-		DPRINTK(" pci_resource_end(dev, %d) %x ",x,pci_resource_end(vdev, x) );
+-		DPRINTK(" pci_resource_size %d bytes %d pages",size,pagenr );
+-
+-		/* 
+-		 * This memory is not RAM and so it can be ioremap as 
+-		 * if it was IO memory.
+-		 */
+-		dev->res[x] = bigphysarea_alloc_pages(pagenr, 1, GFP_KERNEL);
+-		if(!dev->res[x])
+-			goto err;
+-		memset(dev->res[x],0,size);
+-		addr = (unsigned long)virt_to_phys(dev->res[x]);	
+-
+-		/* Remember original value */
+-		dev->resource_org[x].start = pci_resource_start(vdev, x);
+-		dev->resource_org[x].end = pci_resource_end(vdev, x);
+-
+-		/* Swap with the new one */
+-		vdev->resource[x].start = (unsigned long)addr;
+-		vdev->resource[x].end = ((unsigned long)(addr+size));
+-
+-		/* Change config space accordingly */
+-		*(uint32_t *)(&config[base_addr_lookup[x]]) = (unsigned long) addr;
+-
+-		DPRINTK(" pci_resource_start(dev, %d) %x ",x,pci_resource_start(vdev, x) );
+-		DPRINTK(" pci_resource_end(dev, %d) %x ",x,pci_resource_end(vdev, x) );
+-	}
+-
+-	if(nores){
+-		DPRINTK("Virtual device has no resources allocated to it. Something wrong?\n");
+-		goto err;
+-	}
+-	return 0;
+-err:
+-	bar_restore(dev);
+-	return -ENOMEM;
++	vdev_unregister_io(dev->vdev_io);
++	kfree(dev->vdev_io);
+ }
+ 
+ static int vdev_insert(struct vdev *dev, struct pci_dev *pdev)
+ {
+-	struct pci_device_id table;
+-	uint8_t *config = dev->config;
+-
+ 	if(dev->type == NEW_FUNCTION){
+ 		dev->abus=pdev->bus->number;
+ 		dev->adevfn=PCI_DEVFN(PCI_SLOT(pdev->devfn), PCI_FUNC(pdev->devfn+dev->fcnnr));
+@@ -354,60 +280,19 @@ static int vdev_insert(struct vdev *dev, struct pci_dev *pdev)
+ 	/* Get on the global list */
+ 	vdevice_add(dev);
+ 
+-	/* 
+-	 * In order for the vdevice to show up we must rescan the topology
+-	 * This in turn will call into the corresponding driver 'probe' method.
+-	 * We don't want that probe method to latch in the wrong value for the resource 
+-	 * since we are fixing up the BAR _after_ that rescan.
+-	 *
+-	 * NOTE we need vdevice to be there in order to adjust it's 
+-	 * resources in the first place.
+-	 *
+-	 * So let's verify that there is no driver that exist for that vdevice first
+-	 */
+-	
+-	table.vendor=pci_get_word(&config[PCI_VENDOR_ID]);
+-	table.device=pci_get_word(&config[PCI_DEVICE_ID]);
+-	table.subvendor=PCI_ANY_ID;
+-	table.subdevice=PCI_ANY_ID;
+-	table.class=0;
+-	table.class_mask=0;
+-	table.driver_data=0;
+-	driver.id_table = &table;
+-	if(pci_register_driver(&driver)){
+-		DPRINTK("Driver ALREADY exist for this device REMOVE FIRST\n");
+-		vdevice_del(dev);
+-		dev->pdev=NULL;
+-		return -EEXIST;
+-	}
+-
+ 	pci_rescan_bus(pdev->bus);
+ 
+ 	/* Find the vdevice */
+ 	dev->vdev = pci_get_bus_and_slot(dev->abus,dev->adevfn);
+ 	if (!dev->vdev){
+-		pci_unregister_driver(&driver);
+ 		vdevice_del(dev);
+ 		dev->pdev=NULL;
+ 		return -EIO;
+ 	}
++	
++	DPRINTK("Found Virtual device on PCI \n");
+ 
+-	if(bar_adjust(dev)<0){
+-		pci_unregister_driver(&driver);
+-		vdevice_del(dev);
+-
+-		DPRINTK("pci_remove_bus_device");
+-		pci_remove_bus_device(dev->vdev);
+-
+-		DPRINTK("pci_rescan_bus");
+-		pci_rescan_bus(dev->pdev->bus);
+-
+-		dev->pdev=NULL;
+-		return -ENOMEM;
+-	}
+-
+-	/* Release the driver handle for other to use */
+-	pci_unregister_driver(&driver);
++	dev->vdev_io = vdev_register(dev->vdev);
+ 	return 0;
+ }
+ 
+@@ -423,35 +308,8 @@ static void vdevice_remove(struct vdev *dev)
+ 
+ 	/* Remove from the global list */
+ 	vdevice_del(dev);
+-
+-	/*
+-	 * Two scenario
+-	 * A) vdevice driver (UMD...) is bind then remove. At bind time, it
+-	 * will latch in the adjusted BAR value. At remove time it will release those
+-	 * resources but kernel sees that it doesn't exist.
+-	 *
+-	 * B) vdevice driver (UMD...) is bind then the virtual device is taken out.
+-	 * At bind time, the driver will latch in right value. At virtual device
+-	 * remove time it will restore the BAR and the release of the driver will try
+-	 * to free original resource that doesn't exist... This can release someone
+-	 * else resource
+-	 *
+-	 * The tricky part here is that when the device is going to be taken out
+-	 * of the device tree by calling into 'pci_remove_bus_device' , it's corresponding 
+-	 * driver's remove method will be called.
+-	 *
+-	 * At that time that driver will released the resource
+-	 * by calling 'pci_release_regions' which effectively looks into pdev
+-	 * region start / end address.. 
+-	 *
+-	 * In order for that to work the pdev region must be restored first
+-	 *
+-	 * Similarly, when device is inserted; need to grab the rigth set of resource
+-	 * but the driver can race against the insertion logic...
+-	 */
+-	bar_restore(dev);
+-
+-	dev->pdev->multifunction = 0;
++	
++	vdev_unregister(dev);
+ 
+ 	DPRINTK("pci_remove_bus_device");
+ 	pci_remove_bus_device(dev->vdev);
+@@ -530,11 +388,6 @@ static ssize_t write(struct file * filep, const char __user * buf,
+ 			DPRINTK("Cannot insert  %x:%x.%x ",dev->B,dev->D,dev->F);
+ 			return -EINVAL;
+ 		}
+-		if(vdevice_fixup(dev)){
+-			vdevice_remove(dev);
+-			DPRINTK("Cannot fixup  %x:%x.%x ",dev->B,dev->D,dev->F);
+-			return -EINVAL;
+-		}
+ 	}
+ 	return written;
+ }
+diff --git a/drivers/vdev/vdev_dispatch.c b/drivers/vdev/vdev_dispatch.c
+index e27f0fd..28995db 100644
+--- a/drivers/vdev/vdev_dispatch.c
++++ b/drivers/vdev/vdev_dispatch.c
+@@ -12,16 +12,28 @@
+ static DEFINE_SPINLOCK(vdev_lock);
+ static LIST_HEAD(vdev_list);
+ 
+-static struct vdev_io *vdev_search(struct mmiotrace_rw *io)
++static struct vdev_io *vdev_search(struct mmiotrace_rw *mmio, int *res, resource_size_t *offset)
+ {
+-	struct vdev_io *p;
+-	resource_size_t addr = io->phys;
++	int x;
++	struct vdev_io *io;
++	struct vdev_resource *vdev_resource;
++	resource_size_t start;
++	resource_size_t end;
+ 
+ 	spin_lock(&vdev_lock);
+-	list_for_each_entry(p, &vdev_list, list){
+-		if (addr >= p->base && addr < (p->base + p->len)){
+-			spin_unlock(&vdev_lock);
+-			return p;
++	list_for_each_entry(io, &vdev_list, list){
++		for(x=0;x<PCI_NUM_RESOURCES;x++){
++			vdev_resource = &io->vdev_resource[x];
++			start = vdev_resource->resource.start;
++			end = vdev_resource->resource.end;
++		//	printk("MMIO %lx %lx %lx\n",(unsigned long)mmio->phys, start,end);
++			if ( (mmio->phys >= start) && (mmio->phys <= end) ){
++				spin_unlock(&vdev_lock);
++		//		printk("MMIO found %lx\n",(unsigned long)mmio->phys);
++				*offset = mmio->phys - start;
++				*res = x;
++				return io;
++			}
+ 		}
+ 	}
+ 	spin_unlock(&vdev_lock);
+@@ -30,52 +42,58 @@ static struct vdev_io *vdev_search(struct mmiotrace_rw *io)
+ 
+ /*
+  * Will need pt_regs to feed back the value from read
++ * TODO add the ressource # to the call	
+  */
+-int vdev_dispatch_io(struct mmiotrace_rw *io)
++int vdev_dispatch_io(struct mmiotrace_rw *mmio, struct pt_regs *regs)
+ {
+-	struct vdev_io *p;
+-	resource_size_t addr = io->phys;
++	int res;
++	resource_size_t offset;
++	struct vdev_io *io;
+ 
+-	p = vdev_search(io);
+-	if(!p)
++	io = vdev_search(mmio, &res, &offset);
++	if(!io)
+ 		return 0;
+-	
+-	if(io->opcode == MMIO_READ){
+-		switch(io->width){
++
++	if(mmio->opcode == MMIO_READ){
++		switch(mmio->width){
+ 			case 1:
+-				if(p->readb)
+-					p->readb(addr);
+-			break;
++				if(io->readb)
++					regs->dx = io->readb(&io->vdev_resource[res],offset);
++				break;
+ 			case 2:
+-				if(p->readw)
+-					p->readw(addr);
+-			break;
++				if(io->readw)
++					regs->dx = io->readw(&io->vdev_resource[res],offset);
++				break;
+ 			case 4:
+-				if(p->readl)
+-					p->readl(addr);
+-			break;
++				if(io->readl)
++					regs->dx = io->readl(&io->vdev_resource[res],offset);
++				break;
++			case 8:
++				if(io->readd)
++					regs->dx = io->readd(&io->vdev_resource[res],offset);
++				break;
+ 			default:
+-				printk("Invalid io size %d\n",io->width);
++				printk("Invalid io size %d\n",mmio->width);
+ 			break;
+ 		}
+ 	}
+ 
+-	if(io->opcode == MMIO_WRITE){
+-		switch(io->width){
++	if(mmio->opcode == MMIO_WRITE){
++		switch(mmio->width){
+ 			case 1:
+-				if(p->writeb)
+-					p->writeb(addr,io->value);
++				if(io->writeb)
++					io->writeb(&io->vdev_resource[res],offset, mmio->value);
+ 			break;
+ 			case 2:
+-				if(p->writew)
+-					p->writew(addr,io->value);
++				if(io->writew)
++					io->writew(&io->vdev_resource[res],offset, mmio->value);
+ 			break;
+ 			case 4:
+-				if(p->writel)
+-					p->writel(addr,io->value);
++				if(io->writel)
++					io->writel(&io->vdev_resource[res],offset, mmio->value);
+ 			break;
+ 			default:
+-				printk("Invalid io size %d\n",io->width);
++				printk("Invalid io size %d\n",mmio->width);
+ 			break;
+ 		}
+ 	}
+@@ -90,3 +108,20 @@ int vdev_register_io(struct vdev_io *vdev)
+ 	return 0;
+ }
+ EXPORT_SYMBOL(vdev_register_io);
++
++int vdev_unregister_io(struct vdev_io *vdev)
++{
++	struct vdev_io *p;
++
++	spin_lock(&vdev_lock);
++	list_for_each_entry(p, &vdev_list, list){
++		if(vdev == p){
++			list_del(&p->list);
++			break;
++		}
++	}
++	spin_unlock(&vdev_lock);
++	return 0;
++}
++EXPORT_SYMBOL(vdev_unregister_io);
++
+diff --git a/include/linux/vdev.h b/include/linux/vdev.h
+index 28a39df..e75a964 100644
+--- a/include/linux/vdev.h
++++ b/include/linux/vdev.h
+@@ -6,20 +6,25 @@
+ #include <linux/pci.h>
+ #include <linux/mmiotrace.h>
+ 
++struct vdev_resource{
++	void *opaque;
++	struct resource resource;
++};
++
+ struct vdev_io{
+ 	struct list_head list;
+-	//TODO use pci_resource instead
+-	resource_size_t	base;	/* Base PCI address */
+-	unsigned long	len;	/* mapping size */
+-	u8 (*readb)(resource_size_t addr);
+-	u16 (*readw)(resource_size_t addr);
+-	u32 (*readl)(resource_size_t addr);
+-	void (*writeb)(resource_size_t addr, u8 val);
+-	void (*writew)(resource_size_t addr, u16 val);
+-	void (*writel)(resource_size_t addr, u32 val);
++	struct vdev_resource vdev_resource[PCI_NUM_RESOURCES];
++	u8 (*readb)(struct vdev_resource *vdev_resource, resource_size_t offset);
++	u16 (*readw)(struct vdev_resource *vdev_resource, resource_size_t offset);
++	u32 (*readl)(struct vdev_resource *vdev_resource, resource_size_t offset);
++	u64 (*readd)(struct vdev_resource *vdev_resource, resource_size_t offset);
++	int (*writeb)(struct vdev_resource *vdev_resource, resource_size_t offset, u8 val);
++	int (*writew)(struct vdev_resource *vdev_resource, resource_size_t offset, u16 val);
++	int (*writel)(struct vdev_resource *vdev_resource, resource_size_t offset, u32 val);
+ };
+ 
+-int vdev_dispatch_io(struct mmiotrace_rw *io);
++int vdev_dispatch_io(struct mmiotrace_rw *io, struct pt_regs *regs);
+ int vdev_register_io(struct vdev_io *vdev);
++int vdev_unregister_io(struct vdev_io *vdev);
+ 
+ #endif
+diff --git a/include/linux/vdevice.h b/include/linux/vdevice.h
+index d1ae384..1d18bb6 100644
+--- a/include/linux/vdevice.h
++++ b/include/linux/vdevice.h
+@@ -27,9 +27,7 @@ struct vdev{
+ 	struct list_head list;
+ 	struct pci_dev *pdev; // Root device
+ 	struct pci_dev *vdev; // Virtual device
+-
+-	void *res[MAX_RESOURCE];// Local resource
+-	struct resource resource_org[MAX_RESOURCE]; // local copy
++	struct vdev_io *vdev_io; //Emulation backend
+ #endif
+ 
+ 	enum vdevice_type type;
+@@ -55,8 +53,7 @@ struct vdev{
+ };
+ 
+ // TODO clean up this overlay
+-#define USER_OFFSET (sizeof(struct list_head) + (sizeof(struct pci_dev*) * 2) + (sizeof(void *)*MAX_RESOURCE) \
+-	+ (sizeof(struct resource) * MAX_RESOURCE))
++#define USER_OFFSET (sizeof(struct list_head) + (sizeof(struct pci_dev*) * 2) + sizeof(struct vdev_io*))
+ 
+ static inline void vdevice_setbar(struct vdev* dev, unsigned int bar,int size, int type)
+ {
+-- 
+1.7.0.4
+

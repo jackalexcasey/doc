@@ -1,0 +1,108 @@
+From dc509175d6eb4eb1f7734b8e8c4e948aa89dbc94 Mon Sep 17 00:00:00 2001
+From: Etienne <etmartin@etmartin-desktop.(none)>
+Date: Fri, 29 Jun 2012 11:16:20 -0400
+Subject: [PATCH 2/8] Tracking mm part of kmmio_fault_page so that the unmap
+ path always has a context to work with
+ Open problem:
+         dup VMA check for if (!pte_present(*ptep))
+ The kmmio is fooling this check because really the page is present
+ but it's just that it is being tracked.
+
+---
+ arch/x86/mm/kmmio.c    |    6 ++++--
+ arch/x86/mm/mmio-mod.c |    4 ++++
+ arch/x86/mm/pageattr.c |    4 ++--
+ mm/memory.c            |    1 +
+ 4 files changed, 11 insertions(+), 4 deletions(-)
+
+diff --git a/arch/x86/mm/kmmio.c b/arch/x86/mm/kmmio.c
+index 9d8baf0..62eb854 100644
+--- a/arch/x86/mm/kmmio.c
++++ b/arch/x86/mm/kmmio.c
+@@ -32,6 +32,7 @@ struct kmmio_fault_page {
+ 	struct list_head list;
+ 	struct kmmio_fault_page *release_next;
+ 	unsigned long page; /* location of the fault page */
++	struct mm_struct *mm;
+ 	pteval_t old_presence; /* page presence prior to arming */
+ 	bool armed;
+ 
+@@ -130,7 +131,7 @@ static void clear_pte_presence(pte_t *pte, bool clear, pteval_t *old)
+ 	set_pte_atomic(pte, __pte(v));
+ }
+ 
+-extern pte_t *lookup_uaddress(unsigned long address, unsigned int *level);
++extern pte_t *lookup_uaddress(unsigned long address, struct mm_struct *mm, unsigned int *level);
+ static int clear_page_presence(struct kmmio_fault_page *f, bool clear)
+ {
+ 	unsigned int level;
+@@ -139,7 +140,7 @@ static int clear_page_presence(struct kmmio_fault_page *f, bool clear)
+ 	if(f->page >= TASK_SIZE_MAX)
+ 		pte = lookup_address(f->page, &level);
+ 	else
+-		pte = lookup_uaddress(f->page, &level);
++		pte = lookup_uaddress(f->page, f->mm, &level);
+ 
+ 	if (!pte) {
+ 		pr_err("kmmio: no pte for page 0x%08lx\n", f->page);
+@@ -377,6 +378,7 @@ static int add_kmmio_fault_page(unsigned long page)
+ 
+ 	f->count = 1;
+ 	f->page = page;
++	f->mm = current->mm;
+ 
+ 	if (arm_kmmio_fault_page(f)) {
+ 		kfree(f);
+diff --git a/arch/x86/mm/mmio-mod.c b/arch/x86/mm/mmio-mod.c
+index ab244da..f42d98a 100644
+--- a/arch/x86/mm/mmio-mod.c
++++ b/arch/x86/mm/mmio-mod.c
+@@ -348,6 +348,8 @@ void user_mmiotrace_ioremap(resource_size_t offset, unsigned long size,
+ 	if (!is_enabled()) /* recheck and proper locking in *_core() */
+ 		return;
+ 
++	ioremap_trace_core(offset, size, addr);
++
+ 	pr_debug(NAME "user_mmiotrace_ioremap_*(0x%llx, 0x%lx) = %p / %p\n",
+ 			(unsigned long long)offset, size, addr, mm);
+ }
+@@ -357,6 +359,8 @@ void user_mmiotrace_iounmap(volatile void __iomem *addr, struct mm_struct *mm)
+ {
+ 	if (!is_enabled()) /* recheck and proper locking in *_core() */
+ 		return;
++	
++	iounmap_trace_core(addr);
+ 
+ 	pr_debug(NAME "user_mmiotrace_iounmap_%p / %p\n",addr, mm);
+ }
+diff --git a/arch/x86/mm/pageattr.c b/arch/x86/mm/pageattr.c
+index d9d4551..623e176 100644
+--- a/arch/x86/mm/pageattr.c
++++ b/arch/x86/mm/pageattr.c
+@@ -363,9 +363,9 @@ pte_t *lookup_address(unsigned long address, unsigned int *level)
+ }
+ EXPORT_SYMBOL_GPL(lookup_address);
+ 
+-pte_t *lookup_uaddress(unsigned long address, unsigned int *level)
++pte_t *lookup_uaddress(unsigned long address, struct mm_struct *mm, unsigned int *level)
+ {
+-	pgd_t *pgd = pgd_offset(current->mm, address);
++	pgd_t *pgd = pgd_offset(mm, address);
+ 	pud_t *pud;
+ 	pmd_t *pmd;
+ 
+diff --git a/mm/memory.c b/mm/memory.c
+index 08920c5..7fc7aaf 100644
+--- a/mm/memory.c
++++ b/mm/memory.c
+@@ -3397,6 +3397,7 @@ static int follow_pte(struct mm_struct *mm, unsigned long address,
+ 	ptep = pte_offset_map_lock(mm, pmd, address, ptlp);
+ 	if (!ptep)
+ 		goto out;
++	//TODO
+ 	if (!pte_present(*ptep))
+ 		goto unlock;
+ 	*ptepp = ptep;
+-- 
+1.7.0.4
+
