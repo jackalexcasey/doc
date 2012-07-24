@@ -50,3 +50,7 @@ sriov_enable()
 	pci_bus_add_device()
 	Create sysfs
 
+
+
+Network card multiqueue
+netif_is_multiqueue
