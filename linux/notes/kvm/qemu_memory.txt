@@ -1,0 +1,14 @@
+QEMU has different type of IO memory
+
+This is for MSI table for PT device for example OR emulated device...
+TRAP & EMULATE:
+	cpu_register_io_memory provide callback because it is emulated :
+		msix_mmio_read, msix_mmio_write
+
+
+ioctl : KVM_SET_USER_MEMORY_REGION
+
+qemu_ram_alloc_from_ptr
+	Under KVM -> kvm_setup_guest_memory ( madvise )
+	memory slot...
+
