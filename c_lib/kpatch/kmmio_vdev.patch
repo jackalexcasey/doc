@@ -1,0 +1,1480 @@
+diff --git a/arch/x86/mm/kmmio.c b/arch/x86/mm/kmmio.c
+index 16ccbd7..62eb854 100644
+--- a/arch/x86/mm/kmmio.c
++++ b/arch/x86/mm/kmmio.c
+@@ -32,6 +32,7 @@ struct kmmio_fault_page {
+ 	struct list_head list;
+ 	struct kmmio_fault_page *release_next;
+ 	unsigned long page; /* location of the fault page */
++	struct mm_struct *mm;
+ 	pteval_t old_presence; /* page presence prior to arming */
+ 	bool armed;
+ 
+@@ -130,10 +131,16 @@ static void clear_pte_presence(pte_t *pte, bool clear, pteval_t *old)
+ 	set_pte_atomic(pte, __pte(v));
+ }
+ 
++extern pte_t *lookup_uaddress(unsigned long address, struct mm_struct *mm, unsigned int *level);
+ static int clear_page_presence(struct kmmio_fault_page *f, bool clear)
+ {
+ 	unsigned int level;
+-	pte_t *pte = lookup_address(f->page, &level);
++	pte_t *pte;
++	
++	if(f->page >= TASK_SIZE_MAX)
++		pte = lookup_address(f->page, &level);
++	else
++		pte = lookup_uaddress(f->page, f->mm, &level);
+ 
+ 	if (!pte) {
+ 		pr_err("kmmio: no pte for page 0x%08lx\n", f->page);
+@@ -371,6 +378,7 @@ static int add_kmmio_fault_page(unsigned long page)
+ 
+ 	f->count = 1;
+ 	f->page = page;
++	f->mm = current->mm;
+ 
+ 	if (arm_kmmio_fault_page(f)) {
+ 		kfree(f);
+diff --git a/arch/x86/mm/mmio-mod.c b/arch/x86/mm/mmio-mod.c
+index 132772a..ee0a15a 100644
+--- a/arch/x86/mm/mmio-mod.c
++++ b/arch/x86/mm/mmio-mod.c
+@@ -33,6 +33,7 @@
+ #include <asm/atomic.h>
+ #include <linux/percpu.h>
+ #include <linux/cpu.h>
++#include <linux/vdev.h>
+ 
+ #include "pf_in.h"
+ 
+@@ -279,6 +280,8 @@ not_enabled:
+ void mmiotrace_ioremap(resource_size_t offset, unsigned long size,
+ 						void __iomem *addr)
+ {
++	vdev_register_mapping(offset, size, addr);
++
+ 	if (!is_enabled()) /* recheck and proper locking in *_core() */
+ 		return;
+ 
+@@ -330,6 +333,8 @@ not_enabled:
+ void mmiotrace_iounmap(volatile void __iomem *addr)
+ {
+ 	might_sleep();
++	vdev_unregister_mapping(addr);
++
+ 	if (is_enabled()) /* recheck and proper locking in *_core() */
+ 		iounmap_trace_core(addr);
+ }
+diff --git a/arch/x86/mm/pageattr.c b/arch/x86/mm/pageattr.c
+index 89f7c96..623e176 100644
+--- a/arch/x86/mm/pageattr.c
++++ b/arch/x86/mm/pageattr.c
+@@ -363,6 +363,39 @@ pte_t *lookup_address(unsigned long address, unsigned int *level)
+ }
+ EXPORT_SYMBOL_GPL(lookup_address);
+ 
++pte_t *lookup_uaddress(unsigned long address, struct mm_struct *mm, unsigned int *level)
++{
++	pgd_t *pgd = pgd_offset(mm, address);
++	pud_t *pud;
++	pmd_t *pmd;
++
++	*level = PG_LEVEL_NONE;
++
++	if (pgd_none(*pgd))
++		return NULL;
++
++	pud = pud_offset(pgd, address);
++	if (pud_none(*pud))
++		return NULL;
++
++	*level = PG_LEVEL_1G;
++	if (pud_large(*pud) || !pud_present(*pud))
++		return (pte_t *)pud;
++
++	pmd = pmd_offset(pud, address);
++	if (pmd_none(*pmd))
++		return NULL;
++
++	*level = PG_LEVEL_2M;
++	if (pmd_large(*pmd) || !pmd_present(*pmd))
++		return (pte_t *)pmd;
++
++	*level = PG_LEVEL_4K;
++
++	return pte_offset_kernel(pmd, address);
++}
++EXPORT_SYMBOL_GPL(lookup_uaddress);
++
+ /*
+  * Set the new pmd in all the pgds we know about:
+  */
+diff --git a/arch/x86/mm/pat.c b/arch/x86/mm/pat.c
+index 207cae2..ce29aea 100644
+--- a/arch/x86/mm/pat.c
++++ b/arch/x86/mm/pat.c
+@@ -16,6 +16,7 @@
+ #include <linux/mm.h>
+ #include <linux/fs.h>
+ #include <linux/rbtree.h>
++#include <linux/vdev.h>
+ 
+ #include <asm/cacheflush.h>
+ #include <asm/processor.h>
+@@ -861,6 +862,15 @@ int track_pfn_vma_copy(struct vm_area_struct *vma)
+ 	pgprot_t pgprot;
+ 
+ 	if (is_linear_pfn_mapping(vma)) {
++		/* 
++		 * We are about to copy a VMA that has PFN mapping with potentially
++		 * mmio tracking PTE i.e. _PAGE_PRESENT PTE clear. This is fooling the
++		 * check on the PTE.
++		 * Either we fix the pte_present macro or drop the tracking...
++		 * This needs some re-work
++		 */
++		vdev_unregister_mapping((void*)vma->vm_start);
++
+ 		/*
+ 		 * reserve the whole chunk covered by vma. We need the
+ 		 * starting address and protection from pte.
+diff --git a/arch/x86/mm/pf_in.c b/arch/x86/mm/pf_in.c
+index df3d5c8..b6520c3 100644
+--- a/arch/x86/mm/pf_in.c
++++ b/arch/x86/mm/pf_in.c
+@@ -407,6 +407,65 @@ static unsigned long *get_reg_w32(int no, struct pt_regs *regs)
+ 	return rv;
+ }
+ 
++void set_ins_reg_val(unsigned long ins_addr, struct pt_regs *regs, unsigned long value)
++{
++	unsigned int opcode;
++	unsigned char mod_rm;
++	int reg;
++	unsigned char *p;
++	struct prefix_bits prf;
++	int i;
++	unsigned long rv;
++
++	p = (unsigned char *)ins_addr;
++	p += skip_prefix(p, &prf);
++	p += get_opcode(p, &opcode);
++	for (i = 0; i < ARRAY_SIZE(reg_rop); i++)
++		if (reg_rop[i] == opcode) {
++			rv = REG_READ;
++			goto do_work;
++		}
++
++	for (i = 0; i < ARRAY_SIZE(reg_wop); i++)
++		if (reg_wop[i] == opcode) {
++			rv = REG_WRITE;
++			goto do_work;
++		}
++
++	printk(KERN_ERR "mmiotrace: Not a register instruction, opcode "
++							"0x%02x\n", opcode);
++	goto err;
++
++do_work:
++	mod_rm = *p;
++	reg = ((mod_rm >> 3) & 0x7) | (prf.rexr << 3);
++	switch (get_ins_reg_width(ins_addr)) {
++	case 1:
++		*get_reg_w8(reg, prf.rex, regs) = (unsigned char)value;
++		break;
++
++	case 2:
++		*(unsigned short *)get_reg_w32(reg, regs) = (unsigned short)value;
++		break;
++
++	case 4:
++		*(unsigned int *)get_reg_w32(reg, regs) = (unsigned int)value;
++		break;
++
++#ifdef __amd64__
++	case 8:
++		*(unsigned long *)get_reg_w32(reg, regs) = (unsigned long) value;
++		break;
++#endif
++
++	default:
++		printk(KERN_ERR "mmiotrace: Error width# %d\n", reg);
++	}
++
++err:
++	return;
++}
++
+ unsigned long get_ins_reg_val(unsigned long ins_addr, struct pt_regs *regs)
+ {
+ 	unsigned int opcode;
+diff --git a/arch/x86/mm/pf_in.h b/arch/x86/mm/pf_in.h
+index e05341a..2e103e4 100644
+--- a/arch/x86/mm/pf_in.h
++++ b/arch/x86/mm/pf_in.h
+@@ -35,5 +35,6 @@ enum reason_type get_ins_type(unsigned long ins_addr);
+ unsigned int get_ins_mem_width(unsigned long ins_addr);
+ unsigned long get_ins_reg_val(unsigned long ins_addr, struct pt_regs *regs);
+ unsigned long get_ins_imm_val(unsigned long ins_addr);
++void set_ins_reg_val(unsigned long ins_addr, struct pt_regs *regs, unsigned long value);
+ 
+ #endif /* __PF_H_ */
+diff --git a/drivers/Makefile b/drivers/Makefile
+index a9f7541..c12015a 100644
+--- a/drivers/Makefile
++++ b/drivers/Makefile
+@@ -113,3 +113,5 @@ obj-$(CONFIG_STAGING)		+= staging/
+ obj-y				+= platform/
+ obj-y				+= ieee802154/
+ #obj-m				+= panini/
++obj-y				+= vdev/
++
+diff --git a/drivers/misc/vdevice.c b/drivers/misc/vdevice.c
+index f94d0fd..43071df 100644
+--- a/drivers/misc/vdevice.c
++++ b/drivers/misc/vdevice.c
+@@ -19,6 +19,7 @@
+ #include <linux/bigphysarea.h>
+ #include <linux/platform_device.h>
+ #include <linux/vdevice.h>
++#include <linux/vdev.h>
+ 
+ #define DRIVER_VERSION	"0.01"
+ #define DRIVER_AUTHOR	"Etienne Martineau <etmartin@cisco.com>"
+@@ -42,41 +43,6 @@ static DEFINE_SPINLOCK(vfcn_list_lock);
+ static DEFINE_MUTEX(mutex);
+ static struct pci_ops local_pci_root_ops;
+ static struct pci_dev *Gpdev;
+-static const unsigned long base_addr_lookup[MAX_RESOURCE]={
+-	PCI_BASE_ADDRESS_0,
+-	PCI_BASE_ADDRESS_1,
+-	PCI_BASE_ADDRESS_2,
+-	PCI_BASE_ADDRESS_3,
+-	PCI_BASE_ADDRESS_4,
+-	PCI_BASE_ADDRESS_5
+-};
+-
+-static inline uint16_t
+-pci_get_word(const uint8_t *config)
+-{
+-	return *((const uint16_t *)config);
+-}
+-
+-/*
+- * This driver is only used for internal validation
+- */
+-static int __devinit probe(struct pci_dev *dev,
+-	const struct pci_device_id *id)
+-{
+-	DPRINTK("DUMMY probe\n");
+-	return 0;
+-}
+-
+-static void __devexit remove(struct pci_dev *dev)
+-{
+-	DPRINTK("DUMMY remove\n");
+-}
+-
+-static struct pci_driver driver = {
+-	.name		= "fake",
+-	.probe		= probe,
+-	.remove		= remove,
+-};
+ 
+ static void vdevice_add(struct vdev *dev)
+ {
+@@ -165,112 +131,224 @@ static int pci_write(struct pci_bus *bus, unsigned int devfn, int where, int siz
+ 	return vfcn_write(dev,where,size,value);
+ }
+ 
+-static int vdevice_fixup(struct vdev *dev)
++u8 vdev_readb(struct vdev_resource *vdev_resource, resource_size_t offset)
+ {
+-	struct pci_dev *vdev = dev->vdev;
+-	uint8_t *config = dev->config;
+-
+-	if(vdev->vendor == 0x1137 && ((vdev->device&0xfff0)==0x2340)){ /* MSI-X virtual device */
+-		/* 
+-		 * BAR0 aliase BAR2; This one doesn't trap in the emulation layer
+-		*/
+-		DPRINTK("Fix up %s %x:%x.%x","virtual device",vdev->bus->number,PCI_SLOT(vdev->devfn), PCI_FUNC(vdev->devfn));
+-		vdev->resource[2].start = vdev->resource[0].start;
+-		vdev->resource[2].end = vdev->resource[0].end;
+-		/* Change config space accordingly */
+-		*(uint32_t *)(&config[base_addr_lookup[2]]) = *(uint32_t *)(&config[base_addr_lookup[0]]);
+-	}
++	u8 val;
++	volatile u8 *ptr = (volatile u8*)vdev_resource->opaque + offset;
++	struct resource *resource=&vdev_resource->resource;
++
++	val = *ptr;
++	DPRINTK("readb phys %lx = %x \n",(unsigned long) (resource->start + offset), val);
++	return val;
++}
++u16 vdev_readw(struct vdev_resource *vdev_resource, resource_size_t offset)
++{
++	u16 val;
++	volatile u16 *ptr = (volatile u16*)vdev_resource->opaque + offset;
++	struct resource *resource=&vdev_resource->resource;
++
++	val = *ptr;
++	DPRINTK("readw phys %lx = %x \n",(unsigned long) (resource->start + offset), val);
++	return val;
++}
++u32 vdev_readl(struct vdev_resource *vdev_resource, resource_size_t offset)
++{
++	u32 val;
++	volatile u32 *ptr = (volatile u32*)vdev_resource->opaque + offset;
++	struct resource *resource=&vdev_resource->resource;
++
++	val = *ptr;
++	DPRINTK("readl phys %lx = %x \n",(unsigned long) (resource->start + offset), val);
++	return val;
++}
++u64 vdev_readd(struct vdev_resource *vdev_resource, resource_size_t offset)
++{
++	u64 val;
++	volatile u64 *ptr = (volatile u64*)vdev_resource->opaque + offset;
++	struct resource *resource=&vdev_resource->resource;
++
++	val = *ptr;
++	DPRINTK("readd phys %lx = %lx \n",(unsigned long) (resource->start + offset), val);
++	return val;
++}
++
++int vdev_writeb(struct vdev_resource *vdev_resource, resource_size_t offset, u8 val)
++{
++	volatile u8 *ptr = (volatile u8*)vdev_resource->opaque + offset;
++	struct resource *resource=&vdev_resource->resource;
++
++	*ptr = val;
++	DPRINTK("writeb phys %lx val %x\n",(unsigned long)(resource->start + offset), val);
+ 	return 0;
+ }
++int vdev_writew(struct vdev_resource *vdev_resource, resource_size_t offset, u16 val)
++{
++	volatile u16 *ptr = (volatile u16*)vdev_resource->opaque + offset;
++	struct resource *resource=&vdev_resource->resource;
+ 
+-static void bar_restore(struct vdev *dev)
++	*ptr = val;
++	DPRINTK("writew phys %lx val %x\n",(unsigned long)(resource->start + offset), val);
++	return 0;
++}
++int vdev_writel(struct vdev_resource *vdev_resource, resource_size_t offset, u32 val)
+ {
+ 	int x;
+-	struct pci_dev *vdev = dev->vdev;
+-	uint8_t *config = dev->config;
+-
+-	for(x=0;x<MAX_RESOURCE;x++){
+-		if(dev->res[x]){
+-			/* Restore resource */
+-			vdev->resource[x].start = dev->resource_org[x].start;
+-			vdev->resource[x].end = dev->resource_org[x].end;
+-			/* Restore config space */
+-			*(uint32_t *)(&config[base_addr_lookup[x]]) = vdev->resource[x].start;
+-			bigphysarea_free_pages(dev->res[x]);
+-			dev->res[x]=NULL;
+-		}	
++	volatile u32 *ptr = (volatile u32*)vdev_resource->opaque + offset;
++	struct resource *resource=&vdev_resource->resource;
++
++	*ptr = val;
++	DPRINTK("writel phys %lx val %x\n",(unsigned long)(resource->start + offset), val);
++
++#if 0
++/* There is a problem when runnint virtual device with kmmio emulation
++ * in a VM for the MSI; register are truncated somehow...*/
++	if(offset == 0x98){
++		printk("DUMP\n");
++		ptr = (volatile u32*)vdev_resource->opaque;
++		for(x=0;x<=0x98;x+=4){
++			printk("%x -> %lx\n",x,ptr[x]);
++		}
+ 	}
++#endif
++	return 0;
+ }
+ 
+-/*
+- * BAR ressource are allocated by the kernel but there is
+- * no real memory behind it (no physical device for those IO slots)
+- * For that reason we put memory behind each BAR.
+- *
+- * TODO the resource mapping doesn't match but this is mostly
+- * fine because we disabled range checking for virtual device PCI id
+- * in core kernel
+- */
+-static int bar_adjust(struct vdev *dev)
++int vdev_writed(struct vdev_resource *vdev_resource, resource_size_t offset, u64 val)
+ {
+-	int x, nores=1;
+-	struct pci_dev *vdev = dev->vdev;
+-	uint8_t *config = dev->config;
+-	dma_addr_t addr;
+-	int size;
+-	int pagenr;
+-
+-	for(x=0;x<MAX_RESOURCE;x++){
+-		if(!pci_resource_start(vdev,x))
+-			continue;
+-
+-		nores=0;
+-		size = (pci_resource_end(vdev, x) - pci_resource_start(vdev, x));
+-		pagenr = (size>>PAGE_SHIFT) +1;
+-		DPRINTK(" pci_resource_start(dev, %d) %x ",x,pci_resource_start(vdev, x) );
+-		DPRINTK(" pci_resource_end(dev, %d) %x ",x,pci_resource_end(vdev, x) );
+-		DPRINTK(" pci_resource_size %d bytes %d pages",size,pagenr );
+-
+-		/* 
+-		 * This memory is not RAM and so it can be ioremap as 
+-		 * if it was IO memory.
+-		 */
+-		dev->res[x] = bigphysarea_alloc_pages(pagenr, 1, GFP_KERNEL);
+-		if(!dev->res[x])
+-			goto err;
+-		memset(dev->res[x],0,size);
+-		addr = (unsigned long)virt_to_phys(dev->res[x]);	
++	volatile u64 *ptr = (volatile u64*)vdev_resource->opaque + offset;
++	struct resource *resource=&vdev_resource->resource;
++
++	*ptr = val;
++	DPRINTK("writed phys %lx val %x\n",(unsigned long)(resource->start + offset), val);
++	return 0;
++}
++
++void test_io(struct pci_dev *dev)
++{
++	int nr,x;
++	void *bar0, *bar2;
++	unsigned char *bbar0,*bbar2;
++	unsigned short *wbar0,*wbar2;
++	unsigned int *lbar0,*lbar2;
++	unsigned long *dbar0,*dbar2;
++
++	bar0=pci_iomap(dev, 0, 0);
++	if(!bar0){
++		DPRINTK("Cannot mmap BAR0\n");
++		return;
++	}
+ 
+-		/* Remember original value */
+-		dev->resource_org[x].start = pci_resource_start(vdev, x);
+-		dev->resource_org[x].end = pci_resource_end(vdev, x);
++	bar2=pci_iomap(dev, 2, 0);
++	if(!bar2){
++		DPRINTK("Cannot mmap BAR2\n");
++		return;
++	}
++	
++	bbar0=bar0;
++	wbar0=bar0;
++	lbar0=bar0;
++	dbar0=bar0;
+ 
+-		/* Swap with the new one */
+-		vdev->resource[x].start = (unsigned long)addr;
+-		vdev->resource[x].end = ((unsigned long)(addr+size));
++	bbar2=bar2;
++	wbar2=bar2;
++	lbar2=bar2;
++	dbar2=bar2;
+ 
+-		/* Change config space accordingly */
+-		*(uint32_t *)(&config[base_addr_lookup[x]]) = (unsigned long) addr;
++	nr = 5;
+ 
+-		DPRINTK(" pci_resource_start(dev, %d) %x ",x,pci_resource_start(vdev, x) );
+-		DPRINTK(" pci_resource_end(dev, %d) %x ",x,pci_resource_end(vdev, x) );
++	DPRINTK("\nBAR2 write bytes");
++	for(x=0;x<nr;x++){
++		bbar2[x] = x;
++	}
++	DPRINTK("\nBAR2 read bytes");
++	for(x=0;x<nr;x++){
++		DPRINTK("_%x_",bbar2[x]);
+ 	}
+ 
+-	if(nores){
+-		DPRINTK("Virtual device has no resources allocated to it. Something wrong?\n");
+-		goto err;
++	DPRINTK("\nBAR2 write short");
++	for(x=0;x<nr;x++){
++		wbar2[x] = x;
++	}
++	DPRINTK("\nBAR2 read short");
++	for(x=0;x<nr;x++){
++		DPRINTK("_%x_",wbar2[x]);
++	}
++
++	DPRINTK("\nBAR2 write long");
++	for(x=0;x<nr;x++){
++		lbar2[x] = x;
++	}
++	DPRINTK("\nBAR2 read long");
++	for(x=0;x<nr;x++){
++		DPRINTK("_%x_",lbar2[x]);
++	}
++
++	DPRINTK("\nBAR2 write double");
++	for(x=0;x<nr;x++){
++		dbar2[x] = x;
++	}
++	DPRINTK("\nBAR2 read double");
++	for(x=0;x<nr;x++){
++		DPRINTK("_%x_",dbar2[x]);
+ 	}
+-	return 0;
+-err:
+-	bar_restore(dev);
+-	return -ENOMEM;
+ }
+ 
+-static int vdev_insert(struct vdev *dev, struct pci_dev *pdev)
++static struct vdev_io *vdev_register(struct pci_dev *dev)
+ {
+-	struct pci_device_id table;
+-	uint8_t *config = dev->config;
++	int x, len;
++	struct vdev_io *io;
++
++	io = kzalloc(sizeof(struct vdev_io), GFP_KERNEL);
++	if(!io)
++		BUG();
+ 
++	io->readb=vdev_readb;
++	io->readw=vdev_readw;
++	io->readl=vdev_readl;
++	io->readd=vdev_readd;
++	io->writeb=vdev_writeb;
++	io->writew=vdev_writew;
++	io->writel=vdev_writel;
++	io->writed=vdev_writed;
++
++	for(x=0;x<PCI_NUM_RESOURCES;x++){
++		if(dev->resource[x].start){
++			len = dev->resource[x].end - dev->resource[x].start;
++			io->vdev_resource[x].opaque = kzalloc(len, GFP_KERNEL);
++			if(!io->vdev_resource[x].opaque)
++				BUG();
++			io->vdev_resource[x].resource.start = dev->resource[x].start;
++			io->vdev_resource[x].resource.end = dev->resource[x].end;
++			DPRINTK("Resource %d size %x; %lx %lx\n",x,len, io->vdev_resource[x].resource.start,
++					io->vdev_resource[x].resource.end);
++		}
++	}
++	/* 
++	 * There is 2 BAR in here BAR0 and BAR2
++	 * BAR2 expose the MSI-X vector and from the VM we want
++	 * BAR0 to aliase BAR2
++	 */
++	kfree(io->vdev_resource[0].opaque);
++	io->vdev_resource[0].opaque = io->vdev_resource[2].opaque;
++
++	vdev_register_device(io);
++	DPRINTK("vdev_register_io OK\n");
++
++	if(debug)
++		test_io(dev);
++
++	return io;
++}
++
++static void vdev_unregister(struct vdev *dev)
++{
++//TODO kfree of resource
++	vdev_unregister_device(dev->vdev_io);
++	kfree(dev->vdev_io);
++}
++
++static int vdev_insert(struct vdev *dev, struct pci_dev *pdev)
++{
+ 	if(dev->type == NEW_FUNCTION){
+ 		dev->abus=pdev->bus->number;
+ 		dev->adevfn=PCI_DEVFN(PCI_SLOT(pdev->devfn), PCI_FUNC(pdev->devfn+dev->fcnnr));
+@@ -309,60 +387,19 @@ static int vdev_insert(struct vdev *dev, struct pci_dev *pdev)
+ 	/* Get on the global list */
+ 	vdevice_add(dev);
+ 
+-	/* 
+-	 * In order for the vdevice to show up we must rescan the topology
+-	 * This in turn will call into the corresponding driver 'probe' method.
+-	 * We don't want that probe method to latch in the wrong value for the resource 
+-	 * since we are fixing up the BAR _after_ that rescan.
+-	 *
+-	 * NOTE we need vdevice to be there in order to adjust it's 
+-	 * resources in the first place.
+-	 *
+-	 * So let's verify that there is no driver that exist for that vdevice first
+-	 */
+-	
+-	table.vendor=pci_get_word(&config[PCI_VENDOR_ID]);
+-	table.device=pci_get_word(&config[PCI_DEVICE_ID]);
+-	table.subvendor=PCI_ANY_ID;
+-	table.subdevice=PCI_ANY_ID;
+-	table.class=0;
+-	table.class_mask=0;
+-	table.driver_data=0;
+-	driver.id_table = &table;
+-	if(pci_register_driver(&driver)){
+-		DPRINTK("Driver ALREADY exist for this device REMOVE FIRST\n");
+-		vdevice_del(dev);
+-		dev->pdev=NULL;
+-		return -EEXIST;
+-	}
+-
+ 	pci_rescan_bus(pdev->bus);
+ 
+ 	/* Find the vdevice */
+ 	dev->vdev = pci_get_bus_and_slot(dev->abus,dev->adevfn);
+ 	if (!dev->vdev){
+-		pci_unregister_driver(&driver);
+ 		vdevice_del(dev);
+ 		dev->pdev=NULL;
+ 		return -EIO;
+ 	}
++	
++	DPRINTK("Found Virtual device on PCI \n");
+ 
+-	if(bar_adjust(dev)<0){
+-		pci_unregister_driver(&driver);
+-		vdevice_del(dev);
+-
+-		DPRINTK("pci_remove_bus_device");
+-		pci_remove_bus_device(dev->vdev);
+-
+-		DPRINTK("pci_rescan_bus");
+-		pci_rescan_bus(dev->pdev->bus);
+-
+-		dev->pdev=NULL;
+-		return -ENOMEM;
+-	}
+-
+-	/* Release the driver handle for other to use */
+-	pci_unregister_driver(&driver);
++	dev->vdev_io = vdev_register(dev->vdev);
+ 	return 0;
+ }
+ 
+@@ -378,35 +415,8 @@ static void vdevice_remove(struct vdev *dev)
+ 
+ 	/* Remove from the global list */
+ 	vdevice_del(dev);
+-
+-	/*
+-	 * Two scenario
+-	 * A) vdevice driver (UMD...) is bind then remove. At bind time, it
+-	 * will latch in the adjusted BAR value. At remove time it will release those
+-	 * resources but kernel sees that it doesn't exist.
+-	 *
+-	 * B) vdevice driver (UMD...) is bind then the virtual device is taken out.
+-	 * At bind time, the driver will latch in right value. At virtual device
+-	 * remove time it will restore the BAR and the release of the driver will try
+-	 * to free original resource that doesn't exist... This can release someone
+-	 * else resource
+-	 *
+-	 * The tricky part here is that when the device is going to be taken out
+-	 * of the device tree by calling into 'pci_remove_bus_device' , it's corresponding 
+-	 * driver's remove method will be called.
+-	 *
+-	 * At that time that driver will released the resource
+-	 * by calling 'pci_release_regions' which effectively looks into pdev
+-	 * region start / end address.. 
+-	 *
+-	 * In order for that to work the pdev region must be restored first
+-	 *
+-	 * Similarly, when device is inserted; need to grab the rigth set of resource
+-	 * but the driver can race against the insertion logic...
+-	 */
+-	bar_restore(dev);
+-
+-	dev->pdev->multifunction = 0;
++	
++	vdev_unregister(dev);
+ 
+ 	DPRINTK("pci_remove_bus_device");
+ 	pci_remove_bus_device(dev->vdev);
+@@ -464,14 +474,16 @@ static ssize_t write(struct file * filep, const char __user * buf,
+ 	*ppos += written; //Seek the file
+ 
+ 	if((*ppos) == size){ /* transfert is over */
++#if 0
+ 		{
+ 			int x;
+ 			for(x=0;x<256;x++){
+ 				if(!(x%16))
+-					printk("\n%4o: ",x/2);
+-				printk("%2x ",(unsigned char)dev->config[x]);
++					DPRINTK("\n%4o: ",x/2);
++				DPRINTK("%2x ",(unsigned char)dev->config[x]);
+ 			}
+ 		}
++#endif
+ 		/* Find the target device / downstream port */
+ 		pdev = pci_get_bus_and_slot(dev->B,PCI_DEVFN(dev->D,dev->F));
+ 		if (!pdev){
+@@ -485,11 +497,6 @@ static ssize_t write(struct file * filep, const char __user * buf,
+ 			DPRINTK("Cannot insert  %x:%x.%x ",dev->B,dev->D,dev->F);
+ 			return -EINVAL;
+ 		}
+-		if(vdevice_fixup(dev)){
+-			vdevice_remove(dev);
+-			DPRINTK("Cannot fixup  %x:%x.%x ",dev->B,dev->D,dev->F);
+-			return -EINVAL;
+-		}
+ 	}
+ 	return written;
+ }
+diff --git a/drivers/vdev/Makefile b/drivers/vdev/Makefile
+new file mode 100644
+index 0000000..a28ce25
+--- /dev/null
++++ b/drivers/vdev/Makefile
+@@ -0,0 +1,2 @@
++obj-y += vdev.o
++vdev-y := core.o kmmio.o
+diff --git a/drivers/vdev/core.c b/drivers/vdev/core.c
+new file mode 100644
+index 0000000..3a6b900
+--- /dev/null
++++ b/drivers/vdev/core.c
+@@ -0,0 +1,210 @@
++#include <linux/module.h>
++#include <linux/mmiotrace.h>
++#include <linux/debugfs.h>
++#include <linux/uaccess.h>
++#include <linux/io.h>
++#include <linux/version.h>
++#include <linux/kallsyms.h>
++#include <linux/vdev.h>
++
++static DEFINE_SPINLOCK(vdev_lock);
++static LIST_HEAD(vdev_list);
++
++static struct vdev_io *vdev_search(struct mmiotrace_rw *mmio, int *res, resource_size_t *offset)
++{
++	int x;
++	struct vdev_io *io;
++	struct vdev_resource *vdev_resource;
++	resource_size_t start;
++	resource_size_t end;
++
++	spin_lock(&vdev_lock);
++	list_for_each_entry(io, &vdev_list, list){
++		for(x=0;x<PCI_NUM_RESOURCES;x++){
++			vdev_resource = &io->vdev_resource[x];
++			start = vdev_resource->resource.start;
++			end = vdev_resource->resource.end;
++		//	printk("MMIO %lx %lx %lx\n",(unsigned long)mmio->phys, start,end);
++			if ( (mmio->phys >= start) && (mmio->phys <= end) ){
++				spin_unlock(&vdev_lock);
++		//		printk("MMIO found %lx\n",(unsigned long)mmio->phys);
++				*offset = mmio->phys - start;
++				*res = x;
++				return io;
++			}
++		}
++	}
++	spin_unlock(&vdev_lock);
++	return NULL;
++}
++
++/*
++ * This is the call back to the emulation back-end;
++ * This is either coming from the remap_pfn_rage PTE fault
++ * on hostOS OR
++ * from KVM vcpu_mmio rd/wr
++ * 
++ * the vcpu_mmio is driver by the tdp_pagefault() and works
++ * only for emulated device registered with cpu_register_io_memory
++ * Memory is normally registered with qemu_ram_alloc_from_ptr and doesn't
++ * trap on each access.
++ *
++ * OPTION;
++ * For PT vdev device in qemu we set it up as cpu_register_io_memory; We trap
++ * in vcpu_mmio and send to the emulation layer. This would utilize the 
++ * page_fault/kmmio mechanism like when on the host.
++ * Can also be interceted in KVM directly
++ *
++ * KVM kvm_io_bus_write are matching against guest physical
++ * addr because they know where the mapping is going to be located
++ * in guest physical ADDR; equivalent would be to map 
++ * mmap ( hint = my base addr; )...
++ *
++ * KVM iobus require the kvm context!
++ *
++ * !!!
++ * With qemu we can configure the io for slow_map i.e. trap in qemu and qemu
++ * does the access; This is EXACTLY what we need here and there is only
++ * one entry point into the emulation backend
++ */
++int vdev_dispatch_io(struct mmiotrace_rw *mmio, unsigned long *val)
++{
++	int res;
++	unsigned long value;
++	resource_size_t offset;
++	struct vdev_io *io;
++
++	io = vdev_search(mmio, &res, &offset);
++	if(!io)
++		return -1;
++
++	if(mmio->opcode == MMIO_READ){
++		switch(mmio->width){
++			case 1:
++				if(io->readb){
++					value = io->readb(&io->vdev_resource[res],offset);
++					*val = value;
++					return 0;
++				}
++				return -1;
++			case 2:
++				if(io->readw){
++					value = io->readw(&io->vdev_resource[res],offset);
++					*val = value;
++					return 0;
++				}
++				return -1;
++			case 4:
++				if(io->readl){
++					value = io->readl(&io->vdev_resource[res],offset);
++					*val = value;
++					return 0;
++				}
++				return -1;
++			case 8:
++				if(io->readd){
++					value = io->readd(&io->vdev_resource[res],offset);
++					*val = value;
++					return 0;
++				}
++				return -1;
++			default:
++				printk("Invalid io size %d\n",mmio->width);
++				return -1;
++		}
++	}
++
++	if(mmio->opcode == MMIO_WRITE){
++		switch(mmio->width){
++			case 1:
++				if(io->writeb){
++					io->writeb(&io->vdev_resource[res],offset, mmio->value);
++					return 0;
++				}
++				return -1;
++			case 2:
++				if(io->writew){
++					io->writew(&io->vdev_resource[res],offset, mmio->value);
++					return 0;
++				}
++				return -1;
++			case 4:
++				if(io->writel){
++					io->writel(&io->vdev_resource[res],offset, mmio->value);
++					return 0;
++				}
++				return -1;
++			case 8:
++				if(io->writed){
++					io->writed(&io->vdev_resource[res],offset, mmio->value);
++					return 0;
++				}
++				return -1;
++			default:
++				printk("Invalid io size %d\n",mmio->width);
++				return -1;
++		}
++	}
++
++	return -1;
++}
++EXPORT_SYMBOL(vdev_dispatch_io);
++
++/*
++ * Virtual device / SW SRIOV register themself here
++ */
++int vdev_register_device(struct vdev_io *vdev)
++{
++	spin_lock(&vdev_lock);
++	list_add(&vdev->list, &vdev_list);
++	//TODO check if it already exist and so on...
++	spin_unlock(&vdev_lock);
++	vdev_enable_mmiotrace();
++	return 0;
++}
++EXPORT_SYMBOL(vdev_register_device);
++
++/*
++ * Virtual device / SW SRIOV un-register themself here
++ */
++int vdev_unregister_device(struct vdev_io *vdev)
++{
++	int found=0;
++	struct vdev_io *p;
++
++	spin_lock(&vdev_lock);
++	list_for_each_entry(p, &vdev_list, list){
++		if(vdev == p){
++			list_del(&p->list);
++			found=1;
++			break;
++		}
++	}
++	spin_unlock(&vdev_lock);
++	if(found)
++		vdev_disable_mmiotrace();
++		
++	return 0;
++}
++EXPORT_SYMBOL(vdev_unregister_device);
++
++/*
++ * Here we arm the remap_pfn_range KMMIO tracing subsystem only if it deal 
++ * with a fully registered virtual device.
++ *
++ * This path is also called from the mmiotrace_ioremap / kernel ioremap path
++ *
++ */
++void vdev_register_mapping(resource_size_t offset, unsigned long size,
++	void __iomem *addr)
++{
++	vdev_ioremap(offset, size, addr);
++}
++EXPORT_SYMBOL(vdev_register_mapping);
++
++void vdev_unregister_mapping(volatile void __iomem *addr)
++{
++	vdev_iounmap(addr);
++}
++EXPORT_SYMBOL(vdev_unregister_mapping);
++
+diff --git a/drivers/vdev/kmmio.c b/drivers/vdev/kmmio.c
+new file mode 100644
+index 0000000..11e0ad1
+--- /dev/null
++++ b/drivers/vdev/kmmio.c
+@@ -0,0 +1,417 @@
++#include <linux/module.h>
++#include <linux/debugfs.h>
++#include <linux/uaccess.h>
++#include <linux/io.h>
++#include <linux/version.h>
++#include <linux/kallsyms.h>
++#include <asm/pgtable.h>
++#include <linux/mmiotrace.h>
++#include <asm/e820.h> /* for ISA_START_ADDRESS */
++#include <asm/atomic.h>
++#include <linux/percpu.h>
++#include <linux/cpu.h>
++#include <linux/vdev.h>
++#include "../../arch/x86/mm/pf_in.h"
++
++#define NAME "vdev_emul: "
++
++struct trap_reason {
++	unsigned long addr;
++	unsigned long ip;
++	enum reason_type type;
++	int active_traces;
++};
++
++struct remap_trace {
++	struct list_head list;
++	struct kmmio_probe probe;
++	resource_size_t phys;
++	unsigned long id;
++};
++
++/* Accessed per-cpu. */
++static DEFINE_PER_CPU(struct trap_reason, vdev_pf_reason);
++static DEFINE_PER_CPU(struct mmiotrace_rw, vdev_cpu_trace);
++
++static DEFINE_SPINLOCK(trace_lock);
++static atomic_t mmiotrace_enabled = ATOMIC_INIT(0);
++static LIST_HEAD(trace_list);		/* struct remap_trace */
++
++static bool is_enabled(void)
++{
++	return atomic_read(&mmiotrace_enabled);
++}
++
++static void print_pte(unsigned long address)
++{
++	unsigned int level;
++	pte_t *pte = lookup_address(address, &level);
++
++	if (!pte) {
++		pr_err(NAME "Error in %s: no pte for page 0x%08lx\n",
++							__func__, address);
++		return;
++	}
++
++	if (level == PG_LEVEL_2M) {
++		pr_emerg(NAME "4MB pages are not currently supported: "
++							"0x%08lx\n", address);
++		BUG();
++	}
++	pr_info(NAME "pte for 0x%lx: 0x%llx 0x%llx\n", address,
++		(unsigned long long)pte_val(*pte),
++		(unsigned long long)pte_val(*pte) & _PAGE_PRESENT);
++}
++
++/*
++ * For some reason the pre/post pairs have been called in an
++ * unmatched order. Report and die.
++ */
++static void die_kmmio_nesting_error(struct pt_regs *regs, unsigned long addr)
++{
++	const struct trap_reason *my_reason = &get_cpu_var(vdev_pf_reason);
++	pr_emerg(NAME "unexpected fault for address: 0x%08lx, "
++					"last fault for address: 0x%08lx\n",
++					addr, my_reason->addr);
++	print_pte(addr);
++	print_symbol(KERN_EMERG "faulting IP is at %s\n", regs->ip);
++	print_symbol(KERN_EMERG "last faulting IP was at %s\n", my_reason->ip);
++#ifdef __i386__
++	pr_emerg("eax: %08lx   ebx: %08lx   ecx: %08lx   edx: %08lx\n",
++			regs->ax, regs->bx, regs->cx, regs->dx);
++	pr_emerg("esi: %08lx   edi: %08lx   ebp: %08lx   esp: %08lx\n",
++			regs->si, regs->di, regs->bp, regs->sp);
++#else
++	pr_emerg("rax: %016lx   rcx: %016lx   rdx: %016lx\n",
++					regs->ax, regs->cx, regs->dx);
++	pr_emerg("rsi: %016lx   rdi: %016lx   rbp: %016lx   rsp: %016lx\n",
++				regs->si, regs->di, regs->bp, regs->sp);
++#endif
++	put_cpu_var(vdev_pf_reason);
++	BUG();
++}
++
++static void pre(struct kmmio_probe *p, struct pt_regs *regs,
++						unsigned long addr)
++{
++	struct trap_reason *my_reason = &get_cpu_var(vdev_pf_reason);
++	struct mmiotrace_rw *my_trace = &get_cpu_var(vdev_cpu_trace);
++	const unsigned long instptr = instruction_pointer(regs);
++	const enum reason_type type = get_ins_type(instptr);
++	struct remap_trace *trace = p->private;
++
++	/* it doesn't make sense to have more than one active trace per cpu */
++	if (my_reason->active_traces)
++		die_kmmio_nesting_error(regs, addr);
++	else
++		my_reason->active_traces++;
++
++	my_reason->type = type;
++	my_reason->addr = addr;
++	my_reason->ip = instptr;
++
++	my_trace->phys = addr - trace->probe.addr + trace->phys;
++	my_trace->map_id = trace->id;
++
++	my_trace->pc = instptr;
++
++	/*
++	 * XXX: the timestamp recorded will be *after* the tracing has been
++	 * done, not at the time we hit the instruction. SMP implications
++	 * on event ordering?
++	 */
++
++	switch (type) {
++	case REG_READ:
++		my_trace->opcode = MMIO_READ;
++		my_trace->width = get_ins_mem_width(instptr);
++		break;
++	case REG_WRITE:
++		my_trace->opcode = MMIO_WRITE;
++		my_trace->width = get_ins_mem_width(instptr);
++		my_trace->value = get_ins_reg_val(instptr, regs);
++		break;
++	case IMM_WRITE:
++		my_trace->opcode = MMIO_WRITE;
++		my_trace->width = get_ins_mem_width(instptr);
++		my_trace->value = get_ins_imm_val(instptr);
++		break;
++	default:
++		{
++			unsigned char *ip = (unsigned char *)instptr;
++			my_trace->opcode = MMIO_UNKNOWN_OP;
++			my_trace->width = 0;
++			my_trace->value = (*ip) << 16 | *(ip + 1) << 8 |
++								*(ip + 2);
++		}
++	}
++	put_cpu_var(vdev_cpu_trace);
++	put_cpu_var(vdev_pf_reason);
++}
++
++static void post(struct kmmio_probe *p, unsigned long condition,
++							struct pt_regs *regs)
++{
++	int rc;
++	unsigned long val;
++	struct trap_reason *my_reason = &get_cpu_var(vdev_pf_reason);
++	struct mmiotrace_rw *my_trace = &get_cpu_var(vdev_cpu_trace);
++
++	/* this should always return the active_trace count to 0 */
++	my_reason->active_traces--;
++	if (my_reason->active_traces) {
++		pr_emerg(NAME "unexpected post handler");
++		BUG();
++	}
++
++	/* 
++	 * Here vdev_dispatch_io looks if the current address belongs
++	 * to the emulation layer; If it does it returns 0
++	 */
++	val = 0;
++	rc = vdev_dispatch_io(my_trace,&val);
++
++	switch (my_reason->type) {
++	case REG_READ:
++		/* 
++		 * set_ins_reg_val walk the instruction sets and identify the register
++		 * that contain the readed value. For the emulation case we replace that
++		 * value with the emulated one returned from vdev_dispatch_io.
++		 * 	show_registers(regs);
++		 * 	The trace decoding is performed after to maintain consistency
++		 */
++		if(rc==0)
++			set_ins_reg_val(my_reason->ip, regs, val);
++
++/* not needed
++		my_trace->value = get_ins_reg_val(my_reason->ip, regs);*/
++		break;
++	default:
++		break;
++	}
++
++	/* Here we callback into vdev with mytrace information */
++	put_cpu_var(vdev_cpu_trace);
++	put_cpu_var(vdev_pf_reason);
++}
++
++static void ioremap_trace_core(resource_size_t offset, unsigned long size,
++							void __iomem *addr)
++{
++	static atomic_t next_id;
++	struct remap_trace *trace = kmalloc(sizeof(*trace), GFP_KERNEL);
++	/* These are page-unaligned. */
++	struct mmiotrace_map map = {
++		.phys = offset,
++		.virt = (unsigned long)addr,
++		.len = size,
++		.opcode = MMIO_PROBE
++	};
++
++	if (!trace) {
++		pr_err(NAME "kmalloc failed in ioremap\n");
++		return;
++	}
++
++	*trace = (struct remap_trace) {
++		.probe = {
++			.addr = (unsigned long)addr,
++			.len = size,
++			.pre_handler = pre,
++			.post_handler = post,
++			.private = trace
++		},
++		.phys = offset,
++		.id = atomic_inc_return(&next_id)
++	};
++	map.map_id = trace->id;
++
++	spin_lock_irq(&trace_lock);
++	if (!is_enabled()) {
++		kfree(trace);
++		goto not_enabled;
++	}
++
++	list_add_tail(&trace->list, &trace_list);
++	register_kmmio_probe(&trace->probe);
++
++not_enabled:
++	spin_unlock_irq(&trace_lock);
++}
++
++static void iounmap_trace_core(volatile void __iomem *addr)
++{
++	struct mmiotrace_map map = {
++		.phys = 0,
++		.virt = (unsigned long)addr,
++		.len = 0,
++		.opcode = MMIO_UNPROBE
++	};
++	struct remap_trace *trace;
++	struct remap_trace *tmp;
++	struct remap_trace *found_trace = NULL;
++
++	pr_debug(NAME "Unmapping %p.\n", addr);
++
++	spin_lock_irq(&trace_lock);
++	if (!is_enabled())
++		goto not_enabled;
++
++	list_for_each_entry_safe(trace, tmp, &trace_list, list) {
++		if ((unsigned long)addr == trace->probe.addr) {
++			unregister_kmmio_probe(&trace->probe);
++			list_del(&trace->list);
++			found_trace = trace;
++			break;
++		}
++	}
++	map.map_id = (found_trace) ? found_trace->id : -1;
++
++not_enabled:
++	spin_unlock_irq(&trace_lock);
++	if (found_trace) {
++		synchronize_rcu(); /* unregister_kmmio_probe() requirement */
++		kfree(found_trace);
++	}
++}
++
++static void clear_trace_list(void)
++{
++	struct remap_trace *trace;
++	struct remap_trace *tmp;
++
++	/*
++	 * No locking required, because the caller ensures we are in a
++	 * critical section via mutex, and is_enabled() is false,
++	 * i.e. nothing can traverse or modify this list.
++	 * Caller also ensures is_enabled() cannot change.
++	 */
++	list_for_each_entry(trace, &trace_list, list) {
++		pr_notice(NAME "purging non-iounmapped "
++					"trace @0x%08lx, size 0x%lx.\n",
++					trace->probe.addr, trace->probe.len);
++		unregister_kmmio_probe(&trace->probe);
++	}
++	synchronize_rcu(); /* unregister_kmmio_probe() requirement */
++
++	list_for_each_entry_safe(trace, tmp, &trace_list, list) {
++		list_del(&trace->list);
++		kfree(trace);
++	}
++}
++
++#ifdef CONFIG_HOTPLUG_CPU
++static cpumask_var_t downed_cpus;
++
++static void enter_uniprocessor(void)
++{
++	int cpu;
++	int err;
++
++	if (downed_cpus == NULL &&
++	    !alloc_cpumask_var(&downed_cpus, GFP_KERNEL)) {
++		pr_notice(NAME "Failed to allocate mask\n");
++		goto out;
++	}
++
++	get_online_cpus();
++	cpumask_copy(downed_cpus, cpu_online_mask);
++	cpumask_clear_cpu(cpumask_first(cpu_online_mask), downed_cpus);
++	if (num_online_cpus() > 1)
++		pr_notice(NAME "Disabling non-boot CPUs...\n");
++	put_online_cpus();
++
++	for_each_cpu(cpu, downed_cpus) {
++		err = cpu_down(cpu);
++		if (!err)
++			pr_info(NAME "CPU%d is down.\n", cpu);
++		else
++			pr_err(NAME "Error taking CPU%d down: %d\n", cpu, err);
++	}
++out:
++	if (num_online_cpus() > 1)
++		pr_warning(NAME "multiple CPUs still online, "
++						"may miss events.\n");
++}
++
++/* __ref because leave_uniprocessor calls cpu_up which is __cpuinit,
++   but this whole function is ifdefed CONFIG_HOTPLUG_CPU */
++static void __ref leave_uniprocessor(void)
++{
++	int cpu;
++	int err;
++
++	if (downed_cpus == NULL || cpumask_weight(downed_cpus) == 0)
++		return;
++	pr_notice(NAME "Re-enabling CPUs...\n");
++	for_each_cpu(cpu, downed_cpus) {
++		err = cpu_up(cpu);
++		if (!err)
++			pr_info(NAME "enabled CPU%d.\n", cpu);
++		else
++			pr_err(NAME "cannot re-enable CPU%d: %d\n", cpu, err);
++	}
++}
++
++#else /* !CONFIG_HOTPLUG_CPU */
++static void enter_uniprocessor(void)
++{
++	if (num_online_cpus() > 1)
++		pr_warning(NAME "multiple CPUs are online, may miss events. "
++			"Suggest booting with maxcpus=1 kernel argument.\n");
++}
++
++static void leave_uniprocessor(void)
++{
++}
++#endif
++
++void vdev_ioremap(resource_size_t offset, unsigned long size,
++	void __iomem *addr)
++{
++	if (!is_enabled()) /* recheck and proper locking in *_core() */
++		return;
++
++	/*
++	 * Here we check FIRST is the offset / size fall into an emulated 
++	 * device region ONLY then we register the emulation back-end
++	 */
++	ioremap_trace_core(offset, size, addr);
++
++	pr_debug("user_mmiotrace_ioremap_*(0x%llx, 0x%lx) = %p\n",
++			(unsigned long long)offset, size, addr);
++}
++
++void vdev_iounmap(volatile void __iomem *addr)
++{
++	if (!is_enabled()) /* recheck and proper locking in *_core() */
++		return;
++	
++	iounmap_trace_core(addr);
++
++	pr_debug("user_mmiotrace_iounmap_%p\n",addr);
++}
++
++void vdev_enable_mmiotrace(void)
++{
++	if (is_enabled())
++		goto out;
++	
++	kmmio_init();
++	enter_uniprocessor();
++	pr_info(NAME "enabled.\n");
++out:
++	atomic_inc(&mmiotrace_enabled);
++}
++
++void vdev_disable_mmiotrace(void)
++{
++	if (atomic_dec_and_test(&mmiotrace_enabled)){
++		BUG_ON(is_enabled());
++		clear_trace_list(); /* guarantees: no more kmmio callbacks */
++		leave_uniprocessor();
++		kmmio_cleanup();
++		pr_info(NAME "disabled.\n");
++	}
++}
++
+diff --git a/include/linux/vdev.h b/include/linux/vdev.h
+new file mode 100644
+index 0000000..77feb49
+--- /dev/null
++++ b/include/linux/vdev.h
+@@ -0,0 +1,40 @@
++#ifndef __VDEV__H__
++#define __VDEV__H__
++
++#include <linux/device.h>
++#include <linux/module.h>
++#include <linux/pci.h>
++#include <linux/mmiotrace.h>
++
++struct vdev_resource{
++	void *opaque;
++	struct resource resource;
++};
++
++struct vdev_io{
++	struct list_head list;
++	struct vdev_resource vdev_resource[PCI_NUM_RESOURCES];
++	u8 (*readb)(struct vdev_resource *vdev_resource, resource_size_t offset);
++	u16 (*readw)(struct vdev_resource *vdev_resource, resource_size_t offset);
++	u32 (*readl)(struct vdev_resource *vdev_resource, resource_size_t offset);
++	u64 (*readd)(struct vdev_resource *vdev_resource, resource_size_t offset);
++	int (*writeb)(struct vdev_resource *vdev_resource, resource_size_t offset, u8 val);
++	int (*writew)(struct vdev_resource *vdev_resource, resource_size_t offset, u16 val);
++	int (*writel)(struct vdev_resource *vdev_resource, resource_size_t offset, u32 val);
++	int (*writed)(struct vdev_resource *vdev_resource, resource_size_t offset, u64 val);
++};
++
++int vdev_dispatch_io(struct mmiotrace_rw *mmio, unsigned long *val);
++int vdev_register_device(struct vdev_io *vdev);
++int vdev_unregister_device(struct vdev_io *vdev);
++void vdev_enable_mmiotrace(void);
++void vdev_disable_mmiotrace(void);
++void vdev_ioremap(resource_size_t offset, unsigned long size,
++	void __iomem *addr);
++void vdev_iounmap(volatile void __iomem *addr);
++void vdev_register_mapping(resource_size_t offset, unsigned long size,
++	void __iomem *addr);
++void vdev_unregister_mapping(volatile void __iomem *addr);
++
++#endif
++
+diff --git a/include/linux/vdevice.h b/include/linux/vdevice.h
+index d1ae384..1d18bb6 100644
+--- a/include/linux/vdevice.h
++++ b/include/linux/vdevice.h
+@@ -27,9 +27,7 @@ struct vdev{
+ 	struct list_head list;
+ 	struct pci_dev *pdev; // Root device
+ 	struct pci_dev *vdev; // Virtual device
+-
+-	void *res[MAX_RESOURCE];// Local resource
+-	struct resource resource_org[MAX_RESOURCE]; // local copy
++	struct vdev_io *vdev_io; //Emulation backend
+ #endif
+ 
+ 	enum vdevice_type type;
+@@ -55,8 +53,7 @@ struct vdev{
+ };
+ 
+ // TODO clean up this overlay
+-#define USER_OFFSET (sizeof(struct list_head) + (sizeof(struct pci_dev*) * 2) + (sizeof(void *)*MAX_RESOURCE) \
+-	+ (sizeof(struct resource) * MAX_RESOURCE))
++#define USER_OFFSET (sizeof(struct list_head) + (sizeof(struct pci_dev*) * 2) + sizeof(struct vdev_io*))
+ 
+ static inline void vdevice_setbar(struct vdev* dev, unsigned int bar,int size, int type)
+ {
+diff --git a/mm/memory.c b/mm/memory.c
+index 33d0bea..1d79280 100644
+--- a/mm/memory.c
++++ b/mm/memory.c
+@@ -56,6 +56,7 @@
+ #include <linux/kallsyms.h>
+ #include <linux/swapops.h>
+ #include <linux/elf.h>
++#include <linux/vdev.h>
+ 
+ #include <asm/io.h>
+ #include <asm/pgalloc.h>
+@@ -1093,8 +1094,10 @@ unsigned long unmap_vmas(struct mmu_gather **tlbp,
+ 		if (vma->vm_flags & VM_ACCOUNT)
+ 			*nr_accounted += (end - start) >> PAGE_SHIFT;
+ 
+-		if (unlikely(is_pfn_mapping(vma)))
++		if (unlikely(is_pfn_mapping(vma))){
++			vdev_unregister_mapping((void*)start);
+ 			untrack_pfn_vma(vma, 0, 0);
++		}
+ 
+ 		while (start != end) {
+ 			if (!tlb_start_valid) {
+@@ -1920,6 +1923,9 @@ int remap_pfn_range(struct vm_area_struct *vma, unsigned long addr,
+ 	if (err)
+ 		untrack_pfn_vma(vma, pfn, PAGE_ALIGN(size));
+ 
++	addr = end - PAGE_ALIGN(size);
++	pfn += addr >> PAGE_SHIFT;
++	vdev_register_mapping(pfn<<PAGE_SHIFT, PAGE_ALIGN(size), (void*)addr);
+ 	return err;
+ }
+ EXPORT_SYMBOL(remap_pfn_range);

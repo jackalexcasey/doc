@@ -1,0 +1,31 @@
+diff --git a/arch/x86/mm/kmmio.c b/arch/x86/mm/kmmio.c
+	Add support to set/clear pte presence on user page as well
+
+diff --git a/arch/x86/mm/pageattr.c b/arch/x86/mm/pageattr.c
+	The pte lookup is already present for kernel page; add the 
+	lookup for userspace PTE
+		pte_t *lookup_uaddress(unsigned long address, struct mm_struct *mm, unsigned int *level)
+
+diff --git a/arch/x86/mm/mmio-mod.c b/arch/x86/mm/mmio-mod.c
+	in kernel ioremap are calling into mmiotrace_ioremap already so
+	we call out to our own vdev_register_mapping; This needs cleanup
+
+diff --git a/arch/x86/mm/pat.c b/arch/x86/mm/pat.c
+	For linear PFN mapping we call out vdev_unregister_mapping((void*)vma->vm_start);
+
+diff --git a/arch/x86/mm/pf_in.c b/arch/x86/mm/pf_in.c
+diff --git a/arch/x86/mm/pf_in.h b/arch/x86/mm/pf_in.h
+	Support for decoding instruction // POKE into register sets.
+
+diff --git a/mm/memory.c b/mm/memory.c
+	unmap_vmas Call into vdev_unregister_mapping
+	remap_pfn_range Call into vdev_register_mapping
+
+diff --git a/drivers/Makefile b/drivers/Makefile
+diff --git a/drivers/misc/vdevice.c b/drivers/misc/vdevice.c
+diff --git a/drivers/vdev/Makefile b/drivers/vdev/Makefile
+diff --git a/drivers/vdev/core.c b/drivers/vdev/core.c
+diff --git a/drivers/vdev/kmmio.c b/drivers/vdev/kmmio.c
+diff --git a/include/linux/vdev.h b/include/linux/vdev.h
+diff --git a/include/linux/vdevice.h b/include/linux/vdevice.h
+
