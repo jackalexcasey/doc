@@ -1,0 +1,31 @@
+kmmio is limited because of SMP race for debug / PTE_PRESENT trap;
+
+The post handler is mainly used to gather the readed value after the debug trap occurs.
+The thing is that we don't really care about that value since we are injecting the emulated value
+into it anyway
+
+TODO:
+SO it should be possible to run just the pre-handler ad return the Value
+
+The post handler is the one re-arming the PTE_PRESENT bit; Can we just re-arm it into the page_fault
+handler???? and never put the CPU in single step mode??
+
+
+kmmio_handler return 1 when the fault is handled and 0 when the fault is not handled ( not something that belong to kmmio )
+
+do_page_fault return right away when kmmio handled the fault SO it means we can drive the emulation
+without turning off SMP
+SO this mean that I can use kmmio directly without dealing with the SMP cases and simply registering with
+kmmio
+	ALL is needed is to modify kmmio to find out if there is post handler or not. IF not then return right
+	away BUT don't put the CPU in single step and don't disarm_kmmio_fault_page i.e. LEAVE the faulty page enabled
+
+	THIS brings me to another optimization where PTE_PRESENT can be cleared initially with a cleaner IF; LATER
+
+
+change_pte_range
+mprotect is using this pte_modify macro to change the PTE setting
+
+	SO from the mmap we could set the PTE for that page to be non present and therefore no need to worry
+	about the PTE logic manipulation since we leave is clear all the time.
+
