@@ -1,0 +1,22 @@
+commit 55b0f03877bf5fbc246c98f0ae7bc02705b3bdee
+Author: Etienne <etmartin@etmartin-desktop.(none)>
+Date:   Tue Jul 31 14:48:07 2012 -0400
+
+    Adding slow_map support for virtual device
+
+diff --git a/hw/device-assignment.c b/hw/device-assignment.c
+index 8f296b3..9b066d8 100644
+--- a/hw/device-assignment.c
++++ b/hw/device-assignment.c
+@@ -550,6 +550,11 @@ static int assigned_dev_register_regions(PCIRegion *io_regions,
+                 slow_map = 1;
+             }
+ 
++			if(pci_dev->dev.config[0] == 0x37 && pci_dev->dev.config[1] == 0x11){
++				fprintf(stderr,"Mapping virtual device \n");
++				slow_map = 1;
++			}
++
+             /* map physical memory */
+             pci_dev->v_addrs[i].e_physbase = cur_region->base_addr;
+             if (i == PCI_ROM_SLOT) {

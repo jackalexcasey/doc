@@ -12,3 +12,7 @@ qemu_ram_alloc_from_ptr
 	Under KVM -> kvm_setup_guest_memory ( madvise )
 	memory slot...
 
+
+
+assigned_dev_iomem_map
+assigned_dev_iomem_map_slow

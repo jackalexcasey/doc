@@ -13,7 +13,9 @@
  * the debug exception is using the die_notifier callback; From that level
  * the post handler is called. After it complete it re-arm the kmmio i.e.
  * clear PTE_PRESENT
- * /
+ */
+
+
 diff --git a/arch/x86/mm/kmmio.c b/arch/x86/mm/kmmio.c
 	Add support to set/clear pte presence on user page as well
 
@@ -22,18 +24,9 @@ diff --git a/arch/x86/mm/pageattr.c b/arch/x86/mm/pageattr.c
 	lookup for userspace PTE; Maybe there is other code already for this one
 		pte_t *lookup_uaddress(unsigned long address, struct mm_struct *mm, unsigned int *level)
 
-
-
-diff --git a/arch/x86/mm/mmio-mod.c b/arch/x86/mm/mmio-mod.c
-	in kernel ioremap are calling into mmiotrace_ioremap already so
-	we call out to our own vdev_register_mapping; This needs cleanup
-
-
 diff --git a/arch/x86/mm/pf_in.c b/arch/x86/mm/pf_in.c
 diff --git a/arch/x86/mm/pf_in.h b/arch/x86/mm/pf_in.h
 	Support for decoding instruction // POKE into register sets.
-
-
 
 Tracking mmap / munmap
 diff --git a/mm/memory.c b/mm/memory.c
@@ -46,6 +39,16 @@ diff --git a/arch/x86/mm/pat.c b/arch/x86/mm/pat.c
 	mmio tracking PTE i.e. _PAGE_PRESENT PTE clear.
 	HERE we DROP the tracking for that cases:
 		For linear PFN mapping we call out vdev_unregister_mapping((void*)vma->vm_start);
+
+
+
+
+
+diff --git a/arch/x86/mm/mmio-mod.c b/arch/x86/mm/mmio-mod.c
+	in kernel ioremap are calling into mmiotrace_ioremap already so
+	we call out to our own vdev_register_mapping; This needs cleanup
+
+
 
 diff --git a/drivers/Makefile b/drivers/Makefile
 diff --git a/drivers/misc/vdevice.c b/drivers/misc/vdevice.c
