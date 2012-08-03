@@ -215,6 +215,10 @@ do_work:
 			p++;
 			return p - (unsigned char *)ins_addr;
 		}
+		if(*p == 0x0){
+			p++;
+			return p - (unsigned char *)ins_addr;
+		}
 	}
 
 	/* Skip register */
@@ -331,6 +335,11 @@ unsigned char instr9[] = {0x89,0x50,0x04,0x77,0x88,0x99};
 //ffffffff8128b871:       8b 10                   mov    (%rax),%edx
 unsigned char instr10[] = {0x8b,0x10,0x77,0x88,0x99};
 
+//  5b9ab8:       8b 00                   mov    (%rax),%eax
+unsigned char instr11[] = {0x8b,0x00,0x77,0x88,0x99};
+
+//  OPCODE 1 Width 4 Instr length 3
+
 int main(void)
 {
 	printf("Lenght %d\n",(int)get_ins_length((unsigned long)instr0, NULL));
@@ -344,6 +353,7 @@ int main(void)
 	printf("Lenght %d\n",(int)get_ins_length((unsigned long)instr8, NULL));
 	printf("Lenght %d\n",(int)get_ins_length((unsigned long)instr9, NULL));
 	printf("Lenght %d\n",(int)get_ins_length((unsigned long)instr10, NULL));
+	printf("Lenght %d\n",(int)get_ins_length((unsigned long)instr11, NULL));
 	return 0;
 
 }
