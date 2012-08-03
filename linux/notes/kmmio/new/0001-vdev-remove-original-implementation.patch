@@ -1,0 +1,726 @@
+From aa093c8fda83b22ab2a3c229898b4721146503b5 Mon Sep 17 00:00:00 2001
+From: Etienne <etmartin@etmartin-desktop.(none)>
+Date: Thu, 2 Aug 2012 09:04:26 -0400
+Subject: [PATCH 01/14] vdev: remove original implementation
+
+---
+ drivers/misc/Kconfig   |    6 -
+ drivers/misc/Makefile  |    1 -
+ drivers/misc/vdevice.c |  679 ------------------------------------------------
+ 3 files changed, 0 insertions(+), 686 deletions(-)
+ delete mode 100644 drivers/misc/vdevice.c
+
+diff --git a/drivers/misc/Kconfig b/drivers/misc/Kconfig
+index a6037c9..d182fe4 100644
+--- a/drivers/misc/Kconfig
++++ b/drivers/misc/Kconfig
+@@ -262,12 +262,6 @@ config VMWARE_BALLOON
+ 	  To compile this driver as a module, choose M here: the
+ 	  module will be called vmware_balloon.
+ 
+-config VIRTUAL_DEVICE
+-	tristate "Virtual Device framework core driver"
+-	depends on X86 && PCI
+-	---help---
+-	  This option enables virtual device support.
+-
+ source "drivers/misc/c2port/Kconfig"
+ source "drivers/misc/eeprom/Kconfig"
+ source "drivers/misc/cb710/Kconfig"
+diff --git a/drivers/misc/Makefile b/drivers/misc/Makefile
+index 42d1911..68b8b22 100644
+--- a/drivers/misc/Makefile
++++ b/drivers/misc/Makefile
+@@ -24,4 +24,3 @@ obj-$(CONFIG_C2PORT)		+= c2port/
+ obj-y				+= eeprom/
+ obj-y				+= cb710/
+ obj-$(CONFIG_VMWARE_BALLOON)	+= vmware_balloon.o
+-obj-$(CONFIG_VIRTUAL_DEVICE)	+= vdevice.o
+diff --git a/drivers/misc/vdevice.c b/drivers/misc/vdevice.c
+deleted file mode 100644
+index dd7f5df..0000000
+--- a/drivers/misc/vdevice.c
++++ /dev/null
+@@ -1,679 +0,0 @@
+-/*
+- * vdevice - Virtual Device Framework
+- *
+- * Copyright (C) 2010 Cisco Systems
+- * Author: Etienne Martineau <etmartin@cisco.com>
+- *
+- * This work is licensed under the terms of the GNU GPL, version 2.
+- * Copyright (C) 2010 Cisco Systems
+- *
+- */
+-#include <linux/module.h>
+-#include <linux/sched.h>
+-#include <linux/errno.h>
+-#include <linux/miscdevice.h>
+-#include <linux/fcntl.h>
+-#include <linux/mutex.h>
+-#include <linux/fs.h>
+-#include <linux/uaccess.h>
+-#include <linux/bigphysarea.h>
+-#include <linux/platform_device.h>
+-#include <linux/vdevice.h>
+-
+-#define DRIVER_VERSION	"0.01"
+-#define DRIVER_AUTHOR	"Etienne Martineau <etmartin@cisco.com>"
+-#define DRIVER_DESC	"Virtual Device Framework"
+-
+-#define DPRINTK(fmt, args...)	\
+-	do{	\
+-		if(debug) \
+-			printk(KERN_DEBUG "%s: " fmt, __func__ , ## args); \
+-} while (0)
+-
+-#define MIN(a,b)        (min(a,b))
+-#define MAX(a,b)        (max(a,b))
+-
+-static int debug=0;
+-MODULE_PARM_DESC(debug, "");
+-module_param(debug, bool, 0644);
+-
+-static LIST_HEAD(vfcn_list);
+-static DEFINE_SPINLOCK(vfcn_list_lock);
+-static DEFINE_MUTEX(mutex);
+-static struct pci_ops local_pci_root_ops;
+-static struct pci_dev *Gpdev;
+-static const unsigned long base_addr_lookup[VDEV_MAX_RESOURCE]={
+-	PCI_BASE_ADDRESS_0,
+-	PCI_BASE_ADDRESS_1,
+-	PCI_BASE_ADDRESS_2,
+-	PCI_BASE_ADDRESS_3,
+-	PCI_BASE_ADDRESS_4,
+-	PCI_BASE_ADDRESS_5
+-};
+-
+-static inline uint16_t
+-pci_get_word(const uint8_t *config)
+-{
+-	return *((const uint16_t *)config);
+-}
+-
+-/*
+- * This driver is only used for internal validation
+- */
+-static int __devinit probe(struct pci_dev *dev,
+-	const struct pci_device_id *id)
+-{
+-	DPRINTK("DUMMY probe\n");
+-	return 0;
+-}
+-
+-static void __devexit remove(struct pci_dev *dev)
+-{
+-	DPRINTK("DUMMY remove\n");
+-}
+-
+-static struct pci_driver driver = {
+-	.name		= "fake",
+-	.probe		= probe,
+-	.remove		= remove,
+-};
+-
+-static void vdevice_add(struct vdev *dev)
+-{
+-	spin_lock(&vfcn_list_lock);	
+-	list_add(&dev->list,&vfcn_list);
+-	spin_unlock(&vfcn_list_lock);
+-}
+-
+-static void vdevice_del(struct vdev *dev)
+-{
+-	spin_lock(&vfcn_list_lock);	
+-	list_del(&dev->list);
+-	spin_unlock(&vfcn_list_lock);
+-}
+-
+-static struct vdev * vdevice_find(unsigned int seg, unsigned int bus,
+-			  unsigned int devfn)
+-{
+-	struct list_head *pos;
+-	struct vdev *ptr;
+-	
+-	spin_lock(&vfcn_list_lock);	
+-	list_for_each(pos, &vfcn_list){
+-		ptr= list_entry(pos, struct vdev, list);
+-		if(seg == ptr->aseg && bus==ptr->abus && (devfn == ptr->adevfn)){
+-			spin_unlock(&vfcn_list_lock);
+-			DPRINTK("vdevice_find %x %x:%x.%x",seg,bus,PCI_SLOT(devfn),PCI_FUNC(devfn));
+-			return ptr;
+-		}
+-	}
+-	spin_unlock(&vfcn_list_lock);
+-	return NULL;
+-}
+-
+-static int vfcn_read(struct vdev *pci_dev, int reg, int len, u32 *val)
+-{
+-	u32 value = 0;
+-
+-	len = MIN(len, (int)(MAX_CFG_SIZE - reg));
+-	memcpy(&value, (unsigned char*)(pci_dev->config) + reg, len);
+-	*val = le32_to_cpu(value);
+-	DPRINTK("CFG Read %x->%d= %x\n",reg,len,*val);
+-	return 0;
+-}
+-
+-static int vfcn_write(struct vdev *pci_dev, int reg, int len, u32 val)
+-{
+-	int i;
+-
+-	DPRINTK("CFG Write %x->%d= %x\n",reg,len,val);
+-	if(len==4 && ((val &0xffffffff) ==0xfffffffe)){ /* Weird config */
+-		val=0;
+-		DPRINTK("BAR %x -> %x\n",reg,val);
+-	}
+-	else if(len==4 && ((val &0xfffffff0) ==0xfffffff0)){ /* probing for SIZE */
+-		val = pci_dev->bar[ (reg-PCI_BASE_ADDRESS_0) >>2];
+-		DPRINTK("BAR %x -> %x\n",reg,val);
+-	}
+-	else if(len==4 && (val == 0xfffff800)){ /* probing for Option rom */
+-		val = 0;
+-		DPRINTK("ROM BAR %x -> %x\n",reg,val);
+-	}
+-	for (i = 0; i < len; i++) {
+-		*((unsigned char*)(pci_dev->config) + reg + i) = val & 0xff;
+-		val >>= 8;
+-	}
+-	return 0;
+-}
+-
+-/* 
+- * pci_read / pci_write are based on B:D.F and so there
+- * is no direct handle mapping to it's pci_dev structure.
+- * For that reason we used a global lookup list to get to pci_dev
+- */
+-static int pci_read(struct pci_bus *bus, unsigned int devfn, int where, int size, u32 *value)
+-{
+-	struct vdev *dev;
+-	dev = vdevice_find(pci_domain_nr(bus), bus->number, devfn);
+-	if(!dev)
+-		return local_pci_root_ops.read(bus, devfn, where, size, value);
+-	return vfcn_read(dev,where,size,value);
+-}
+-
+-static int pci_write(struct pci_bus *bus, unsigned int devfn, int where, int size, u32 value)
+-{
+-	struct vdev *dev;
+-	dev = vdevice_find(pci_domain_nr(bus), bus->number, devfn);
+-	if(!dev)
+-		return local_pci_root_ops.write(bus,devfn, where, size, value);
+-	return vfcn_write(dev,where,size,value);
+-}
+-
+-static int vdevice_fixup(struct vdev *dev)
+-{
+-	struct pci_dev *vdev = dev->vdev;
+-	uint8_t *config = dev->config;
+-
+-	if(vdev->vendor == 0x1137 && ((vdev->device&0xfff0)==0x2340)){ /* MSI-X virtual device */
+-		/* 
+-		 * BAR0 aliase BAR2; This one doesn't trap in the emulation layer
+-		*/
+-		DPRINTK("Fix up %s %x:%x.%x","virtual device",vdev->bus->number,PCI_SLOT(vdev->devfn), PCI_FUNC(vdev->devfn));
+-		vdev->resource[2].start = vdev->resource[0].start;
+-		vdev->resource[2].end = vdev->resource[0].end;
+-		/* Change config space accordingly */
+-		*(uint32_t *)(&config[base_addr_lookup[2]]) = *(uint32_t *)(&config[base_addr_lookup[0]]);
+-	}
+-	return 0;
+-}
+-
+-static void bar_restore(struct vdev *dev)
+-{
+-	int x;
+-	struct pci_dev *vdev = dev->vdev;
+-	uint8_t *config = dev->config;
+-
+-	for(x=0;x<VDEV_MAX_RESOURCE;x++){
+-		if(dev->res[x]){
+-			/* Restore resource */
+-			vdev->resource[x].start = dev->resource_org[x].start;
+-			vdev->resource[x].end = dev->resource_org[x].end;
+-			/* Restore config space */
+-			*(uint32_t *)(&config[base_addr_lookup[x]]) = vdev->resource[x].start;
+-			bigphysarea_free_pages(dev->res[x]);
+-			dev->res[x]=NULL;
+-		}	
+-	}
+-}
+-
+-/*
+- * BAR ressource are allocated by the kernel but there is
+- * no real memory behind it (no physical device for those IO slots)
+- * For that reason we put memory behind each BAR.
+- *
+- * TODO the resource mapping doesn't match but this is mostly
+- * fine because we disabled range checking for virtual device PCI id
+- * in core kernel
+- */
+-static int bar_adjust(struct vdev *dev)
+-{
+-	int x, nores=1;
+-	struct pci_dev *vdev = dev->vdev;
+-	uint8_t *config = dev->config;
+-	dma_addr_t addr;
+-	int size;
+-	int pagenr;
+-
+-	for(x=0;x<VDEV_MAX_RESOURCE;x++){
+-		if(!pci_resource_start(vdev,x))
+-			continue;
+-
+-		nores=0;
+-		size = (pci_resource_end(vdev, x) - pci_resource_start(vdev, x));
+-		pagenr = (size>>PAGE_SHIFT) +1;
+-		DPRINTK(" pci_resource_start(dev, %d) %x ",x,pci_resource_start(vdev, x) );
+-		DPRINTK(" pci_resource_end(dev, %d) %x ",x,pci_resource_end(vdev, x) );
+-		DPRINTK(" pci_resource_size %d bytes %d pages",size,pagenr );
+-
+-		/* 
+-		 * This memory is not RAM and so it can be ioremap as 
+-		 * if it was IO memory.
+-		 */
+-		dev->res[x] = bigphysarea_alloc_pages(pagenr, 1, GFP_KERNEL);
+-		if(!dev->res[x])
+-			goto err;
+-		memset(dev->res[x],0,size);
+-		addr = (unsigned long)virt_to_phys(dev->res[x]);	
+-
+-		/* Remember original value */
+-		dev->resource_org[x].start = pci_resource_start(vdev, x);
+-		dev->resource_org[x].end = pci_resource_end(vdev, x);
+-
+-		/* Swap with the new one */
+-		vdev->resource[x].start = (unsigned long)addr;
+-		vdev->resource[x].end = ((unsigned long)(addr+size));
+-
+-		/* Change config space accordingly */
+-		*(uint32_t *)(&config[base_addr_lookup[x]]) = (unsigned long) addr;
+-
+-		DPRINTK(" pci_resource_start(dev, %d) %x ",x,pci_resource_start(vdev, x) );
+-		DPRINTK(" pci_resource_end(dev, %d) %x ",x,pci_resource_end(vdev, x) );
+-	}
+-
+-	if(nores){
+-		DPRINTK("Virtual device has no resources allocated to it. Something wrong?\n");
+-		goto err;
+-	}
+-	return 0;
+-err:
+-	bar_restore(dev);
+-	return -ENOMEM;
+-}
+-
+-static int vdev_insert(struct vdev *dev, struct pci_dev *pdev)
+-{
+-	unsigned int ari;
+-	struct pci_device_id table;
+-	uint8_t *config = dev->config;
+-
+-	if(dev->type == NEW_FUNCTION){
+-		dev->abus=pdev->bus->number;
+-		dev->adevfn=PCI_DEVFN(PCI_SLOT(pdev->devfn), PCI_FUNC(pdev->devfn+dev->fcnnr));
+-
+-		DPRINTK("Inserting %x:%x.%x under %x:%x.%x",dev->abus,PCI_SLOT(dev->adevfn),
+-			PCI_FUNC(dev->adevfn), pdev->bus->number,PCI_SLOT(pdev->devfn), PCI_FUNC(pdev->devfn));
+-
+-		/* pdev is now multi function */
+-		pdev->multifunction = 1;
+-
+-	}
+-	else if(dev->type == NEW_DEVICE){
+-		/* In this case this pdev must be a downstream port */
+-		if(pdev->subordinate && pdev->subordinate->number){
+-			dev->abus=pdev->subordinate->number;
+-			dev->adevfn=dev->devfn;
+-			DPRINTK("Inserting %x:%x.%x under %x:%x.%x",dev->abus,PCI_SLOT(dev->adevfn),
+-				PCI_FUNC(dev->adevfn), pdev->bus->number,PCI_SLOT(pdev->devfn), PCI_FUNC(pdev->devfn));
+-		}
+-		else{
+-			DPRINTK("No sub bus #\n");
+-			dev->abus=0;
+-			dev->adevfn=dev->devfn;
+-			DPRINTK("Inserting %x:%x.%x under %x:%x.%x",dev->abus,PCI_SLOT(dev->adevfn),
+-				PCI_FUNC(dev->adevfn), pdev->bus->number,PCI_SLOT(pdev->devfn), PCI_FUNC(pdev->devfn));
+-		}
+-	}
+-	else
+-		return -EINVAL;
+-
+-	if(pci_get_bus_and_slot(dev->abus,dev->adevfn)){
+-		DPRINTK("Device already exist %x:%x.%x\n",dev->abus,PCI_SLOT(dev->adevfn), PCI_FUNC(dev->adevfn));
+-		return -EEXIST;
+-	}
+-
+-	dev->pdev = pdev;
+-
+-	/* Get on the global list */
+-	vdevice_add(dev);
+-
+-	/* 
+-	 * In order for the vdevice to show up we must rescan the topology
+-	 * This in turn will call into the corresponding driver 'probe' method.
+-	 * We don't want that probe method to latch in the wrong value for the resource 
+-	 * since we are fixing up the BAR _after_ that rescan.
+-	 *
+-	 * NOTE we need vdevice to be there in order to adjust it's 
+-	 * resources in the first place.
+-	 *
+-	 * So let's verify that there is no driver that exist for that vdevice first
+-	 */
+-	
+-	table.vendor=pci_get_word(&config[PCI_VENDOR_ID]);
+-	table.device=pci_get_word(&config[PCI_DEVICE_ID]);
+-	table.subvendor=PCI_ANY_ID;
+-	table.subdevice=PCI_ANY_ID;
+-	table.class=0;
+-	table.class_mask=0;
+-	table.driver_data=0;
+-	driver.id_table = &table;
+-	if(pci_register_driver(&driver)){
+-		DPRINTK("Driver ALREADY exist for this device REMOVE FIRST\n");
+-		vdevice_del(dev);
+-		dev->pdev=NULL;
+-		return -EEXIST;
+-	}
+-
+-	if(dev->type == NEW_FUNCTION){
+-		ari = pdev->bus->self->ari_enabled;
+-		pdev->bus->self->ari_enabled = 0;
+-		pci_rescan_bus(pdev->bus);
+-		pdev->bus->self->ari_enabled = ari;
+-	}
+-	else
+-		pci_rescan_bus(pdev->bus);
+-
+-	/* Find the vdevice */
+-	dev->vdev = pci_get_bus_and_slot(dev->abus,dev->adevfn);
+-	if (!dev->vdev){
+-		DPRINTK("Device absent after rescan\n");
+-		pci_unregister_driver(&driver);
+-		vdevice_del(dev);
+-		dev->pdev=NULL;
+-		return -EIO;
+-	}
+-
+-	if(bar_adjust(dev)<0){
+-		pci_unregister_driver(&driver);
+-		vdevice_del(dev);
+-
+-		DPRINTK("pci_remove_bus_device");
+-		pci_remove_bus_device(dev->vdev);
+-
+-		DPRINTK("pci_rescan_bus");
+-		pci_rescan_bus(dev->pdev->bus);
+-
+-		dev->pdev=NULL;
+-		return -ENOMEM;
+-	}
+-
+-	/* Release the driver handle for other to use */
+-	pci_unregister_driver(&driver);
+-	return 0;
+-}
+-
+-static void vdevice_remove(struct vdev *dev)
+-{
+-	if(!dev->pdev){
+-		DPRINTK("No device to remove");
+-		return;
+-	}
+-
+-	DPRINTK("Removing %x:%x.%x from %x:%x.%x",dev->abus,PCI_SLOT(dev->adevfn),
+-		PCI_FUNC(dev->adevfn), dev->pdev->bus->number,PCI_SLOT(dev->pdev->devfn), PCI_FUNC(dev->pdev->devfn));
+-
+-	/* Remove from the global list */
+-	vdevice_del(dev);
+-
+-	/*
+-	 * Two scenario
+-	 * A) vdevice driver (UMD...) is bind then remove. At bind time, it
+-	 * will latch in the adjusted BAR value. At remove time it will release those
+-	 * resources but kernel sees that it doesn't exist.
+-	 *
+-	 * B) vdevice driver (UMD...) is bind then the virtual device is taken out.
+-	 * At bind time, the driver will latch in right value. At virtual device
+-	 * remove time it will restore the BAR and the release of the driver will try
+-	 * to free original resource that doesn't exist... This can release someone
+-	 * else resource
+-	 *
+-	 * The tricky part here is that when the device is going to be taken out
+-	 * of the device tree by calling into 'pci_remove_bus_device' , it's corresponding 
+-	 * driver's remove method will be called.
+-	 *
+-	 * At that time that driver will released the resource
+-	 * by calling 'pci_release_regions' which effectively looks into pdev
+-	 * region start / end address.. 
+-	 *
+-	 * In order for that to work the pdev region must be restored first
+-	 *
+-	 * Similarly, when device is inserted; need to grab the rigth set of resource
+-	 * but the driver can race against the insertion logic...
+-	 */
+-	bar_restore(dev);
+-
+-	dev->pdev->multifunction = 0;
+-
+-	DPRINTK("pci_remove_bus_device");
+-	pci_remove_bus_device(dev->vdev);
+-
+-	DPRINTK("pci_rescan_bus");
+-	pci_rescan_bus(dev->pdev->bus);
+-}
+-
+-/*
+- * Userspace forge the config space and pass it down here.
+- */
+-static ssize_t write(struct file * filep, const char __user * buf, 
+-			 size_t count, loff_t *ppos)
+-{
+-	int rc;
+-	struct vdev *dev = filep->private_data;
+-	struct pci_dev *pdev;
+-	unsigned long p = *ppos;
+-	ssize_t written, sz;
+-	unsigned long copied;
+-	void *ptr;
+-	int size = (sizeof(struct vdev)-USER_OFFSET);
+-
+-	if(*ppos+count > size)
+-		return -EFAULT;
+-
+-	written = 0;
+-
+-	while (count > 0) {
+-		/*
+-		 * Handle first page in case it's not aligned
+-		 */
+-		if (-p & (PAGE_SIZE - 1))
+-			sz = -p & (PAGE_SIZE - 1);
+-		else
+-			sz = PAGE_SIZE;
+-
+-		sz = min_t(unsigned long, sz, count);
+-
+-		ptr = &((unsigned char *)&(dev->type))[p];
+-
+-		copied = copy_from_user(ptr, buf, sz);
+-		if (copied) {
+-			written += sz - copied;
+-			if (written)
+-				break;
+-			return -EFAULT;
+-		}
+-
+-		buf += sz;
+-		p += sz;
+-		count -= sz;
+-		written += sz;
+-	}
+-
+-	*ppos += written; //Seek the file
+-
+-	if((*ppos) == size){ /* transfert is over */
+-		{
+-			int x;
+-			for(x=0;x<256;x++){
+-				if(!(x%16))
+-					printk("\n%4o: ",x/2);
+-				printk("%2x ",(unsigned char)dev->config[x]);
+-			}
+-		}
+-		/* Find the target device / downstream port */
+-		pdev = pci_get_bus_and_slot(dev->B,PCI_DEVFN(dev->D,dev->F));
+-		if (!pdev){
+-			DPRINTK("Cannot find %x:%x.%x ",dev->B,dev->D,dev->F);
+-			return -EINVAL;
+-		}
+-		DPRINTK("Found %x:%x.%x ",dev->B,dev->D,dev->F);
+-
+-		/* Put it live */
+-		rc = vdev_insert(dev, pdev);
+-		if(rc){
+-			DPRINTK("Cannot insert  %x:%x.%x ",dev->B,dev->D,dev->F);
+-			return rc;
+-		}
+-		rc = vdevice_fixup(dev);
+-		if(rc){
+-			vdevice_remove(dev);
+-			DPRINTK("Cannot fixup  %x:%x.%x ",dev->B,dev->D,dev->F);
+-			return rc;
+-		}
+-	}
+-	return written;
+-}
+-
+-static ssize_t read(struct file *filep, char __user *buf,
+-			size_t count, loff_t *ppos)
+-{
+-	struct vdev *dev = filep->private_data;
+-	unsigned long p = *ppos;
+-	ssize_t read, sz;
+-	char *ptr;
+-
+-	if(*ppos+count > MAX_CFG_SIZE)
+-		return -EFAULT;
+-
+-	read = 0;
+-
+-	while (count > 0) {
+-		/*
+-		 * Handle first page in case it's not aligned
+-		 */
+-		if (-p & (PAGE_SIZE - 1))
+-			sz = -p & (PAGE_SIZE - 1);
+-		else
+-			sz = PAGE_SIZE;
+-
+-		sz = min_t(unsigned long, sz, count);
+-
+-		ptr = &dev->config[p];
+-
+-		if (copy_to_user(buf, ptr, sz)) {
+-			return -EFAULT;
+-		}
+-
+-		buf += sz;
+-		p += sz;
+-		count -= sz;
+-		read += sz;
+-	}
+-
+-	*ppos += read; //Seek the file
+-	return read;
+-}
+-
+-static long ioctl(struct file *file,
+-			 unsigned int cmd, unsigned long arg)
+-{
+-	return -EINVAL;
+-}
+-
+-static long unlocked_ioctl(struct file *file, unsigned int cmd,
+-				   unsigned long arg)
+-{
+-	int ret;
+-	mutex_lock(&mutex);
+-	ret = ioctl(file, cmd, arg);
+-	mutex_unlock(&mutex);
+-	return ret;
+-}
+-
+-static int open(struct inode *inode, struct file *filep)
+-{
+-	struct vdev *dev;
+-
+-	dev=kzalloc(sizeof(struct vdev) ,GFP_KERNEL);
+-	if(!dev)
+-		return -ENOMEM;
+-
+-	INIT_LIST_HEAD(&dev->list);
+-
+-	filep->private_data = dev;
+-	return 0;
+-}
+-
+-static int release(struct inode *inode, struct file *filep)
+-{
+-	struct vdev *dev = filep->private_data;
+-
+-	if(!dev)
+-		BUG();
+-	vdevice_remove(dev);
+-	kfree(dev);
+-	return 0;
+-}
+-
+-static const struct file_operations fops = {
+-	.owner		= THIS_MODULE,
+-	.read		= read,
+-	.write		= write,
+-	.compat_ioctl	= ioctl,
+-	.unlocked_ioctl	= unlocked_ioctl,
+-	.open		= open,
+-	.release	= release,
+-};
+-
+-static struct miscdevice dev =
+-{
+-	.minor		= MISC_DYNAMIC_MINOR,
+-	.name		= "vdev",
+-	.fops		= &fops,
+-};
+-
+-static int latch_to_pci_bus(void)
+-{
+-	/*
+-	 * The first thing we do is to override the rd/wr pci_cfg ops
+-	 */
+-	Gpdev = pci_get_bus_and_slot(0,0);
+-	if (!Gpdev)
+-		return -1;
+-
+-	pci_block_user_cfg_access(Gpdev);
+-
+-	/* Fallback value */
+-	local_pci_root_ops.read = Gpdev->bus->ops->read;
+-	local_pci_root_ops.write = Gpdev->bus->ops->write;
+-
+-	/* Redirect ops to our own  HERE we redirect the whole BUS rd/wr...*/
+-	Gpdev->bus->ops->read = pci_read;
+-	Gpdev->bus->ops->write = pci_write;
+-
+-	pci_unblock_user_cfg_access(Gpdev);
+-
+-	return 0;
+-}
+-
+-static void unlatch_from_pci_bus(void)
+-{
+-	pci_block_user_cfg_access(Gpdev);
+-
+-	/* Restore ops */
+-	Gpdev->bus->ops->read = local_pci_root_ops.read;
+-	Gpdev->bus->ops->write = local_pci_root_ops.write;
+-
+-	pci_unblock_user_cfg_access(Gpdev);
+-
+-	Gpdev = NULL;
+-}
+-
+-static int __init init(void)
+-{
+-	int retval;
+-
+-	if(latch_to_pci_bus()<0)
+-		return -EINVAL;
+-	
+-	retval = misc_register(&dev);
+-	if (retval < 0){
+-		unlatch_from_pci_bus();
+-		return retval;
+-	}
+-
+-	pr_info(DRIVER_DESC " version: " DRIVER_VERSION);
+-
+-	return 0;
+-}
+-
+-static void __exit cleanup(void)
+-{
+-	unlatch_from_pci_bus();
+-	misc_deregister(&dev);
+-}
+-
+-module_init(init);
+-module_exit(cleanup);
+-
+-MODULE_LICENSE("GPL");
+-MODULE_VERSION(DRIVER_VERSION);
+-MODULE_AUTHOR(DRIVER_AUTHOR);
+-- 
+1.7.0.4
+

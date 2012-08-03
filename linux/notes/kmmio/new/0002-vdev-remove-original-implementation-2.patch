@@ -1,0 +1,88 @@
+From 8b5163a2651e92c52bb0047a459d09301c6b71f9 Mon Sep 17 00:00:00 2001
+From: Etienne <etmartin@etmartin-desktop.(none)>
+Date: Thu, 2 Aug 2012 09:06:04 -0400
+Subject: [PATCH 02/14] vdev: remove original implementation #2
+
+---
+ include/linux/vdevice.h |   69 -----------------------------------------------
+ 1 files changed, 0 insertions(+), 69 deletions(-)
+ delete mode 100644 include/linux/vdevice.h
+
+diff --git a/include/linux/vdevice.h b/include/linux/vdevice.h
+deleted file mode 100644
+index 5acec76..0000000
+--- a/include/linux/vdevice.h
++++ /dev/null
+@@ -1,69 +0,0 @@
+-/*
+- * vdevice - Virtual Device Framework
+- *
+- * Copyright (C) 2010 Cisco Systems
+- * Author: Etienne Martineau <etmartin@cisco.com>
+- *
+- * This work is licensed under the terms of the GNU GPL, version 2.
+- * Copyright (C) 2010 Cisco Systems
+- *
+- */
+-#ifndef __V_DEVICE_H_
+-#define __V_DEVICE_H_
+-
+-#include <linux/pci.h>
+-
+-#define VDEV_MAX_RESOURCE 6 /* Equivalent to PCI_NUM_RESOURCES */
+-#define MAX_CFG_SIZE 4096
+-
+-enum vdevice_type{
+-	NEW_FUNCTION,
+-	NEW_DEVICE
+-};
+-
+-/* This structure is shared between kernel and user */
+-struct vdev{
+-#ifdef __KERNEL__
+-	struct list_head list;
+-	struct pci_dev *pdev; // Root device
+-	struct pci_dev *vdev; // Virtual device
+-
+-	void *res[VDEV_MAX_RESOURCE];// Local resource
+-	struct resource resource_org[VDEV_MAX_RESOURCE]; // local copy
+-#endif
+-
+-	unsigned int type;
+-
+-	unsigned int devfn; /* for new_device */
+-	unsigned int fcnnr; /* for new_function */ 
+-
+-	unsigned int B;
+-	unsigned int D;
+-	unsigned int F;
+-	unsigned int VD;
+-
+-	/* emulated pci topology off the downstream port */
+-	unsigned int aseg;
+-	unsigned int abus;
+-	unsigned int adevfn;
+-
+-	/* bar config */
+-	unsigned int bar[VDEV_MAX_RESOURCE];
+-
+-	/* pci config space */
+-	uint8_t config[MAX_CFG_SIZE];
+-};
+-
+-// TODO clean up this overlay
+-#define USER_OFFSET (sizeof(struct list_head) + (sizeof(struct pci_dev*) * 2) + (sizeof(void *)*VDEV_MAX_RESOURCE) \
+-	+ (sizeof(struct resource) * VDEV_MAX_RESOURCE))
+-
+-static inline void vdevice_setbar(struct vdev* dev, unsigned int bar,int size, int type)
+-{
+-	type=type;
+-	if( (bar >= PCI_BASE_ADDRESS_0) && (bar <=PCI_BASE_ADDRESS_5 ) )
+-		dev->bar[ (bar-PCI_BASE_ADDRESS_0) >>2]=size;
+-}
+-
+-#endif
+-
+-- 
+1.7.0.4
+

@@ -1,0 +1,27 @@
+From 973dfdb23d914217a686093c7de14e78eee86546 Mon Sep 17 00:00:00 2001
+From: Etienne <etmartin@etmartin-desktop.(none)>
+Date: Fri, 3 Aug 2012 15:48:14 -0400
+Subject: [PATCH 14/14] vdev KMMIO emulate instruction another one
+
+---
+ arch/x86/mm/pf_in.c |    4 ++++
+ 1 files changed, 4 insertions(+), 0 deletions(-)
+
+diff --git a/arch/x86/mm/pf_in.c b/arch/x86/mm/pf_in.c
+index e1696f8..60af2ae 100644
+--- a/arch/x86/mm/pf_in.c
++++ b/arch/x86/mm/pf_in.c
+@@ -526,6 +526,10 @@ do_work:
+ 			p++;
+ 			return p - (unsigned char *)ins_addr;
+ 		}
++		if(*p == 0x0){
++			p++;
++			return p - (unsigned char *)ins_addr;
++		}
+ 	}
+ 
+ 	/* Skip register */
+-- 
+1.7.0.4
+

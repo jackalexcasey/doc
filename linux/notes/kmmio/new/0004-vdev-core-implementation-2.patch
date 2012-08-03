@@ -1,0 +1,59 @@
+From 99c722e9b627b78f7a32c0543f2a52c74b6d4f24 Mon Sep 17 00:00:00 2001
+From: Etienne <etmartin@etmartin-desktop.(none)>
+Date: Thu, 2 Aug 2012 09:15:55 -0400
+Subject: [PATCH 04/14] vdev core implementation #2
+
+---
+ include/linux/vdev.h |   40 ++++++++++++++++++++++++++++++++++++++++
+ 1 files changed, 40 insertions(+), 0 deletions(-)
+ create mode 100644 include/linux/vdev.h
+
+diff --git a/include/linux/vdev.h b/include/linux/vdev.h
+new file mode 100644
+index 0000000..77feb49
+--- /dev/null
++++ b/include/linux/vdev.h
+@@ -0,0 +1,40 @@
++#ifndef __VDEV__H__
++#define __VDEV__H__
++
++#include <linux/device.h>
++#include <linux/module.h>
++#include <linux/pci.h>
++#include <linux/mmiotrace.h>
++
++struct vdev_resource{
++	void *opaque;
++	struct resource resource;
++};
++
++struct vdev_io{
++	struct list_head list;
++	struct vdev_resource vdev_resource[PCI_NUM_RESOURCES];
++	u8 (*readb)(struct vdev_resource *vdev_resource, resource_size_t offset);
++	u16 (*readw)(struct vdev_resource *vdev_resource, resource_size_t offset);
++	u32 (*readl)(struct vdev_resource *vdev_resource, resource_size_t offset);
++	u64 (*readd)(struct vdev_resource *vdev_resource, resource_size_t offset);
++	int (*writeb)(struct vdev_resource *vdev_resource, resource_size_t offset, u8 val);
++	int (*writew)(struct vdev_resource *vdev_resource, resource_size_t offset, u16 val);
++	int (*writel)(struct vdev_resource *vdev_resource, resource_size_t offset, u32 val);
++	int (*writed)(struct vdev_resource *vdev_resource, resource_size_t offset, u64 val);
++};
++
++int vdev_dispatch_io(struct mmiotrace_rw *mmio, unsigned long *val);
++int vdev_register_device(struct vdev_io *vdev);
++int vdev_unregister_device(struct vdev_io *vdev);
++void vdev_enable_mmiotrace(void);
++void vdev_disable_mmiotrace(void);
++void vdev_ioremap(resource_size_t offset, unsigned long size,
++	void __iomem *addr);
++void vdev_iounmap(volatile void __iomem *addr);
++void vdev_register_mapping(resource_size_t offset, unsigned long size,
++	void __iomem *addr);
++void vdev_unregister_mapping(volatile void __iomem *addr);
++
++#endif
++
+-- 
+1.7.0.4
+

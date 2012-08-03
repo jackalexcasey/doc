@@ -1,0 +1,528 @@
+From def501873c53d2aaff245343360961f6a4c79fd5 Mon Sep 17 00:00:00 2001
+From: Etienne <etmartin@etmartin-desktop.(none)>
+Date: Fri, 3 Aug 2012 15:01:47 -0400
+Subject: [PATCH 13/14] vdev core; post handler cleanup, comments update, msix TEST io update
+
+---
+ drivers/vdev/msix_vdevice.c |   11 +-
+ drivers/vdev/vdev.c         |  324 ++++++++-----------------------------------
+ include/linux/vdev.h        |    2 -
+ 3 files changed, 65 insertions(+), 272 deletions(-)
+
+diff --git a/drivers/vdev/msix_vdevice.c b/drivers/vdev/msix_vdevice.c
+index 43071df..05f8fcb 100644
+--- a/drivers/vdev/msix_vdevice.c
++++ b/drivers/vdev/msix_vdevice.c
+@@ -258,7 +258,7 @@ void test_io(struct pci_dev *dev)
+ 
+ 	DPRINTK("\nBAR2 write bytes");
+ 	for(x=0;x<nr;x++){
+-		bbar2[x] = x;
++		bbar2[x] = x+0X55;
+ 	}
+ 	DPRINTK("\nBAR2 read bytes");
+ 	for(x=0;x<nr;x++){
+@@ -267,7 +267,7 @@ void test_io(struct pci_dev *dev)
+ 
+ 	DPRINTK("\nBAR2 write short");
+ 	for(x=0;x<nr;x++){
+-		wbar2[x] = x;
++		wbar2[x] = x+0X6666;
+ 	}
+ 	DPRINTK("\nBAR2 read short");
+ 	for(x=0;x<nr;x++){
+@@ -276,7 +276,7 @@ void test_io(struct pci_dev *dev)
+ 
+ 	DPRINTK("\nBAR2 write long");
+ 	for(x=0;x<nr;x++){
+-		lbar2[x] = x;
++		lbar2[x] = x+0X77777777;
+ 	}
+ 	DPRINTK("\nBAR2 read long");
+ 	for(x=0;x<nr;x++){
+@@ -285,7 +285,7 @@ void test_io(struct pci_dev *dev)
+ 
+ 	DPRINTK("\nBAR2 write double");
+ 	for(x=0;x<nr;x++){
+-		dbar2[x] = x;
++		dbar2[x] = x+0x8888888888888888;
+ 	}
+ 	DPRINTK("\nBAR2 read double");
+ 	for(x=0;x<nr;x++){
+@@ -337,6 +337,9 @@ static struct vdev_io *vdev_register(struct pci_dev *dev)
+ 	if(debug)
+ 		test_io(dev);
+ 
++	memset(io->vdev_resource[0].opaque,0,len);
++	memset(io->vdev_resource[2].opaque,0,len);
++
+ 	return io;
+ }
+ 
+diff --git a/drivers/vdev/vdev.c b/drivers/vdev/vdev.c
+index 374949c..e6741da 100644
+--- a/drivers/vdev/vdev.c
++++ b/drivers/vdev/vdev.c
+@@ -14,13 +14,14 @@
+ 
+ #include "../../arch/x86/mm/pf_in.h"
+ 
++//extern void show_registers(struct pt_regs *regs);
++
+ #define NAME "vdev_emul: "
+ 
+ struct trap_reason {
+ 	unsigned long addr;
+ 	unsigned long ip;
+ 	enum reason_type type;
+-	int active_traces;
+ };
+ 
+ struct remap_trace {
+@@ -33,12 +34,10 @@ struct remap_trace {
+ static DEFINE_SPINLOCK(vdev_lock);
+ static LIST_HEAD(vdev_list);
+ 
+-/* Accessed per-cpu. */
+-static DEFINE_PER_CPU(struct trap_reason, vdev_pf_reason);
+-static DEFINE_PER_CPU(struct mmiotrace_rw, vdev_cpu_trace);
++static atomic_t mmiotrace_enabled = ATOMIC_INIT(0);
+ 
++/* List of enabled tracers */
+ static DEFINE_SPINLOCK(trace_lock);
+-static atomic_t mmiotrace_enabled = ATOMIC_INIT(0);
+ static LIST_HEAD(trace_list);		/* struct remap_trace */
+ 
+ static bool is_enabled(void)
+@@ -46,77 +45,22 @@ static bool is_enabled(void)
+ 	return atomic_read(&mmiotrace_enabled);
+ }
+ 
+-static void print_pte(unsigned long address)
+-{
+-	unsigned int level;
+-	pte_t *pte = lookup_address(address, &level);
+-
+-	if (!pte) {
+-		pr_err(NAME "Error in %s: no pte for page 0x%08lx\n",
+-							__func__, address);
+-		return;
+-	}
+-
+-	if (level == PG_LEVEL_2M) {
+-		pr_emerg(NAME "4MB pages are not currently supported: "
+-							"0x%08lx\n", address);
+-		BUG();
+-	}
+-	pr_info(NAME "pte for 0x%lx: 0x%llx 0x%llx\n", address,
+-		(unsigned long long)pte_val(*pte),
+-		(unsigned long long)pte_val(*pte) & _PAGE_PRESENT);
+-}
+-
+-/*
+- * For some reason the pre/post pairs have been called in an
+- * unmatched order. Report and die.
+- */
+-static void die_kmmio_nesting_error(struct pt_regs *regs, unsigned long addr)
+-{
+-	const struct trap_reason *my_reason = &get_cpu_var(vdev_pf_reason);
+-	pr_emerg(NAME "unexpected fault for address: 0x%08lx, "
+-					"last fault for address: 0x%08lx\n",
+-					addr, my_reason->addr);
+-	print_pte(addr);
+-	print_symbol(KERN_EMERG "faulting IP is at %s\n", regs->ip);
+-	print_symbol(KERN_EMERG "last faulting IP was at %s\n", my_reason->ip);
+-#ifdef __i386__
+-	pr_emerg("eax: %08lx   ebx: %08lx   ecx: %08lx   edx: %08lx\n",
+-			regs->ax, regs->bx, regs->cx, regs->dx);
+-	pr_emerg("esi: %08lx   edi: %08lx   ebp: %08lx   esp: %08lx\n",
+-			regs->si, regs->di, regs->bp, regs->sp);
+-#else
+-	pr_emerg("rax: %016lx   rcx: %016lx   rdx: %016lx\n",
+-					regs->ax, regs->cx, regs->dx);
+-	pr_emerg("rsi: %016lx   rdi: %016lx   rbp: %016lx   rsp: %016lx\n",
+-				regs->si, regs->di, regs->bp, regs->sp);
+-#endif
+-	put_cpu_var(vdev_pf_reason);
+-	BUG();
+-}
++static int vdev_dispatch_io(struct mmiotrace_rw *mmio, unsigned long *val);
+ 
+ static void pre(struct kmmio_probe *p, struct pt_regs *regs,
+ 						unsigned long addr)
+ {
+-	struct trap_reason *my_reason = &get_cpu_var(vdev_pf_reason);
+-	struct mmiotrace_rw *my_trace = &get_cpu_var(vdev_cpu_trace);
++	int rc;
++	unsigned long val;
++	unsigned long length=0;
++	struct mmiotrace_rw ttrace;
++	struct mmiotrace_rw *my_trace = &ttrace;
+ 	const unsigned long instptr = instruction_pointer(regs);
+ 	const enum reason_type type = get_ins_type(instptr);
+ 	struct remap_trace *trace = p->private;
+ 
+-	/* it doesn't make sense to have more than one active trace per cpu */
+-	if (my_reason->active_traces)
+-		die_kmmio_nesting_error(regs, addr);
+-	else
+-		my_reason->active_traces++;
+-
+-	my_reason->type = type;
+-	my_reason->addr = addr;
+-	my_reason->ip = instptr;
+-
+ 	my_trace->phys = addr - trace->probe.addr + trace->phys;
+ 	my_trace->map_id = trace->id;
+-
+ 	my_trace->pc = instptr;
+ 
+ 	/*
+@@ -129,11 +73,13 @@ static void pre(struct kmmio_probe *p, struct pt_regs *regs,
+ 	case REG_READ:
+ 		my_trace->opcode = MMIO_READ;
+ 		my_trace->width = get_ins_mem_width(instptr);
++		length = get_ins_length(instruction_pointer(regs), regs);
+ 		break;
+ 	case REG_WRITE:
+ 		my_trace->opcode = MMIO_WRITE;
+ 		my_trace->width = get_ins_mem_width(instptr);
+ 		my_trace->value = get_ins_reg_val(instptr, regs);
++		length = get_ins_length(instruction_pointer(regs), regs);
+ 		break;
+ 	case IMM_WRITE:
+ 		my_trace->opcode = MMIO_WRITE;
+@@ -149,24 +95,6 @@ static void pre(struct kmmio_probe *p, struct pt_regs *regs,
+ 								*(ip + 2);
+ 		}
+ 	}
+-	put_cpu_var(vdev_cpu_trace);
+-	put_cpu_var(vdev_pf_reason);
+-}
+-
+-static void post(struct kmmio_probe *p, unsigned long condition,
+-							struct pt_regs *regs)
+-{
+-	int rc;
+-	unsigned long val;
+-	struct trap_reason *my_reason = &get_cpu_var(vdev_pf_reason);
+-	struct mmiotrace_rw *my_trace = &get_cpu_var(vdev_cpu_trace);
+-
+-	/* this should always return the active_trace count to 0 */
+-	my_reason->active_traces--;
+-	if (my_reason->active_traces) {
+-		pr_emerg(NAME "unexpected post handler");
+-		BUG();
+-	}
+ 
+ 	/* 
+ 	 * Here vdev_dispatch_io looks if the current address belongs
+@@ -174,29 +102,14 @@ static void post(struct kmmio_probe *p, unsigned long condition,
+ 	 */
+ 	val = 0;
+ 	rc = vdev_dispatch_io(my_trace,&val);
+-
+-	switch (my_reason->type) {
+-	case REG_READ:
+-		/* 
+-		 * set_ins_reg_val walk the instruction sets and identify the register
+-		 * that contain the readed value. For the emulation case we replace that
+-		 * value with the emulated one returned from vdev_dispatch_io.
+-		 * 	show_registers(regs);
+-		 * 	The trace decoding is performed after to maintain consistency
+-		 */
+-		if(rc==0)
+-			set_ins_reg_val(my_reason->ip, regs, val);
+-
+-/* not needed
+-		my_trace->value = get_ins_reg_val(my_reason->ip, regs);*/
+-		break;
+-	default:
+-		break;
++	if( (type == REG_READ) && (rc == 0) ){
++		set_ins_reg_val(instptr, regs, val);
+ 	}
++	//show_registers(regs);
++	printk("OPCODE %d Width %d Instr length %lx\n",my_trace->opcode,my_trace->width,length);
+ 
+-	/* Here we callback into vdev with mytrace information */
+-	put_cpu_var(vdev_cpu_trace);
+-	put_cpu_var(vdev_pf_reason);
++	//Skip this instruction
++	regs->ip += length;
+ }
+ 
+ static void ioremap_trace_core(resource_size_t offset, unsigned long size,
+@@ -222,7 +135,7 @@ static void ioremap_trace_core(resource_size_t offset, unsigned long size,
+ 			.addr = (unsigned long)addr,
+ 			.len = size,
+ 			.pre_handler = pre,
+-			.post_handler = post,
++			.post_handler = NULL,
+ 			.private = trace
+ 		},
+ 		.phys = offset,
+@@ -304,123 +217,6 @@ static void clear_trace_list(void)
+ 	}
+ }
+ 
+-#ifdef CONFIG_HOTPLUG_CPU
+-static cpumask_var_t downed_cpus;
+-
+-static void enter_uniprocessor(void)
+-{
+-	int cpu;
+-	int err;
+-
+-	if (downed_cpus == NULL &&
+-	    !alloc_cpumask_var(&downed_cpus, GFP_KERNEL)) {
+-		pr_notice(NAME "Failed to allocate mask\n");
+-		goto out;
+-	}
+-
+-	get_online_cpus();
+-	cpumask_copy(downed_cpus, cpu_online_mask);
+-	cpumask_clear_cpu(cpumask_first(cpu_online_mask), downed_cpus);
+-	if (num_online_cpus() > 1)
+-		pr_notice(NAME "Disabling non-boot CPUs...\n");
+-	put_online_cpus();
+-
+-	for_each_cpu(cpu, downed_cpus) {
+-		err = cpu_down(cpu);
+-		if (!err)
+-			pr_info(NAME "CPU%d is down.\n", cpu);
+-		else
+-			pr_err(NAME "Error taking CPU%d down: %d\n", cpu, err);
+-	}
+-out:
+-	if (num_online_cpus() > 1)
+-		pr_warning(NAME "multiple CPUs still online, "
+-						"may miss events.\n");
+-}
+-
+-/* __ref because leave_uniprocessor calls cpu_up which is __cpuinit,
+-   but this whole function is ifdefed CONFIG_HOTPLUG_CPU */
+-static void __ref leave_uniprocessor(void)
+-{
+-	int cpu;
+-	int err;
+-
+-	if (downed_cpus == NULL || cpumask_weight(downed_cpus) == 0)
+-		return;
+-	pr_notice(NAME "Re-enabling CPUs...\n");
+-	for_each_cpu(cpu, downed_cpus) {
+-		err = cpu_up(cpu);
+-		if (!err)
+-			pr_info(NAME "enabled CPU%d.\n", cpu);
+-		else
+-			pr_err(NAME "cannot re-enable CPU%d: %d\n", cpu, err);
+-	}
+-}
+-
+-#else /* !CONFIG_HOTPLUG_CPU */
+-static void enter_uniprocessor(void)
+-{
+-	if (num_online_cpus() > 1)
+-		pr_warning(NAME "multiple CPUs are online, may miss events. "
+-			"Suggest booting with maxcpus=1 kernel argument.\n");
+-}
+-
+-static void leave_uniprocessor(void)
+-{
+-}
+-#endif
+-
+-void vdev_ioremap(resource_size_t offset, unsigned long size,
+-	void __iomem *addr)
+-{
+-	if (!is_enabled()) /* recheck and proper locking in *_core() */
+-		return;
+-
+-	/*
+-	 * Here we check FIRST is the offset / size fall into an emulated 
+-	 * device region ONLY then we register the emulation back-end
+-	 */
+-	ioremap_trace_core(offset, size, addr);
+-
+-	pr_debug("user_mmiotrace_ioremap_*(0x%llx, 0x%lx) = %p\n",
+-			(unsigned long long)offset, size, addr);
+-}
+-
+-void vdev_iounmap(volatile void __iomem *addr)
+-{
+-	if (!is_enabled()) /* recheck and proper locking in *_core() */
+-		return;
+-	
+-	iounmap_trace_core(addr);
+-
+-	pr_debug("user_mmiotrace_iounmap_%p\n",addr);
+-}
+-
+-void vdev_enable_mmiotrace(void)
+-{
+-	if (is_enabled())
+-		goto out;
+-	
+-	kmmio_init();
+-	enter_uniprocessor();
+-	pr_info(NAME "enabled.\n");
+-out:
+-	atomic_inc(&mmiotrace_enabled);
+-}
+-
+-void vdev_disable_mmiotrace(void)
+-{
+-	if (atomic_dec_and_test(&mmiotrace_enabled)){
+-		BUG_ON(is_enabled());
+-		clear_trace_list(); /* guarantees: no more kmmio callbacks */
+-		leave_uniprocessor();
+-		kmmio_cleanup();
+-		pr_info(NAME "disabled.\n");
+-	}
+-}
+-
+-
+-
+ static struct vdev_io *vdev_search(struct mmiotrace_rw *mmio, int *res, resource_size_t *offset)
+ {
+ 	int x;
+@@ -451,34 +247,10 @@ static struct vdev_io *vdev_search(struct mmiotrace_rw *mmio, int *res, resource
+ 
+ /*
+  * This is the call back to the emulation back-end;
+- * This is either coming from the remap_pfn_rage PTE fault
+- * on hostOS OR
+- * from KVM vcpu_mmio rd/wr
+- * 
+- * the vcpu_mmio is driver by the tdp_pagefault() and works
+- * only for emulated device registered with cpu_register_io_memory
+- * Memory is normally registered with qemu_ram_alloc_from_ptr and doesn't
+- * trap on each access.
+- *
+- * OPTION;
+- * For PT vdev device in qemu we set it up as cpu_register_io_memory; We trap
+- * in vcpu_mmio and send to the emulation layer. This would utilize the 
+- * page_fault/kmmio mechanism like when on the host.
+- * Can also be interceted in KVM directly
+- *
+- * KVM kvm_io_bus_write are matching against guest physical
+- * addr because they know where the mapping is going to be located
+- * in guest physical ADDR; equivalent would be to map 
+- * mmap ( hint = my base addr; )...
+- *
+- * KVM iobus require the kvm context!
+- *
+- * !!!
+- * With qemu we can configure the io for slow_map i.e. trap in qemu and qemu
+- * does the access; This is EXACTLY what we need here and there is only
+- * one entry point into the emulation backend
++ * This is coming from the KMMIO PTE fault. For PT device all is
++ * needed is to configure the device as slow_map
+  */
+-int vdev_dispatch_io(struct mmiotrace_rw *mmio, unsigned long *val)
++static int vdev_dispatch_io(struct mmiotrace_rw *mmio, unsigned long *val)
+ {
+ 	int res;
+ 	unsigned long value;
+@@ -559,7 +331,6 @@ int vdev_dispatch_io(struct mmiotrace_rw *mmio, unsigned long *val)
+ 
+ 	return -1;
+ }
+-EXPORT_SYMBOL(vdev_dispatch_io);
+ 
+ /*
+  * Virtual device / SW SRIOV register themself here
+@@ -570,7 +341,13 @@ int vdev_register_device(struct vdev_io *vdev)
+ 	list_add(&vdev->list, &vdev_list);
+ 	//TODO check if it already exist and so on...
+ 	spin_unlock(&vdev_lock);
+-	vdev_enable_mmiotrace();
++
++	if (is_enabled())
++		goto out;
++	kmmio_init();
++	pr_info(NAME "enabled.\n");
++out:
++	atomic_inc(&mmiotrace_enabled);
+ 	return 0;
+ }
+ EXPORT_SYMBOL(vdev_register_device);
+@@ -592,33 +369,48 @@ int vdev_unregister_device(struct vdev_io *vdev)
+ 		}
+ 	}
+ 	spin_unlock(&vdev_lock);
+-	if(found)
+-		vdev_disable_mmiotrace();
++	if(found){
++		if (atomic_dec_and_test(&mmiotrace_enabled)){
++			BUG_ON(is_enabled());
++			clear_trace_list(); /* guarantees: no more kmmio callbacks */
++			kmmio_cleanup();
++			pr_info(NAME "disabled.\n");
++		}
++	}
+ 		
+ 	return 0;
+ }
+ EXPORT_SYMBOL(vdev_unregister_device);
+ 
+ /*
+- * Here we arm the remap_pfn_range KMMIO tracing subsystem only if it deal 
+- * with a fully registered virtual device.
+- *
+- * This path is also called from the mmiotrace_ioremap / kernel ioremap path
+- *
++ * This function is called from remap_pfn_range and ioremap
+  */
+ void vdev_register_mapping(resource_size_t offset, unsigned long size,
+ 	void __iomem *addr)
+ {
+-	vdev_ioremap(offset, size, addr);
++	if (!is_enabled()) /* recheck and proper locking in *_core() */
++		return;
++
++	/*
++	 * Here we check FIRST is the offset / size fall into an emulated 
++	 * device region ONLY then we register the emulation back-end
++	 */
++	ioremap_trace_core(offset, size, addr);
++
++	pr_debug("user_mmiotrace_ioremap_*(0x%llx, 0x%lx) = %p\n",
++			(unsigned long long)offset, size, addr);
+ }
+-EXPORT_SYMBOL(vdev_register_mapping);
+ 
++/*
++ * This function is called from mmap / dup VMA and iounmap
++ */
+ void vdev_unregister_mapping(volatile void __iomem *addr)
+ {
+-	vdev_iounmap(addr);
+-}
+-EXPORT_SYMBOL(vdev_unregister_mapping);
+-
+-
++	if (!is_enabled()) /* recheck and proper locking in *_core() */
++		return;
++	
++	iounmap_trace_core(addr);
+ 
++	pr_debug("user_mmiotrace_iounmap_%p\n",addr);
++}
+ 
+diff --git a/include/linux/vdev.h b/include/linux/vdev.h
+index 34cbd4e..486b574 100644
+--- a/include/linux/vdev.h
++++ b/include/linux/vdev.h
+@@ -24,8 +24,6 @@ struct vdev_io{
+ 	int (*writed)(struct vdev_resource *vdev_resource, resource_size_t offset, u64 val);
+ };
+ 
+-int vdev_dispatch_io(struct mmiotrace_rw *mmio, unsigned long *val);
+-
+ int vdev_register_device(struct vdev_io *vdev);
+ int vdev_unregister_device(struct vdev_io *vdev);
+ 
+-- 
+1.7.0.4
+

@@ -1,0 +1,38 @@
+From 6c932ca6484a919dc12403e14392db081f36222f Mon Sep 17 00:00:00 2001
+From: Etienne <etmartin@etmartin-desktop.(none)>
+Date: Fri, 3 Aug 2012 14:23:10 -0400
+Subject: [PATCH 11/14] vdev KMMIO Support for NULL post handler
+
+---
+ arch/x86/mm/kmmio.c |   15 +++++++++++++++
+ 1 files changed, 15 insertions(+), 0 deletions(-)
+
+diff --git a/arch/x86/mm/kmmio.c b/arch/x86/mm/kmmio.c
+index 62eb854..a0d0f50 100644
+--- a/arch/x86/mm/kmmio.c
++++ b/arch/x86/mm/kmmio.c
+@@ -280,6 +280,21 @@ int kmmio_handler(struct pt_regs *regs, unsigned long addr)
+ 		ctx->probe->pre_handler(ctx->probe, regs, addr);
+ 
+ 	/*
++	 * No need to enter single-stepping when there is no post_handler.
++	 * The page is keept armed so it's up to the pre_handler to skip
++	 * the faulty instruction. Failure to do so will result in nested
++	 * faults
++	 */
++	if (ctx->probe && !ctx->probe->post_handler){
++		ctx->active--;
++		BUG_ON(ctx->active);
++		put_cpu_var(kmmio_ctx);
++		rcu_read_unlock();
++		preempt_enable_no_resched();
++		return 1; /* fault handled */
++	}
++
++	/*
+ 	 * Enable single-stepping and disable interrupts for the faulting
+ 	 * context. Local interrupts must not get enabled during stepping.
+ 	 */
+-- 
+1.7.0.4
+

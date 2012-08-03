@@ -1,0 +1,75 @@
+From d6dad84f365283a4a57175fbb85fa17021530d0f Mon Sep 17 00:00:00 2001
+From: Etienne <etmartin@etmartin-desktop.(none)>
+Date: Thu, 2 Aug 2012 09:22:26 -0400
+Subject: [PATCH 05/14] vdev KMMIO mmap/munmap tracking
+
+---
+ arch/x86/mm/pat.c |   10 ++++++++++
+ mm/memory.c       |    8 +++++++-
+ 2 files changed, 17 insertions(+), 1 deletions(-)
+
+diff --git a/arch/x86/mm/pat.c b/arch/x86/mm/pat.c
+index 207cae2..d4c3cee 100644
+--- a/arch/x86/mm/pat.c
++++ b/arch/x86/mm/pat.c
+@@ -16,6 +16,7 @@
+ #include <linux/mm.h>
+ #include <linux/fs.h>
+ #include <linux/rbtree.h>
++#include <linux/vdev.h>
+ 
+ #include <asm/cacheflush.h>
+ #include <asm/processor.h>
+@@ -861,6 +862,15 @@ int track_pfn_vma_copy(struct vm_area_struct *vma)
+ 	pgprot_t pgprot;
+ 
+ 	if (is_linear_pfn_mapping(vma)) {
++		/* 
++		 * We are about to copy a VMA that has PFN mapping with potentially
++		 * mmio tracking PTE i.e. _PAGE_PRESENT PTE clear. This is fooling the
++		 * sanity check on the PTE.
++		 * Either we fix the pte_present macro or drop the tracking...
++		 * Here we drop the tracking for the DUP case for now...
++		 */
++		vdev_unregister_mapping((void*)vma->vm_start);
++
+ 		/*
+ 		 * reserve the whole chunk covered by vma. We need the
+ 		 * starting address and protection from pte.
+diff --git a/mm/memory.c b/mm/memory.c
+index 33d0bea..1d79280 100644
+--- a/mm/memory.c
++++ b/mm/memory.c
+@@ -56,6 +56,7 @@
+ #include <linux/kallsyms.h>
+ #include <linux/swapops.h>
+ #include <linux/elf.h>
++#include <linux/vdev.h>
+ 
+ #include <asm/io.h>
+ #include <asm/pgalloc.h>
+@@ -1093,8 +1094,10 @@ unsigned long unmap_vmas(struct mmu_gather **tlbp,
+ 		if (vma->vm_flags & VM_ACCOUNT)
+ 			*nr_accounted += (end - start) >> PAGE_SHIFT;
+ 
+-		if (unlikely(is_pfn_mapping(vma)))
++		if (unlikely(is_pfn_mapping(vma))){
++			vdev_unregister_mapping((void*)start);
+ 			untrack_pfn_vma(vma, 0, 0);
++		}
+ 
+ 		while (start != end) {
+ 			if (!tlb_start_valid) {
+@@ -1920,6 +1923,9 @@ int remap_pfn_range(struct vm_area_struct *vma, unsigned long addr,
+ 	if (err)
+ 		untrack_pfn_vma(vma, pfn, PAGE_ALIGN(size));
+ 
++	addr = end - PAGE_ALIGN(size);
++	pfn += addr >> PAGE_SHIFT;
++	vdev_register_mapping(pfn<<PAGE_SHIFT, PAGE_ALIGN(size), (void*)addr);
+ 	return err;
+ }
+ EXPORT_SYMBOL(remap_pfn_range);
+-- 
+1.7.0.4
+

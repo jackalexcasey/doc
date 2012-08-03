@@ -1,0 +1,96 @@
+From cef183a508817780d1144f208a5170ca19b62732 Mon Sep 17 00:00:00 2001
+From: Etienne <etmartin@etmartin-desktop.(none)>
+Date: Thu, 2 Aug 2012 09:40:59 -0400
+Subject: [PATCH 07/14] vdev KMMIO Support to lookup userspace PTE and kmmio clear PTE_PRESENT
+ 	May have other ways of doing that; May require ref_count on the page ( get_users page )
+
+---
+ arch/x86/mm/kmmio.c    |   10 +++++++++-
+ arch/x86/mm/pageattr.c |   33 +++++++++++++++++++++++++++++++++
+ 2 files changed, 42 insertions(+), 1 deletions(-)
+
+diff --git a/arch/x86/mm/kmmio.c b/arch/x86/mm/kmmio.c
+index 16ccbd7..62eb854 100644
+--- a/arch/x86/mm/kmmio.c
++++ b/arch/x86/mm/kmmio.c
+@@ -32,6 +32,7 @@ struct kmmio_fault_page {
+ 	struct list_head list;
+ 	struct kmmio_fault_page *release_next;
+ 	unsigned long page; /* location of the fault page */
++	struct mm_struct *mm;
+ 	pteval_t old_presence; /* page presence prior to arming */
+ 	bool armed;
+ 
+@@ -130,10 +131,16 @@ static void clear_pte_presence(pte_t *pte, bool clear, pteval_t *old)
+ 	set_pte_atomic(pte, __pte(v));
+ }
+ 
++extern pte_t *lookup_uaddress(unsigned long address, struct mm_struct *mm, unsigned int *level);
+ static int clear_page_presence(struct kmmio_fault_page *f, bool clear)
+ {
+ 	unsigned int level;
+-	pte_t *pte = lookup_address(f->page, &level);
++	pte_t *pte;
++	
++	if(f->page >= TASK_SIZE_MAX)
++		pte = lookup_address(f->page, &level);
++	else
++		pte = lookup_uaddress(f->page, f->mm, &level);
+ 
+ 	if (!pte) {
+ 		pr_err("kmmio: no pte for page 0x%08lx\n", f->page);
+@@ -371,6 +378,7 @@ static int add_kmmio_fault_page(unsigned long page)
+ 
+ 	f->count = 1;
+ 	f->page = page;
++	f->mm = current->mm;
+ 
+ 	if (arm_kmmio_fault_page(f)) {
+ 		kfree(f);
+diff --git a/arch/x86/mm/pageattr.c b/arch/x86/mm/pageattr.c
+index 89f7c96..623e176 100644
+--- a/arch/x86/mm/pageattr.c
++++ b/arch/x86/mm/pageattr.c
+@@ -363,6 +363,39 @@ pte_t *lookup_address(unsigned long address, unsigned int *level)
+ }
+ EXPORT_SYMBOL_GPL(lookup_address);
+ 
++pte_t *lookup_uaddress(unsigned long address, struct mm_struct *mm, unsigned int *level)
++{
++	pgd_t *pgd = pgd_offset(mm, address);
++	pud_t *pud;
++	pmd_t *pmd;
++
++	*level = PG_LEVEL_NONE;
++
++	if (pgd_none(*pgd))
++		return NULL;
++
++	pud = pud_offset(pgd, address);
++	if (pud_none(*pud))
++		return NULL;
++
++	*level = PG_LEVEL_1G;
++	if (pud_large(*pud) || !pud_present(*pud))
++		return (pte_t *)pud;
++
++	pmd = pmd_offset(pud, address);
++	if (pmd_none(*pmd))
++		return NULL;
++
++	*level = PG_LEVEL_2M;
++	if (pmd_large(*pmd) || !pmd_present(*pmd))
++		return (pte_t *)pmd;
++
++	*level = PG_LEVEL_4K;
++
++	return pte_offset_kernel(pmd, address);
++}
++EXPORT_SYMBOL_GPL(lookup_uaddress);
++
+ /*
+  * Set the new pmd in all the pgds we know about:
+  */
+-- 
+1.7.0.4
+

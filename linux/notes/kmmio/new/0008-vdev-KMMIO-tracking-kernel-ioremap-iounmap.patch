@@ -1,0 +1,40 @@
+From 505d94edbf5f3dd5912bf377067a2120ba9b50ff Mon Sep 17 00:00:00 2001
+From: Etienne <etmartin@etmartin-desktop.(none)>
+Date: Thu, 2 Aug 2012 09:48:09 -0400
+Subject: [PATCH 08/14] vdev KMMIO tracking kernel ioremap / iounmap
+
+---
+ arch/x86/mm/ioremap.c |    3 +++
+ 1 files changed, 3 insertions(+), 0 deletions(-)
+
+diff --git a/arch/x86/mm/ioremap.c b/arch/x86/mm/ioremap.c
+index 99ecf31..69ac05c 100644
+--- a/arch/x86/mm/ioremap.c
++++ b/arch/x86/mm/ioremap.c
+@@ -13,6 +13,7 @@
+ #include <linux/slab.h>
+ #include <linux/vmalloc.h>
+ #include <linux/mmiotrace.h>
++#include <linux/vdev.h>
+ 
+ #include <asm/cacheflush.h>
+ #include <asm/e820.h>
+@@ -170,6 +171,7 @@ static void __iomem *__ioremap_caller(resource_size_t phys_addr,
+ 
+ 	ret_addr = (void __iomem *) (vaddr + offset);
+ 	mmiotrace_ioremap(unaligned_phys_addr, unaligned_size, ret_addr);
++	vdev_register_mapping(unaligned_phys_addr, unaligned_size, ret_addr);
+ 
+ 	return ret_addr;
+ err_free_area:
+@@ -301,6 +303,7 @@ void iounmap(volatile void __iomem *addr)
+ 		(PAGE_MASK & (unsigned long __force)addr);
+ 
+ 	mmiotrace_iounmap(addr);
++	vdev_unregister_mapping(addr);
+ 
+ 	/* Use the vm area unlocked, assuming the caller
+ 	   ensures there isn't another iounmap for the same address
+-- 
+1.7.0.4
+

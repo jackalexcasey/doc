@@ -1,0 +1,98 @@
+From 110e40f9717db2d3008d900ecf6ba63acbe3dd5b Mon Sep 17 00:00:00 2001
+From: Etienne <etmartin@etmartin-desktop.(none)>
+Date: Fri, 3 Aug 2012 14:25:23 -0400
+Subject: [PATCH 12/14] vdev KMMIO Support to get the instruction length ( work inprogress...)
+ need to look at real emulator
+
+---
+ arch/x86/mm/pf_in.c |   62 +++++++++++++++++++++++++++++++++++++++++++++++++++
+ arch/x86/mm/pf_in.h |    1 +
+ 2 files changed, 63 insertions(+), 0 deletions(-)
+
+diff --git a/arch/x86/mm/pf_in.c b/arch/x86/mm/pf_in.c
+index dedbd39..e1696f8 100644
+--- a/arch/x86/mm/pf_in.c
++++ b/arch/x86/mm/pf_in.c
+@@ -485,6 +485,68 @@ void set_ins_reg_val(unsigned long ins_addr, struct pt_regs *regs, unsigned long
+ 	getset_ins_reg_val(ins_addr,regs,value,1);
+ }
+ 
++unsigned long get_ins_length(unsigned long ins_addr, struct pt_regs *regs)
++{
++	unsigned int opcode;
++	unsigned char *p;
++	struct prefix_bits prf;
++	unsigned char mod_rm;
++	int i, rv, reg;
++
++	p = (unsigned char *)ins_addr;
++	p += skip_prefix(p, &prf);
++	p += get_opcode(p, &opcode);
++
++	for (i = 0; i < ARRAY_SIZE(reg_rop); i++)
++		if (reg_rop[i] == opcode) {
++			rv = REG_READ;
++			goto do_work;
++		}
++
++	for (i = 0; i < ARRAY_SIZE(reg_wop); i++)
++		if (reg_wop[i] == opcode) {
++			rv = REG_WRITE;
++			goto do_work;
++		}
++
++	printk(KERN_ERR "mmiotrace: Not an immediate instruction, opcode "
++							"0x%02x\n", opcode);
++	return 0;
++
++do_work:
++	mod_rm = *p;
++	reg = ((mod_rm >> 3) & 0x7) | (prf.rexr << 3);
++
++	if(rv == REG_WRITE){
++		if(*p == 0x50)
++			p++;
++	}
++	if(rv == REG_READ){
++		if(*p == 0x10){
++			p++;
++			return p - (unsigned char *)ins_addr;
++		}
++	}
++
++	/* Skip register */
++	p++;
++
++	if(rv == REG_WRITE){
++		if(prf.enlarged){
++			for (i = 0; i < ARRAY_SIZE(mw64); i++){
++				if (mw64[i] == opcode){
++					p++;
++				}
++			}
++		}
++		return p - (unsigned char *)ins_addr;
++	}
++
++	if(!prf.enlarged)
++		p++;
++	return p - (unsigned char *)ins_addr;
++}
++
+ unsigned long get_ins_imm_val(unsigned long ins_addr)
+ {
+ 	unsigned int opcode;
+diff --git a/arch/x86/mm/pf_in.h b/arch/x86/mm/pf_in.h
+index 2e103e4..6a7ad06 100644
+--- a/arch/x86/mm/pf_in.h
++++ b/arch/x86/mm/pf_in.h
+@@ -36,5 +36,6 @@ unsigned int get_ins_mem_width(unsigned long ins_addr);
+ unsigned long get_ins_reg_val(unsigned long ins_addr, struct pt_regs *regs);
+ unsigned long get_ins_imm_val(unsigned long ins_addr);
+ void set_ins_reg_val(unsigned long ins_addr, struct pt_regs *regs, unsigned long value);
++unsigned long get_ins_length(unsigned long ins_addr, struct pt_regs *regs);
+ 
+ #endif /* __PF_H_ */
+-- 
+1.7.0.4
+

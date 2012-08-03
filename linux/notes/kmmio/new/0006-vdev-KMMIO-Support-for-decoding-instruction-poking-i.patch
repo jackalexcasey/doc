@@ -1,0 +1,89 @@
+From e8379c0c7d610221db9577946e52d57e94e5977e Mon Sep 17 00:00:00 2001
+From: Etienne <etmartin@etmartin-desktop.(none)>
+Date: Thu, 2 Aug 2012 09:37:03 -0400
+Subject: [PATCH 06/14] vdev KMMIO Support for decoding instruction & poking into instruction register sets
+
+---
+ arch/x86/mm/pf_in.c |   33 ++++++++++++++++++++++++++++-----
+ arch/x86/mm/pf_in.h |    1 +
+ 2 files changed, 29 insertions(+), 5 deletions(-)
+
+diff --git a/arch/x86/mm/pf_in.c b/arch/x86/mm/pf_in.c
+index df3d5c8..dedbd39 100644
+--- a/arch/x86/mm/pf_in.c
++++ b/arch/x86/mm/pf_in.c
+@@ -407,7 +407,8 @@ static unsigned long *get_reg_w32(int no, struct pt_regs *regs)
+ 	return rv;
+ }
+ 
+-unsigned long get_ins_reg_val(unsigned long ins_addr, struct pt_regs *regs)
++static unsigned long getset_ins_reg_val(unsigned long ins_addr, 
++	struct pt_regs *regs, unsigned long value, int ops)
+ {
+ 	unsigned int opcode;
+ 	unsigned char mod_rm;
+@@ -441,17 +442,29 @@ do_work:
+ 	reg = ((mod_rm >> 3) & 0x7) | (prf.rexr << 3);
+ 	switch (get_ins_reg_width(ins_addr)) {
+ 	case 1:
+-		return *get_reg_w8(reg, prf.rex, regs);
++		if(!ops)
++			return *get_reg_w8(reg, prf.rex, regs);
++		*get_reg_w8(reg, prf.rex, regs) = (unsigned char)value;
++		return 0;
+ 
+ 	case 2:
+-		return *(unsigned short *)get_reg_w32(reg, regs);
++		if(!ops)
++			return *(unsigned short *)get_reg_w32(reg, regs);
++		*(unsigned short *)get_reg_w32(reg, regs) = (unsigned short)value;
++		return 0;
+ 
+ 	case 4:
+-		return *(unsigned int *)get_reg_w32(reg, regs);
++		if(!ops)
++			return *(unsigned int *)get_reg_w32(reg, regs);
++		*(unsigned int *)get_reg_w32(reg, regs) = (unsigned int)value;
++		return 0;
+ 
+ #ifdef __amd64__
+ 	case 8:
+-		return *(unsigned long *)get_reg_w32(reg, regs);
++		if(!ops)
++			return *(unsigned long *)get_reg_w32(reg, regs);
++		*(unsigned long *)get_reg_w32(reg, regs) = (unsigned long) value;
++		return 0;
+ #endif
+ 
+ 	default:
+@@ -462,6 +475,16 @@ err:
+ 	return 0;
+ }
+ 
++unsigned long get_ins_reg_val(unsigned long ins_addr, struct pt_regs *regs)
++{
++	return getset_ins_reg_val(ins_addr,regs,0,0);
++}
++
++void set_ins_reg_val(unsigned long ins_addr, struct pt_regs *regs, unsigned long value)
++{
++	getset_ins_reg_val(ins_addr,regs,value,1);
++}
++
+ unsigned long get_ins_imm_val(unsigned long ins_addr)
+ {
+ 	unsigned int opcode;
+diff --git a/arch/x86/mm/pf_in.h b/arch/x86/mm/pf_in.h
+index e05341a..2e103e4 100644
+--- a/arch/x86/mm/pf_in.h
++++ b/arch/x86/mm/pf_in.h
+@@ -35,5 +35,6 @@ enum reason_type get_ins_type(unsigned long ins_addr);
+ unsigned int get_ins_mem_width(unsigned long ins_addr);
+ unsigned long get_ins_reg_val(unsigned long ins_addr, struct pt_regs *regs);
+ unsigned long get_ins_imm_val(unsigned long ins_addr);
++void set_ins_reg_val(unsigned long ins_addr, struct pt_regs *regs, unsigned long value);
+ 
+ #endif /* __PF_H_ */
+-- 
+1.7.0.4
+
