@@ -1,0 +1,119 @@
+From 737e79bb6e0fda6493ae8753e4d51a1e12d77d63 Mon Sep 17 00:00:00 2001
+From: Etienne <etmartin@etmartin-desktop.(none)>
+Date: Fri, 31 Aug 2012 15:53:01 -0400
+Subject: [PATCH 2/2] Bridge creation at boot time working
+
+---
+ arch/x86/pci/vbridge/vdev.c |   44 +++++++++++++++++++++---------------------
+ 1 files changed, 22 insertions(+), 22 deletions(-)
+
+diff --git a/arch/x86/pci/vbridge/vdev.c b/arch/x86/pci/vbridge/vdev.c
+index 8badfb7..abc7c27 100644
+--- a/arch/x86/pci/vbridge/vdev.c
++++ b/arch/x86/pci/vbridge/vdev.c
+@@ -1,3 +1,4 @@
++
+ /*
+  * vdevice - Virtual Device Framework
+  *
+@@ -37,10 +38,7 @@ static int pci_read(unsigned int domain, unsigned int bus, unsigned int devfn,
+ static int pci_write(unsigned int domain, unsigned int bus, unsigned int devfn,
+ 	int where, int size, u32 value);
+ 
+-static struct pci_raw_ops local_pci_root_ops = {
+-	.read =	pci_read,
+-	.write = pci_write,
+-};
++static struct pci_raw_ops local_pci_root_ops;
+ 
+ static void vdevice_add(struct vdev *dev)
+ {
+@@ -65,7 +63,6 @@ static struct vdev * vdevice_find(unsigned int seg, unsigned int bus,
+ 	spin_lock(&vfcn_list_lock);	
+ 	list_for_each(pos, &vfcn_list){
+ 		ptr= list_entry(pos, struct vdev, list);
+-		DPRINTK("EARLY vdevice_find %x %x:%x.%x",seg,bus,PCI_SLOT(devfn),PCI_FUNC(devfn));
+ 		if(seg == ptr->aseg && bus==ptr->abus && (devfn == ptr->adevfn)){
+ 			spin_unlock(&vfcn_list_lock);
+ 			DPRINTK("vdevice_find %x %x:%x.%x",seg,bus,PCI_SLOT(devfn),PCI_FUNC(devfn));
+@@ -122,7 +119,7 @@ static int pci_read(unsigned int domain, unsigned int bus, unsigned int devfn,
+ 	struct vdev *dev;
+ 	dev = vdevice_find(domain, bus, devfn);
+ 	if(!dev)
+-		return pci_direct_conf1.read(domain, bus, devfn, where, size, value);
++		return local_pci_root_ops.read(domain, bus, devfn, where, size, value);
+ 	return vfcn_read(dev,where,size,value);
+ }
+ 
+@@ -132,7 +129,7 @@ static int pci_write(unsigned int domain, unsigned int bus, unsigned int devfn,
+ 	struct vdev *dev;
+ 	dev = vdevice_find(domain, bus, devfn);
+ 	if(!dev)
+-		return pci_direct_conf1.write(domain, bus,devfn, where, size, value);
++		return local_pci_root_ops.write(domain, bus,devfn, where, size, value);
+ 	return vfcn_write(dev,where,size,value);
+ }
+ 
+@@ -172,6 +169,13 @@ void vdevice_free(struct vdev* dev)
+ 	kfree(dev);
+ }
+ 
++#if 0
++char cfg[256] = { 0x86,0x80,0x20,0x34,0x07,0x05,0x10,0x00,0x02,0x00,0x04,0x06,0x00,0x00,0x01,0x00,
++0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x20,0x20,0x00,0xd0,0xd0,0x00,0x00,
++0x10,0x0d,0x20,0x0d,0x30,0x0d,0x40,0x0d,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
++0x00,0x00,0x00,0x00,0x40,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x02,0x00};
++#endif
++
+ int __init vbridge_init(void)
+ {
+ 	uint8_t * pci_conf;
+@@ -184,34 +188,30 @@ int __init vbridge_init(void)
+ 	PCIdev=&dev->dev;
+ 
+ 	pci_conf=(uint8_t*)PCIdev->config;
+-	pci_config_set_vendor_id(pci_conf, 0x8086); //Cisco
++	pci_config_set_vendor_id(pci_conf, 0x8086);
+ 	pci_config_set_device_id(pci_conf, 0x3420);
+ 	pci_conf[PCI_COMMAND] = PCI_COMMAND_IO | PCI_COMMAND_MEMORY;
+-	pci_config_set_class(pci_conf, PCI_CLASS_BRIDGE_HOST);
++	pci_config_set_class(pci_conf, PCI_CLASS_BRIDGE_PCI);
+ 	pci_config_set_revision(pci_conf,0x10); 
+-	pci_conf[PCI_HEADER_TYPE] = PCI_HEADER_TYPE_NORMAL;
+-	
++	pci_conf[PCI_HEADER_TYPE] = PCI_HEADER_TYPE_BRIDGE;
++	pci_conf[PCI_PRIMARY_BUS] = 0;
++	pci_conf[PCI_SECONDARY_BUS] = 0;
++	pci_conf[PCI_SUBORDINATE_BUS] = 0;
+ 	pci_pcie_cap_init(PCIdev, 0, PCI_EXP_TYPE_ROOT_PORT, 0);
+ 	
+ 	dev->aseg=0;
+ 	dev->abus=0;
+ 	dev->adevfn=PCI_DEVFN(2, 0);
+ 
+-	vdevice_setbar(dev, PCI_BASE_ADDRESS_0, 0xfffff000, 0);
+-	vdevice_setbar(dev, PCI_BASE_ADDRESS_1, 0x0, 0);
+-	vdevice_setbar(dev, PCI_BASE_ADDRESS_2, 0xfffff000, 0);
+-	vdevice_setbar(dev, PCI_BASE_ADDRESS_3, 0x0, 0);
+-	vdevice_setbar(dev, PCI_BASE_ADDRESS_4, 0x0, 0);
+-	vdevice_setbar(dev, PCI_BASE_ADDRESS_5, 0x0, 0);
+-	vdevice_setbar(dev, PCI_BASE_ADDRESS_5+4, 0x0, 0);
+-
+-
+ 	/* Get on the global list */
+ 	vdevice_add(dev);
+ 	
+-	raw_pci_ops = &local_pci_root_ops;
++	local_pci_root_ops.read = raw_pci_ops->read;
++	local_pci_root_ops.write = raw_pci_ops->write;
++	raw_pci_ops->read = pci_read;
++	raw_pci_ops->write = pci_write;
+ 	
+ 	return 0;
+ }
+-arch_initcall(vbridge_init);
+ 
++arch_initcall(vbridge_init);
+-- 
+1.7.0.4
+
