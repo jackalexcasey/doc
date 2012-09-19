@@ -1,9 +1,18 @@
-Qemu tree:
-http://git.qemu.org/git/qemu.git
+Qemu-kvm:
+~~~~~~~~~
+Mailing list:
+	kvm@vger.kernel.org
+	http://www.mail-archive.com/kvm@vger.kernel.org/
+Source:
+	git://git.kernel.org/pub/scm/virt/kvm/qemu-kvm.git
 
-Qemu-kvm tree:
-git://git.kernel.org/pub/scm/virt/kvm/qemu-kvm.git
-
+Qemu:
+~~~~~
+Mailing list:
+	qemu-devel@nongnu.org
+	http://www.mail-archive.com/qemu-devel@nongnu.org/
+Source:
+	http://git.qemu.org/git/qemu.git
 
 Qemu-kvm +++ { all empty stuff }
 ./libdis- /*
@@ -12,3 +21,17 @@ Qemu-kvm +++ { all empty stuff }
 ./libhw64
 ./libuser
 
+
+Q35:
+/usr/local/share/qemu contains bin files
+
+The trees seem pretty stable and can be found here:
+
+git://github.com/jibaron/q35-qemu.git
+git://github.com/jibaron/q35-seabios.git
+
+A basic qemu cmd to start q35, looks like:
+
+$ /usr/local/bin/qemu-system-x86_64  -name "f16" -M pc_q35 -m 1G -smp 4  -hda
+./f16.img --enable-kvm  -bios <path>/q35-seabios/out/bios.bin
+-acpitable file=<path>/q35-seabios/out/q35-acpi-dsdt.aml  -monitor stdio
