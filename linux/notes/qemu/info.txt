@@ -1,0 +1,14 @@
+Qemu tree:
+http://git.qemu.org/git/qemu.git
+
+Qemu-kvm tree:
+git://git.kernel.org/pub/scm/virt/kvm/qemu-kvm.git
+
+
+Qemu-kvm +++ { all empty stuff }
+./libdis- /*
+./x86_64-softmmu >>> EMpty
+./libhw32
+./libhw64
+./libuser
+
