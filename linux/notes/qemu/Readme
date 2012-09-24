@@ -1,0 +1,12 @@
+
+pci_qdev_register
+	is called to insert a qdev object in qemu;
+	Lots of subsystem are using it; ivshmem(),device-assignment, e1000, ...
+
+Inside the object there is a series of method.
+
+The pci_qdev_register() initialize the following method: init/exit/unplug 
+and call qdev_register; The init method is then called.
+
+
+
