@@ -1,2 +1,8 @@
-./makeplot out.dat test loopsize cycle
-./a.out  30
+ dmesg |grep lpj
+[    0.000002] Calibrating delay loop (skipped), value calculated using timer frequency.. 3191.94 BogoMIPS (lpj=6383896)
+
+
+cat /proc/cmdline 
+BOOT_IMAGE=/boot/vmlinuz-3.2.0-23-generic root=UUID=4468AC1368AC05B0 loop=/ubuntu/disks/root.disk ro isolcpus=1,2,3 quiet splash vt.handoff=7
+
+

@@ -125,7 +125,7 @@ struct data{
 	uint64_t delta;
 };
 
-struct data percpu_data[32][1024];
+struct data percpu_data[8][1024];
 
 void * calibrate_loop(void *arg)
 {
@@ -151,7 +151,7 @@ void * calibrate_loop(void *arg)
 		__ldelay(lpj);
 		tsc_new = rdtsc();
 		percpu_data[cpu][x].delta = tsc_new-tsc; 
-		fprintf(stderr,".");
+//		fprintf(stderr,".");
 		x++;
 	}
 	for (y=0;y<x;y++){
