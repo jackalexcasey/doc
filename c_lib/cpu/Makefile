@@ -17,7 +17,7 @@ $(PROG):	$(OBJS)
 $(OBJS):	$(HDRS)
 
 clean:
-	-rm -f $(OBJS) out.* $(PROG)
+	-rm -f $(OBJS) out.* $(PROG) nr_cpu*
 
 clobber:	clean
 	-rm -f $(PROG)

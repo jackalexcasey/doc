@@ -40,7 +40,7 @@
 char	*program	= "";
 const char optstring[] = "j:t:c:h";
 
-unsigned long lpj=0;
+unsigned long lpj=100000000;
 volatile int term =1;
 int tt = 5;
 
@@ -54,7 +54,8 @@ struct option options[] = {
 
 void usage(void)
 {
-	printf("usage: [-h] [-c <cpu_set>] [-j <lpj>]");
+	printf("usage: [-h] [-c <cpu_set>] [-j <lpj>] [-t <time out>]");
+	printf("dmesg |grep lpj then take lpj * 10\n");
 }
 
 const char help_text[] =
@@ -65,7 +66,6 @@ const char help_text[] =
 void help(void)
 {
 	usage();
-	printf("%s", help_text);
 }
 
 /* simple loop based delay: */
@@ -125,7 +125,7 @@ struct data{
 	uint64_t delta;
 };
 
-struct data percpu_data[8][1024];
+struct data percpu_data[16][1024*32];
 
 void * calibrate_loop(void *arg)
 {
@@ -134,7 +134,7 @@ void * calibrate_loop(void *arg)
 	char dat[64];
 	int cpu = sched_getcpu();
 
-	sprintf(dat, "./cpu%d",cpu);
+	sprintf(dat, "./nr_cpu%d.csv",cpu);
 	unlink(dat);
 	fd = open(dat,O_CREAT|O_RDWR|O_EXCL,0777);
 	if(fd<0){
@@ -144,7 +144,7 @@ void * calibrate_loop(void *arg)
 
 	display_thread_sched_attr("");
 	fprintf(stderr,"CPU %d\n",cpu);
-	sleep(2);
+	sleep(1);
 
 	while(term){
 		tsc = rdtsc();
@@ -155,8 +155,8 @@ void * calibrate_loop(void *arg)
 		x++;
 	}
 	for (y=0;y<x;y++){
-		sprintf(dat,"%16Ld\n",percpu_data[cpu][y].delta);
-		write(fd,dat,17);
+		sprintf(dat,"%Ld\n",percpu_data[cpu][y].delta);
+		write(fd,dat,strlen(dat));
 	}
 	close(fd);
 	return NULL;
