@@ -33,12 +33,13 @@
 
 #define HZ 1000
 #define NSEC_PER_MSEC 1000*1000 
+#define MAX_CPUS CPU_SETSIZE
 
 #define MIN(a,b) (((a)<(b))?(a):(b)) 
 #define MAX(a,b) (((a)>(b))?(a):(b))
 
 char	*program	= "";
-const char optstring[] = "j:t:c:h";
+const char optstring[] = "aj:t:c:h";
 
 unsigned long lpj=100000000;
 volatile int term =1;
@@ -49,12 +50,13 @@ struct option options[] = {
 	{ "lpj",	required_argument,	0, 	'j'	},
 	{ "time",	required_argument,	0, 	't'	},
 	{ "help",	no_argument,		0, 	'h'	},
+	{ "average",	no_argument,		0, 	'a'	},
 	{ 0,	0,	0,	0 }
 };
 
 void usage(void)
 {
-	printf("usage: [-h] [-c <cpu_set>] [-j <lpj>] [-t <time out>]");
+	printf("usage: [-h] [-a average] [-c <cpu_set>] [-j <lpj>] [-t <time out>]");
 	printf("dmesg |grep lpj then take lpj * 10\n");
 }
 
@@ -125,40 +127,34 @@ struct data{
 	uint64_t delta;
 };
 
-struct data percpu_data[16][1024*32];
+struct percpu{
+	char cpu_name[32];
+	struct data dat[1024*32];
+};
+
+struct percpu *all_cpu[MAX_CPUS];
 
 void * calibrate_loop(void *arg)
 {
 	uint64_t tsc=0,tsc_new;
-	int fd,x=0,y;
-	char dat[64];
+	int x;
 	int cpu = sched_getcpu();
-
-	sprintf(dat, "./nr_cpu%d.csv",cpu);
-	unlink(dat);
-	fd = open(dat,O_CREAT|O_RDWR|O_EXCL,0777);
-	if(fd<0){
-		perror("");
-		exit(1);
-	}
+	struct percpu *pcpu = all_cpu[cpu];
 
 	display_thread_sched_attr("");
-	fprintf(stderr,"CPU %d\n",cpu);
+	sprintf(pcpu->cpu_name,"CPU_%d",cpu);
 	sleep(1);
 
+	x=0;
 	while(term){
 		tsc = rdtsc();
 		__ldelay(lpj);
 		tsc_new = rdtsc();
-		percpu_data[cpu][x].delta = tsc_new-tsc; 
+		pcpu->dat[x].delta = tsc_new-tsc; 
 //		fprintf(stderr,".");
 		x++;
 	}
-	for (y=0;y<x;y++){
-		sprintf(dat,"%Ld\n",percpu_data[cpu][y].delta);
-		write(fd,dat,strlen(dat));
-	}
-	close(fd);
+
 	return NULL;
 }
 
@@ -166,6 +162,129 @@ void catch_alarm(int sig)
 {
     term =0;
 }
+
+void f1(void)
+	{
+		// This code output every cpu run in seperate file
+		char dat[256];
+		int fd;
+		int offset;
+		int y,x;
+		struct percpu *pcpu;
+	
+		offset = 0;
+		offset += sprintf(&dat[offset],"./nr_cpu");
+		for(x=0; x<64; x++){
+			if(!all_cpu[x])
+				continue;
+			pcpu = all_cpu[x];
+			offset += sprintf(&dat[offset],"_%s",pcpu[y].cpu_name);
+		}
+		offset += sprintf(&dat[offset],".csv");
+
+		unlink(dat);
+		fd = open(dat,O_CREAT|O_RDWR|O_EXCL,0777);
+		if(fd<0){
+			perror("");
+			exit(1);
+		}
+
+		for(y=0;y<1;y++){
+			offset = 0;
+			for(x=0; x<64; x++){
+				if(!all_cpu[x])
+					continue;
+				pcpu = all_cpu[x];
+				offset += sprintf(&dat[offset],"%s;",pcpu[y].cpu_name);
+			}
+			write(fd,dat,strlen(dat));
+			sprintf(dat,"\n");
+			write(fd,dat,strlen(dat));
+		}
+
+		while(1){
+			offset = 0;
+			for(x=0; x<64; x++){
+				if(!all_cpu[x])
+					continue;
+				pcpu = all_cpu[x];
+				if(pcpu->dat[y].delta ==0 )
+					goto out;
+				offset += sprintf(&dat[offset],"%Ld;",(pcpu->dat[y].delta*1000)/lpj);
+			}
+			write(fd,dat,strlen(dat));
+			sprintf(dat,"\n");
+			write(fd,dat,strlen(dat));
+			y++;
+		}
+out:
+		close(fd);
+	}
+
+void f2(void)
+	{
+		// This code output every cpu run in seperate file
+		char dat[256];
+		int fd;
+		int offset;
+		int y,x;
+		struct percpu *pcpu;
+		uint64_t average, average_nr;
+
+		offset = 0;
+		offset += sprintf(&dat[offset],"./nr_cpu");
+		for(x=0; x<64; x++){
+			if(!all_cpu[x])
+				continue;
+			pcpu = all_cpu[x];
+			offset += sprintf(&dat[offset],"_%s",pcpu[y].cpu_name);
+		}
+		offset += sprintf(&dat[offset],".csv");
+
+		unlink(dat);
+		fd = open(dat,O_CREAT|O_RDWR|O_EXCL,0777);
+		if(fd<0){
+			perror("");
+			exit(1);
+		}
+
+		for(y=0;y<1;y++){
+			offset = 0;
+
+			for(x=0; x<64; x++){
+				if(!all_cpu[x])
+					continue;
+				pcpu = all_cpu[x];
+				offset += sprintf(&dat[offset],"%s_",pcpu[y].cpu_name);
+			}
+			write(fd,dat,strlen(dat));
+			sprintf(dat,"\n");
+			write(fd,dat,strlen(dat));
+		}
+
+
+		while(1){
+			offset = 0;
+			average_nr = 0;
+			average = 0;
+			for(x=0; x<64; x++){
+				if(!all_cpu[x])
+					continue;
+				pcpu = all_cpu[x];
+				if(pcpu->dat[y].delta ==0 )
+					goto out;
+				average += (pcpu->dat[y].delta*1000)/lpj;
+				average_nr ++;
+			}
+			sprintf(dat,"%Ld;",average/average_nr);
+			write(fd,dat,strlen(dat));
+			sprintf(dat,"\n");
+			write(fd,dat,strlen(dat));
+			y++;
+		}
+out:
+		close(fd);
+	}
 
 /*
  * Bu disabling the tsc; notsc we have the following lpj
@@ -183,6 +302,8 @@ main(int argc, char *argv[])
 	extern int	opterr;
 	extern int	optind;
 	extern char	*optarg;
+	int cpu;
+	int avrg=0;
 
 	if ((program = strrchr(argv[0], '/')) != NULL)
 		++program;
@@ -201,6 +322,9 @@ main(int argc, char *argv[])
 	errs = 0;
 	while ((c = getopt_long(argc, argv, optstring, options, NULL)) != EOF) {
 		switch (c) {
+			case 'a':
+				avrg = 1;
+				break;
 			case 'c':
 				if (parse_cpu_set(optarg, &cpus) != 0)
 					++errs;
@@ -238,6 +362,19 @@ main(int argc, char *argv[])
 		exit(1);
 	}
 
+	for (cpu = 0; cpu < MAX_CPUS; cpu++) {
+		if (!CPU_ISSET(cpu, &cpus)){
+			all_cpu[cpu] = NULL;
+			continue;
+		}
+		all_cpu[cpu] = malloc(sizeof(struct percpu));
+		if(!all_cpu[cpu]){
+			ERROR(errno, "malloc failed");
+			exit(1);
+		}
+		memset(all_cpu[cpu], 0, sizeof(struct percpu));
+	}
+
 	/*
  	 * create the threads
  	 */
@@ -255,6 +392,11 @@ main(int argc, char *argv[])
     alarm(tt);
 
 	join_threads();
+
+	if(!avrg)
+		f1();
+	else
+		f2();
 
 }
 
