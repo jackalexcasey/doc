@@ -1,0 +1,2 @@
+CPU 1 and 7 are hyper-threaded; When taken separatly they are well performing
+When running the test simultanously on both it double

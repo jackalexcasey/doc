@@ -1,0 +1,3 @@
+Running 
+RR sched 20 give much lower throughput because the RR scheduler has more overhead tied to it.
+The results across CPU are more linear though and consistent function of the load

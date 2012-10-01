@@ -57,7 +57,7 @@ struct option options[] = {
 void usage(void)
 {
 	printf("usage: [-h] [-a average] [-c <cpu_set>] [-j <lpj>] [-t <time out>]");
-	printf("dmesg |grep lpj then take lpj * 10\n");
+	printf("dmesg |grep lpj\n");
 }
 
 const char help_text[] =
@@ -142,7 +142,7 @@ void * calibrate_loop(void *arg)
 	struct percpu *pcpu = all_cpu[cpu];
 
 	display_thread_sched_attr("");
-	sprintf(pcpu->cpu_name,"CPU_%d",cpu);
+	sprintf(pcpu->cpu_name,"_%d",cpu);
 	sleep(1);
 
 	x=0;
@@ -331,6 +331,7 @@ main(int argc, char *argv[])
 				break;
 			case 'j':
 				lpj = strtol(optarg, NULL, 0);
+				lpj = lpj * 10;
 				break;
 			case 't':
 				tt = strtol(optarg, NULL, 0);
