@@ -1,0 +1,89 @@
+ At boot time the TSC is initialized;
+	-tsc_init()
+	- On HOST The calibration of the TSC is native_calibrate_tsc()
+	  PIT (quick_pit_calibrate())  loop OR HPET value
+	  dmesg  |grep TSC
+	  [    0.000000] Fast TSC calibration using PIT
+	  [    1.914783] Refined TSC clocksource calibration: 1595.885 MHz.
+
+	==> This gives us the tsc_khz  and cpu_khz = tsc_khz;
+	dmesg |grep Detected
+	[    0.004000] Detected 1595.956 MHz processor.
+
+	This is done for the boot CPU only;
+		assuming the same speed as the bootup CPU. (cpufreq notifiers will fix this
+		up if their speed diverges)
+
+	Then if the TSC is stable:
+		lpj = ((u64)tsc_khz * 1000);
+		do_div(lpj, HZ);
+		lpj_fine = lpj;
+
+		>>>
+		>>> 1595.956 * 1000 = 1595956
+		>>> CONFIG_HZ_1000=y
+		>>> CONFIG_HZ=1000
+
+		lpj * 4  ???
+In calibrate_delay():
+	} else if ((!printed) && lpj_fine) {
+		loops_per_jiffy = lpj_fine;
+		pr_info("Calibrating delay loop (skipped), "
+ 	dmesg |grep lpj
+	[    0.000002] Calibrating delay loop (skipped), value calculated using timer frequency.. 3191.94 BogoMIPS (lpj=6383896)
+
+	So the calibration is skipped; We know how many TSC cycle there is in 1 jiffie period.
+
+bogomips:
+~~~~~~~~
+>>> sudo insmod bogomips.ko
+This test know the calibrated lpj for each CPU; Something like:
+	[ 5901.042266] CPU 0 : lpj 6383824
+	[ 5901.042272] CPU 1 : lpj 6383307
+	[ 5901.042275] CPU 2 : lpj 6383305
+	[ 5901.042279] CPU 3 : lpj 6383307
+Each CPU run at their own frequency.
+
+The test measure the number of cycle it takes to count up to lpj of that CPU.
+Note that it will execute on the current CPU so put your shell on the CPU you want
+	taskset -pc 3 6282
+
+
+
+The per CPU output value:
+	CPU 0 : lpj 6383824
+	[15192.463878] 11785548
+	[15192.463898] 11785545
+	[15192.463904] CPU 1 : lpj 6383307
+	[15192.537706] 11784621
+	[15192.537709] 11784588
+
+is a _delay loop (lpj); In other word how much TSC cycle for (lpj) iteration.
+
+>>> 11785548 cycle for 6383824 loop => 1.846158039 CPU cycle per loop
+>>>
+>>> 11784588 cycle for 6383307 loop  => 1.846157172 CPU cycle per loop
+
+*** If using no preemption and cpu throtolling is enabled it may give 
+bad result since the frequency is not maxed out.
+
+Using bogomips
+~~~~~~~~~~~~~~~~
+bogomips will do a delay_loop() of 10Xlpj ad measure delta TSC
+
+7300462 cycle for 6383824*10 loop
+7303514
+
+
+>>> LPJ measure the number of tick over a period of time/// The 'loop' per jiffie is a legacy name since the looping
+>>> in SW is not happenning anymore...
+ The loop represent the number of CPU bus cycle loop in this case.
+
+
+
+cat /proc/cmdline 
+BOOT_IMAGE=/boot/vmlinuz-3.2.0-23-generic root=UUID=4468AC1368AC05B0 loop=/ubuntu/disks/root.disk ro isolcpus=1,2,3 quiet splash vt.handoff=7
+
+
+sudo chrt -p -r 20 2813
+ps -eo pid,rtprio

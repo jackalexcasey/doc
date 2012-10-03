@@ -39,24 +39,23 @@
 #define MAX(a,b) (((a)>(b))?(a):(b))
 
 char	*program	= "";
-const char optstring[] = "aj:t:c:h";
+const char optstring[] = "j:t:c:h";
 
 unsigned long lpj=100000000;
 volatile int term =1;
-int tt = 5;
+int tt = 10;
 
 struct option options[] = {
 	{ "cpus",	required_argument,	0, 	'c'	},
 	{ "lpj",	required_argument,	0, 	'j'	},
 	{ "time",	required_argument,	0, 	't'	},
 	{ "help",	no_argument,		0, 	'h'	},
-	{ "average",	no_argument,		0, 	'a'	},
 	{ 0,	0,	0,	0 }
 };
 
 void usage(void)
 {
-	printf("usage: [-h] [-a average] [-c <cpu_set>] [-j <lpj>] [-t <time out>]");
+	printf("usage: [-h] [-c <cpu_set>] [-j <lpj>] [-t <time out>]");
 	printf("dmesg |grep lpj\n");
 }
 
@@ -123,6 +122,37 @@ static inline uint64_t rdtsc(void)
 #error "rdtsc() not implemented for this architecture"
 #endif
 
+static inline uint64_t rdtsc_mfence(void)
+{
+	__asm__ __volatile__("mfence" ::: "memory");
+	return rdtsc();
+}
+
+
+static inline uint64_t rdtsc_lfence(void)
+{
+	__asm__ __volatile__("lfence" ::: "memory");
+	return rdtsc();
+}
+
+/* Kernel Way of reading the TSC */
+typedef uint64_t u64;
+
+#define DECLARE_ARGS(val, low, high)    unsigned low, high
+#define EAX_EDX_VAL(val, low, high) ((low) | ((u64)(high) << 32))
+#define EAX_EDX_RET(val, low, high) "=a" (low), "=d" (high)
+static __always_inline unsigned long long __native_read_tsc(void)                                                      
+{
+    DECLARE_ARGS(val, low, high);
+
+    asm volatile("rdtsc" : EAX_EDX_RET(val, low, high));                                                               
+
+    return EAX_EDX_VAL(val, low, high);
+}
+
+#define rdtscll(val) \
+	((val) = __native_read_tsc())             
+
 struct data{
 	uint64_t delta;
 };
@@ -143,13 +173,20 @@ void * calibrate_loop(void *arg)
 
 	display_thread_sched_attr("");
 	sprintf(pcpu->cpu_name,"_%d",cpu);
+
+//TODO put a thread synchro to start all of them at the same time...
+//Just an atomic variable
 	sleep(1);
 
 	x=0;
 	while(term){
+		//tsc = rdtsc_lfence();
 		tsc = rdtsc();
+		//rdtscll(tsc);
 		__ldelay(lpj);
+		//tsc_new = rdtsc_lfence();
 		tsc_new = rdtsc();
+		//rdtscll(tsc_new);
 		pcpu->dat[x].delta = tsc_new-tsc; 
 //		fprintf(stderr,".");
 		x++;
@@ -210,73 +247,9 @@ void f1(void)
 				pcpu = all_cpu[x];
 				if(pcpu->dat[y].delta ==0 )
 					goto out;
-				offset += sprintf(&dat[offset],"%Ld;",(pcpu->dat[y].delta*1000)/lpj);
+				offset += sprintf(&dat[offset],"%8Lu;",pcpu->dat[y].delta);
+					//(pcpu->dat[y].delta*1000)/lpj);
 			}
-			write(fd,dat,strlen(dat));
-			sprintf(dat,"\n");
-			write(fd,dat,strlen(dat));
-			y++;
-		}
-out:
-		close(fd);
-	}
-
-void f2(void)
-	{
-		// This code output every cpu run in seperate file
-		char dat[256];
-		int fd;
-		int offset;
-		int y,x;
-		struct percpu *pcpu;
-		uint64_t average, average_nr;
-
-		offset = 0;
-		offset += sprintf(&dat[offset],"./nr_cpu");
-		for(x=0; x<64; x++){
-			if(!all_cpu[x])
-				continue;
-			pcpu = all_cpu[x];
-			offset += sprintf(&dat[offset],"_%s",pcpu[y].cpu_name);
-		}
-		offset += sprintf(&dat[offset],".csv");
-
-		unlink(dat);
-		fd = open(dat,O_CREAT|O_RDWR|O_EXCL,0777);
-		if(fd<0){
-			perror("");
-			exit(1);
-		}
-
-		for(y=0;y<1;y++){
-			offset = 0;
-
-			for(x=0; x<64; x++){
-				if(!all_cpu[x])
-					continue;
-				pcpu = all_cpu[x];
-				offset += sprintf(&dat[offset],"%s_",pcpu[y].cpu_name);
-			}
-			write(fd,dat,strlen(dat));
-			sprintf(dat,"\n");
-			write(fd,dat,strlen(dat));
-		}
-
-
-		while(1){
-			offset = 0;
-			average_nr = 0;
-			average = 0;
-			for(x=0; x<64; x++){
-				if(!all_cpu[x])
-					continue;
-				pcpu = all_cpu[x];
-				if(pcpu->dat[y].delta ==0 )
-					goto out;
-				average += (pcpu->dat[y].delta*1000)/lpj;
-				average_nr ++;
-			}
-			sprintf(dat,"%Ld;",average/average_nr);
 			write(fd,dat,strlen(dat));
 			sprintf(dat,"\n");
 			write(fd,dat,strlen(dat));
@@ -303,7 +276,6 @@ main(int argc, char *argv[])
 	extern int	optind;
 	extern char	*optarg;
 	int cpu;
-	int avrg=0;
 
 	if ((program = strrchr(argv[0], '/')) != NULL)
 		++program;
@@ -322,16 +294,12 @@ main(int argc, char *argv[])
 	errs = 0;
 	while ((c = getopt_long(argc, argv, optstring, options, NULL)) != EOF) {
 		switch (c) {
-			case 'a':
-				avrg = 1;
-				break;
 			case 'c':
 				if (parse_cpu_set(optarg, &cpus) != 0)
 					++errs;
 				break;
 			case 'j':
 				lpj = strtol(optarg, NULL, 0);
-				lpj = lpj * 10;
 				break;
 			case 't':
 				tt = strtol(optarg, NULL, 0);
@@ -394,10 +362,6 @@ main(int argc, char *argv[])
 
 	join_threads();
 
-	if(!avrg)
-		f1();
-	else
-		f2();
-
+	f1();
 }
 
