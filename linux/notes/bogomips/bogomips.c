@@ -251,44 +251,19 @@ static ssize_t read(struct file *file, char __user *buf,
 	int i,err;
 	struct cpumask mask;
 
-	err = stop_machine(get_sample, &i, cpumask_of(6));
-	if (err) {
-		PRINT("Error stop_machine\n");
-		return -1;
+	for_each_online_cpu(i) {
+		err = stop_machine(get_sample, &i, cpumask_of(i));
+		if (err) {
+			PRINT("Error stop_machine\n");
+			return -1;
+		}
 	}
-
-	return 0;
-}
-
-static long ioctl(struct file *file,
-			 unsigned int cmd, unsigned long arg)
-{
-	return -EINVAL;
-}
-
-static long unlocked_ioctl(struct file *file, unsigned int cmd,
-				   unsigned long arg)
-{
-	return -EINVAL;
-}
-
-static int open(struct inode *inode, struct file *file)
-{
-	return 0;
-}
-
-static int release(struct inode *inode, struct file *file)
-{
 	return 0;
 }
 
 static const struct file_operations fops = {
 	.owner		= THIS_MODULE,
 	.read		= read,
-	.compat_ioctl	= ioctl,
-	.unlocked_ioctl	= unlocked_ioctl,
-	.open		= open,
-	.release	= release,
 };
 
 static struct miscdevice dev =

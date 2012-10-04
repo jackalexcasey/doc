@@ -25,11 +25,13 @@ taskset -pc 'cpu' 'pid of bash'
 #
 
 ./bogomips -l 100 -j 10000000
-sudo dmesg -c
-sudo insmod bogomips.ko l=100 j=10000000
-dmesg
+
 sudo rmmod bogomips
 sudo dmesg -c >/dev/null
+
+sudo insmod bogomips.ko l=100 j=10000000
+sudo cat /dev/template
+dmesg
 
 
 

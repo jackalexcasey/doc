@@ -9,6 +9,7 @@
 #
 # Normal rules
 #
+bogomips
 *.swp
 .*
 *.o
