@@ -17,7 +17,18 @@
 #include <linux/preempt.h>
 #include <linux/delay.h>
 #include <linux/init.h>
+#include <linux/miscdevice.h>
 #include <linux/stop_machine.h>
+#include <linux/sched.h>
+#include <linux/errno.h>
+#include <linux/miscdevice.h>
+#include <linux/fcntl.h>
+
+#include <linux/rtc.h>
+#include <linux/init.h>
+#include <linux/poll.h>
+#include <linux/proc_fs.h>
+#include <linux/mutex.h>
 
 #include <asm/processor.h>
 #include <asm/delay.h>
@@ -39,7 +50,7 @@
 #define MAX(a,b) (((a)>(b))?(a):(b))
 
 #define MAX_LOOPS_NR 1024
-#define MAX_CPU_NR 4
+#define MAX_CPU_NR 64
 
 static int l=0;
 MODULE_PARM_DESC(l, "loop number");
@@ -92,7 +103,7 @@ static DEFINE_SPINLOCK(irq_lock);
 #define MAX(a,b) (((a)>(b))?(a):(b))
 
 #define MAX_LOOPS_NR 1024
-#define MAX_CPU_NR 4
+#define MAX_CPU_NR 64
 
 #define rdtscll(val) \
 	((val) = __native_read_tsc())             
@@ -208,15 +219,6 @@ static void measure_tsc_cycle_per_loop(unsigned long lpj, int loop_nr)
 	warm = 0;
 
 again:
-#ifdef __KERNEL__
-//Add the code to stay on this CPU
-	if(warm == 2)
-		preempt_disable();
-		asm volatile("cli": : :"memory");
-//		set_current_state(TASK_UNINTERRUPTIBLE);
-//		raw_local_irq_save(flags);
-	//	spin_lock_irq(&irq_lock);
-#endif
 	for(x=0;x<loop_nr;x++){
 		t1 = get_cycles();
 		__ldelay(lpj);
@@ -227,13 +229,6 @@ again:
 		warm ++;
 		goto again;
 	}
-#ifdef __KERNEL__
-	preempt_enable();
-	asm volatile("sti": : :"memory");
-//	set_current_state(TASK_RUNNING);
-//	raw_local_irq_restore(flags);
-//	spin_unlock_irq(&irq_lock);
-#endif
 
 	// Serialize this operation
 	PRINT("%s\n",pcpu->cpu_name);
@@ -244,9 +239,68 @@ again:
 
 #ifdef __KERNEL__
 
+static int get_sample(void *unused)
+{
+	measure_tsc_cycle_per_loop(j,l);
+	return 0;
+}
+
+static ssize_t read(struct file *file, char __user *buf,
+			size_t count, loff_t *ppos)
+{
+	int i,err;
+	struct cpumask mask;
+
+	err = stop_machine(get_sample, &i, cpumask_of(6));
+	if (err) {
+		PRINT("Error stop_machine\n");
+		return -1;
+	}
+
+	return 0;
+}
+
+static long ioctl(struct file *file,
+			 unsigned int cmd, unsigned long arg)
+{
+	return -EINVAL;
+}
+
+static long unlocked_ioctl(struct file *file, unsigned int cmd,
+				   unsigned long arg)
+{
+	return -EINVAL;
+}
+
+static int open(struct inode *inode, struct file *file)
+{
+	return 0;
+}
+
+static int release(struct inode *inode, struct file *file)
+{
+	return 0;
+}
+
+static const struct file_operations fops = {
+	.owner		= THIS_MODULE,
+	.read		= read,
+	.compat_ioctl	= ioctl,
+	.unlocked_ioctl	= unlocked_ioctl,
+	.open		= open,
+	.release	= release,
+};
+
+static struct miscdevice dev =
+{
+	.minor		= MISC_DYNAMIC_MINOR,
+	.name		= "template",
+	.fops		= &fops,
+};
+
 static int __init init(void)
 {
-	int i;
+	int retval,i;
 
 	if(!j || !l){
 		PRINT("PER CPU lpj info\n");
@@ -256,7 +310,9 @@ static int __init init(void)
 		return -1;
 	}
 
-	measure_tsc_cycle_per_loop(j,l);
+	retval = misc_register(&dev);
+	if (retval < 0)
+		return retval;
 
 	pr_info(DRIVER_DESC " version: " DRIVER_VERSION);
 	return 0;
@@ -264,6 +320,7 @@ static int __init init(void)
 
 static void __exit cleanup(void)
 {
+	misc_deregister(&dev);
 }
 
 module_init(init);
