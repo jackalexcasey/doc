@@ -60,7 +60,7 @@ static int j=0;
 MODULE_PARM_DESC(j, "lpj");
 module_param(j, int, 0644);
 
-static DEFINE_SPINLOCK(irq_lock);
+static DEFINE_SPINLOCK(lock);
 
 #else /* __KERNEL__ */
 
@@ -105,8 +105,6 @@ static DEFINE_SPINLOCK(irq_lock);
 #define MAX_LOOPS_NR 1024
 #define MAX_CPU_NR 64
 
-#define rdtscll(val) \
-	((val) = __native_read_tsc())             
 
 typedef unsigned long long cycles_t;
 typedef uint64_t u64;
@@ -133,7 +131,12 @@ void help(void)
 	usage();
 }
 
-static __always_inline unsigned long long __native_read_tsc(void)                                                      
+#endif /* __KERNEL__ */
+
+#define llrdtscll(val) \
+	((val) = __llnative_read_tsc())             
+
+static __always_inline unsigned long long __llnative_read_tsc(void)                                                      
 {
     DECLARE_ARGS(val, low, high);
 
@@ -142,14 +145,13 @@ static __always_inline unsigned long long __native_read_tsc(void)
     return EAX_EDX_VAL(val, low, high);
 }
 
-static inline cycles_t get_cycles(void)
+static inline cycles_t llget_cycles(void)
 {
 	unsigned long long ret = 0;
-	rdtscll(ret);
+	llrdtscll(ret);
 	return ret;
 }
 
-#endif /* __KERNEL__ */
 
 struct per_cpu{
 	char cpu_name[32];
@@ -206,7 +208,8 @@ static void measure_tsc_cycle_per_loop(unsigned long lpj, int loop_nr)
 	cpu = sched_getcpu();
 	display_thread_sched_attr("");
 #endif /* __KERNEL__ */
-	
+
+	PRINT("INFO %x / %x\n",lpj,loop_nr);
 	pcpu = &cpu_dat[cpu];
 	sprintf(pcpu->cpu_name,"cpu_%d",cpu);
 
@@ -220,9 +223,9 @@ static void measure_tsc_cycle_per_loop(unsigned long lpj, int loop_nr)
 
 again:
 	for(x=0;x<loop_nr;x++){
-		t1 = get_cycles();
+		t1 = llget_cycles();
 		__ldelay(lpj);
-		t2 = get_cycles();
+		t2 = llget_cycles();
 		pcpu->delta[x] = t2-t1; 
 	}
 	if(warm != 2){
@@ -252,7 +255,7 @@ static ssize_t read(struct file *file, char __user *buf,
 	struct cpumask mask;
 
 	for_each_online_cpu(i) {
-		err = stop_machine(get_sample, &i, cpumask_of(i));
+		err = stop_machine(get_sample, &i, cpumask_of(1));
 		if (err) {
 			PRINT("Error stop_machine\n");
 			return -1;
