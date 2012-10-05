@@ -131,12 +131,10 @@ void help(void)
 	usage();
 }
 
-#endif /* __KERNEL__ */
+#define rdtscll(val) \
+	((val) = __native_read_tsc())             
 
-#define llrdtscll(val) \
-	((val) = __llnative_read_tsc())             
-
-static __always_inline unsigned long long __llnative_read_tsc(void)                                                      
+static __always_inline unsigned long long __native_read_tsc(void)                                                      
 {
     DECLARE_ARGS(val, low, high);
 
@@ -145,13 +143,13 @@ static __always_inline unsigned long long __llnative_read_tsc(void)
     return EAX_EDX_VAL(val, low, high);
 }
 
-static inline cycles_t llget_cycles(void)
+static inline cycles_t get_cycles(void)
 {
 	unsigned long long ret = 0;
-	llrdtscll(ret);
+	rdtscll(ret);
 	return ret;
 }
-
+#endif /* __KERNEL__ */
 
 struct per_cpu{
 	char cpu_name[32];
@@ -217,22 +215,27 @@ static void measure_tsc_cycle_per_loop(unsigned long lpj, int loop_nr)
 	 * By warming up we ensure the cache is warm
 	 * and the CPU runs full throttle;
 	 * NOTE that we only take the spinlock IRQ when the
-	 * cpu is warm since the governor need IRQ to throttle...
+	 * cpu is warm since the governor needs IRQ to throttle...
 	 */ 
 	warm = 0;
-
+#ifdef __KERNEL__
+	if(warm == 2)
+		spin_lock_irq(&lock);
+#endif		
 again:
 	for(x=0;x<loop_nr;x++){
-		t1 = llget_cycles();
+		t1 = get_cycles();
 		__ldelay(lpj);
-		t2 = llget_cycles();
+		t2 = get_cycles();
 		pcpu->delta[x] = t2-t1; 
 	}
 	if(warm != 2){
 		warm ++;
 		goto again;
 	}
-
+#ifdef __KERNEL__
+	spin_unlock_irq(&lock);
+#endif
 	// Serialize this operation
 	PRINT("%s\n",pcpu->cpu_name);
 	for(x=0;x<loop_nr;x++){
@@ -241,20 +244,13 @@ again:
 }
 
 #ifdef __KERNEL__
-
-static int get_sample(void *unused)
-{
-	measure_tsc_cycle_per_loop(j,l);
-	return 0;
-}
-
 static ssize_t read(struct file *file, char __user *buf,
 			size_t count, loff_t *ppos)
 {
 	int i,err;
 	struct cpumask mask;
 
-/*
+#if 0
 	for_each_online_cpu(i) {
 		err = stop_machine(get_sample, &i, cpumask_of(1));
 		if (err) {
@@ -262,10 +258,8 @@ static ssize_t read(struct file *file, char __user *buf,
 			return -1;
 		}
 	}
-*/
-	spin_lock_irq(&lock);
-	get_sample(NULL);
-	spin_unlock_irq(&lock);
+#endif
+	measure_tsc_cycle_per_loop(j,l);
 	return 0;
 }
 

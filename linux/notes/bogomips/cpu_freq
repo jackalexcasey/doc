@@ -1,0 +1,67 @@
+#!/bin/bash
+
+p=0
+freq=""
+gov=""
+
+while getopts ":pf:g:" optname
+  do
+    case "$optname" in
+      "p")
+	  	p=1
+        ;;
+      "f")
+	  	freq=$OPTARG
+        ;;
+      "g")
+	  	gov=$OPTARG
+        ;;
+      "?")
+        echo "[-p print current setting] [-f scaling_frequencies] [-g governor]"
+		exit
+        ;;
+      ":")
+        echo "No argument value for option $OPTARG"
+        ;;
+      *)
+      # Should not occur
+        echo "Unknown error while processing options"
+        ;;
+    esac
+  done
+
+if [ $p -eq 1 ]; then
+cd /sys/devices/system/cpu
+printf 'Current setting for CPU0\n'
+cat cpu0/cpufreq/scaling_available_frequencies
+cat cpu0/cpufreq/scaling_cur_freq
+cat cpu0/cpufreq/scaling_governor
+cat cpu0/cpufreq/scaling_available_governors
+exit
+fi
+
+if [ "$gov" != "" ]; then
+cd /sys/devices/system/cpu
+printf 'Setting Governor %s\n\n' $gov
+printf 'Current Value for each CPU\n'
+for each in cpu*; do if [ -r "$each/cpufreq" ]; then cd $each/cpufreq; echo $each; cat scaling_governor; printf '***\n\n'; cd ../../; fi; done
+#changing the governor
+for each in cpu*; do if [ -r "$each/cpufreq" ]; then cd $each/cpufreq; echo $gov > scaling_governor; cd ../../; fi; done
+printf 'New Value for each CPU\n'
+for each in cpu*; do if [ -r "$each/cpufreq" ]; then cd $each/cpufreq; echo $each; cat scaling_governor; printf '***\n\n'; cd ../../; fi; done
+exit
+fi
+
+if [ "$freq" != "" ]; then
+cd /sys/devices/system/cpu
+printf 'Setting Frequency %s\n\n' $freq
+printf 'Current Value for each CPU\n'
+for each in cpu*; do if [ -r "$each/cpufreq" ]; then cd $each/cpufreq; echo $each; cat scaling_cur_freq; printf '***\n\n'; cd ../../; fi; done
+#changing the frequency
+for each in cpu*; do if [ -r "$each/cpufreq" ]; then cd $each/cpufreq; echo $freq > scaling_setspeed; cd ../../; fi; done
+printf 'New Value for each CPU\n'
+for each in cpu*; do if [ -r "$each/cpufreq" ]; then cd $each/cpufreq; echo $each; cat scaling_cur_freq; printf '***\n\n'; cd ../../; fi; done
+exit
+fi
+
+
