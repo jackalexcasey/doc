@@ -28,10 +28,7 @@ sudo rmmod bogomips
 sudo dmesg -c >/dev/null
 
 sudo insmod bogomips.ko l=100 j=10000000
-sudo cat /dev/template
-dmesg
-
-
+sudo cat /sys/kernel/debug/spinloop
 
 # NOTES:
 # Current execution is done on kworker thread ... -< because of the insmod thing

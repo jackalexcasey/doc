@@ -23,6 +23,8 @@
 #include <linux/errno.h>
 #include <linux/miscdevice.h>
 #include <linux/fcntl.h>
+#include <linux/seq_file.h>
+#include <linux/debugfs.h>
 
 #include <linux/rtc.h>
 #include <linux/init.h>
@@ -61,6 +63,7 @@ MODULE_PARM_DESC(j, "lpj");
 module_param(j, int, 0644);
 
 static DEFINE_SPINLOCK(lock);
+static struct dentry *debugfs_file;
 
 #else /* __KERNEL__ */
 
@@ -193,7 +196,7 @@ static void __ldelay(unsigned long loops)
 /*
  * Measure the number of TSC cycle it takes for a given amount of loop
  */
-static void measure_tsc_cycle_per_loop(unsigned long lpj, int loop_nr)
+static int measure_tsc_cycle_per_loop(unsigned long lpj, int loop_nr)
 {
 	int x,cpu,warm;
 	u64 t1, t2;
@@ -218,11 +221,11 @@ static void measure_tsc_cycle_per_loop(unsigned long lpj, int loop_nr)
 	 * cpu is warm since the governor needs IRQ to throttle...
 	 */ 
 	warm = 0;
+again:
 #ifdef __KERNEL__
 	if(warm == 2)
 		spin_lock_irq(&lock);
 #endif		
-again:
 	for(x=0;x<loop_nr;x++){
 		t1 = get_cycles();
 		__ldelay(lpj);
@@ -236,43 +239,42 @@ again:
 #ifdef __KERNEL__
 	spin_unlock_irq(&lock);
 #endif
-	// Serialize this operation
+
+#ifndef __KERNEL__
 	PRINT("%s\n",pcpu->cpu_name);
 	for(x=0;x<loop_nr;x++){
 		PRINT("%8Lu\n",pcpu->delta[x]);
 	}
+#endif
+	return cpu;
 }
 
 #ifdef __KERNEL__
-static ssize_t read(struct file *file, char __user *buf,
-			size_t count, loff_t *ppos)
+static int tsc_show(struct seq_file *m, void *p)
 {
-	int i,err;
-	struct cpumask mask;
+	int cpu,x;
+	struct per_cpu *pcpu;
 
-#if 0
-	for_each_online_cpu(i) {
-		err = stop_machine(get_sample, &i, cpumask_of(1));
-		if (err) {
-			PRINT("Error stop_machine\n");
-			return -1;
-		}
+	cpu = measure_tsc_cycle_per_loop(j,l);
+	pcpu = &cpu_dat[cpu];
+	seq_printf(m, "%s\n",pcpu->cpu_name);
+	for(x=0;x<l;x++){
+		seq_printf(m, "%8Lu\n",pcpu->delta[x]);
 	}
-#endif
-	measure_tsc_cycle_per_loop(j,l);
 	return 0;
+}
+
+static int tsc_open(struct inode *inode, struct file *filep)
+{
+	return single_open(filep, tsc_show, inode->i_private);
 }
 
 static const struct file_operations fops = {
 	.owner		= THIS_MODULE,
-	.read		= read,
-};
-
-static struct miscdevice dev =
-{
-	.minor		= MISC_DYNAMIC_MINOR,
-	.name		= "template",
-	.fops		= &fops,
+	.read		= seq_read,
+	.open		= tsc_open,
+	.llseek     = seq_lseek,
+	.release    = single_release,
 };
 
 static int __init init(void)
@@ -287,9 +289,9 @@ static int __init init(void)
 		return -1;
 	}
 
-	retval = misc_register(&dev);
-	if (retval < 0)
-		return retval;
+	debugfs_file = debugfs_create_file("spinloop", S_IFREG | S_IRUGO, NULL, NULL, &fops);
+	if(!debugfs_file)
+		return -1;
 
 	pr_info(DRIVER_DESC " version: " DRIVER_VERSION);
 	return 0;
@@ -297,7 +299,7 @@ static int __init init(void)
 
 static void __exit cleanup(void)
 {
-	misc_deregister(&dev);
+	debugfs_remove(debugfs_file);
 }
 
 module_init(init);
