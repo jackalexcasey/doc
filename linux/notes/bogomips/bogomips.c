@@ -254,6 +254,7 @@ static ssize_t read(struct file *file, char __user *buf,
 	int i,err;
 	struct cpumask mask;
 
+/*
 	for_each_online_cpu(i) {
 		err = stop_machine(get_sample, &i, cpumask_of(1));
 		if (err) {
@@ -261,6 +262,10 @@ static ssize_t read(struct file *file, char __user *buf,
 			return -1;
 		}
 	}
+*/
+	spin_lock_irq(&lock);
+	get_sample(NULL);
+	spin_unlock_irq(&lock);
 	return 0;
 }
 

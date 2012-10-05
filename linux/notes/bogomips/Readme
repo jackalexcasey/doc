@@ -43,3 +43,16 @@ dmesg
 # cd /proc/sys/kernel
 # echo 0 >watchdog
 #
+#  507  cat scaling_available_governors
+#  508  cat scaling_governor
+#  509  echo userspace >scaling_governor
+#  510  cat scaling_governor
+#  511  cat cpuinfo_cur_freq
+#  512  ls
+#   513  cat scaling_setspeed
+#    514  cat cpuinfo_max_freq
+#   515  echo 2395000 >scaling_setspeed
+#  516  cat cpuinfo_min_freq
+#  517  echo 1596000 >scaling_setspeed
+#  518  echo 2395000 >scaling_setspeed
+#
