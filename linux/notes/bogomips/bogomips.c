@@ -125,7 +125,7 @@ static int j=0;
 static int l=0;
 
 char *program	= "";
-const char optstring[] = "l:j:c:";
+const char optstring[] = "l:j:c:k";
 struct option options[] = {
 	{ "",	required_argument,	0, 	'j'	},
 	{ "",	required_argument,	0, 	'l'	},
@@ -134,7 +134,7 @@ struct option options[] = {
 
 void usage(void)
 {
-	printf("usage: [-l loop_nr MAX %d] [-j lpj] [-c cpu sets]\n",MAX_LOOPS_NR);
+	printf("usage: [-l loop_nr MAX %d] [-j lpj] [-c cpu sets] [-k kernel data]\n",MAX_LOOPS_NR);
 	printf("dmesg |grep lpj\n");
 }
 
@@ -222,7 +222,7 @@ static void * measure_tsc_cycle_per_loop(void *arg)
 
 #ifdef __KERNEL__
 	cpu = raw_smp_processor_id();
-	sched_setscheduler(current, SCHED_RR, &param);
+	//sched_setscheduler(current, SCHED_RR, &param);
 #else /* __KERNEL__ */
 	cpu = sched_getcpu();
 	display_thread_sched_attr("");
@@ -264,11 +264,14 @@ again:
 #endif
 }
 
+/*
+ * Be carefull this is an iterator
+ */
 static int tsc_show(struct seq_file *m, void *p)
 {
 	int x,y;
 	struct per_cpu *pcpu;
-
+	
 	for(y=0;y<MAX_CPU_NR;y++){
 		pcpu = &cpu_dat[y];
 		if(!strlen(pcpu->cpu_name))
@@ -281,6 +284,7 @@ static int tsc_show(struct seq_file *m, void *p)
 			 */
 			seq_printf(m, "%8Lu\n",pcpu->delta[x]);
 		}
+		memset(pcpu,0,sizeof(struct per_cpu));
 	}
 	return 0;
 }
@@ -288,7 +292,6 @@ static int tsc_show(struct seq_file *m, void *p)
 #ifdef __KERNEL__
 static int tsc_open(struct inode *inode, struct file *filep)
 {
-	memset(cpu_dat,0,sizeof(cpu_dat));
 	measure_tsc_cycle_per_loop(NULL);
 	return single_open(filep, tsc_show, inode->i_private);
 }
@@ -313,6 +316,8 @@ static int __init init(void)
 		return -1;
 	}
 
+	memset(cpu_dat,0,sizeof(cpu_dat));
+
 	debugfs_file = debugfs_create_file("spinloop", S_IFREG | S_IRUGO, NULL, NULL, &fops);
 	if(!debugfs_file)
 		return -1;
@@ -336,6 +341,26 @@ MODULE_DESCRIPTION(DRIVER_DESC);
 
 #else /* __KERNEL__ */
 
+static int Gfd;
+
+/*
+ * All this thread does is to open the sysfs entry
+ * and obtain an FD. This internally triggers the test
+ * on the current CPU. This is easier than 
+ * creating kthread...
+ */
+static void * dump_kernel(void *arg)
+{
+	int fd;
+	fd = open("/sys/kernel/debug/spinloop", O_RDONLY);
+	if(fd <0 )
+		exit(1);
+
+	/* Hack */
+	Gfd = fd;
+	return NULL;
+}
+
 int
 main(int argc, char *argv[])
 {
@@ -343,6 +368,7 @@ main(int argc, char *argv[])
 	int errs;
 	int	ncpus;
 	int	nthreads;
+	int kernel=0;
 	cpu_set_t	cpus;
 	extern int	opterr;
 	extern int	optind;
@@ -369,6 +395,9 @@ main(int argc, char *argv[])
 			case 'c':
 				if (parse_cpu_set(optarg, &cpus) != 0)
 					++errs;
+				break;
+			case 'k':
+				kernel = 1;
 				break;
 			case 'j':
 				j = strtol(optarg, NULL, 0);
@@ -413,7 +442,10 @@ main(int argc, char *argv[])
  	 * create the threads
  	 */
 	ncpus = count_cpus(&cpus);
-	nthreads = create_per_cpu_threads(&cpus, measure_tsc_cycle_per_loop, NULL);
+	if(kernel)
+		nthreads = create_per_cpu_threads(&cpus, dump_kernel, NULL);
+	else
+		nthreads = create_per_cpu_threads(&cpus, measure_tsc_cycle_per_loop, NULL);
 	if (nthreads != ncpus) {
 		ERROR(0, "failed to create threads: expected %d, got %d",
 			ncpus, nthreads);
@@ -424,7 +456,24 @@ main(int argc, char *argv[])
 	}
 	join_threads();
 
-	tsc_show(NULL,NULL);
+	if(!kernel)
+		tsc_show(NULL,NULL);
+	else{
+		int size;
+		char *buf;
+
+		buf = malloc(4096);
+		if(!buf)
+			exit(0);
+again:
+		memset(buf,0,4096);
+		size = read(Gfd, buf,4095);
+		if(size <0)
+			exit(0);
+		printf("%s",buf);
+		if(size != 0)
+			goto again;
+	}
 }
 #endif /* __KERNEL__ */
 

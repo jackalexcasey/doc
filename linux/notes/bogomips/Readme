@@ -8,6 +8,7 @@ sudo insmod bogomips.ko
 #
 bash
 taskset -pc 'cpu' 'pid of bash'
+chrt -p -r 'prio' 'pid'
 
 # 
 # From the dmesg per cpu lpj table run user space and kernel space
@@ -22,19 +23,21 @@ taskset -pc 'cpu' 'pid of bash'
 # It doesn't not give the auto-calibrate loop number value.
 #
 
-./bogomips -l 100 -j 10000000
 
-sudo rmmod bogomips
-sudo dmesg -c >/dev/null
+rmmod bogomips
+dmesg -c >/dev/null
+insmod bogomips.ko l=100 j=100000
+cat /sys/kernel/debug/spinloop
 
-sudo insmod bogomips.ko l=100 j=10000000
-sudo cat /sys/kernel/debug/spinloop
+./bogomips -l 100 -j 10000 -c1
+./bogomips -l 100 -j 10000 -c1 -k
 
 # NOTES:
 # Current execution is done on kworker thread ... -< because of the insmod thing
 # http://www.thinkwiki.org/wiki/How_to_make_use_of_Dynamic_Frequency_Scaling
 
 #
+# Disable hyper -threading and dynamic PWR mgmt
 # Turn off the watchdog thread.
 #
 cd /proc/sys/kernel
