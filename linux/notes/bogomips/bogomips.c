@@ -25,6 +25,7 @@
 #include <linux/fcntl.h>
 #include <linux/seq_file.h>
 #include <linux/debugfs.h>
+#include <linux/kthread.h>
 
 #include <linux/rtc.h>
 #include <linux/init.h>
@@ -64,6 +65,7 @@ module_param(j, int, 0644);
 
 static DEFINE_SPINLOCK(lock);
 static struct dentry *debugfs_file;
+static int kthread_join;
 
 #else /* __KERNEL__ */
 
@@ -123,7 +125,7 @@ static int j=0;
 static int l=0;
 
 char *program	= "";
-const char optstring[] = "l:j:";
+const char optstring[] = "l:j:c:";
 struct option options[] = {
 	{ "",	required_argument,	0, 	'j'	},
 	{ "",	required_argument,	0, 	'l'	},
@@ -132,7 +134,7 @@ struct option options[] = {
 
 void usage(void)
 {
-	printf("usage: [-l loop_nr MAX %d] [-j lpj]\n",MAX_LOOPS_NR);
+	printf("usage: [-l loop_nr MAX %d] [-j lpj] [-c cpu sets]\n",MAX_LOOPS_NR);
 	printf("dmesg |grep lpj\n");
 }
 
@@ -203,21 +205,29 @@ static void __ldelay(unsigned long loops)
 /*
  * Measure the number of TSC cycle it takes for a given amount of loop
  */
-static int measure_tsc_cycle_per_loop(unsigned long lpj, int loop_nr)
+#ifdef __KERNEL__
+static int measure_tsc_cycle_per_loop(void *arg)
+#else
+static void * measure_tsc_cycle_per_loop(void *arg)
+#endif
 {
 	int x,cpu,warm;
 	u64 t1, t2;
 	struct per_cpu *pcpu;
-	unsigned long flags;
-	
+	unsigned long lpj = j;
+	int loop_nr = l;
+#ifdef __KERNEL__
+	struct sched_param param = {.sched_priority = 1};
+#endif
+
 #ifdef __KERNEL__
 	cpu = raw_smp_processor_id();
+	sched_setscheduler(current, SCHED_RR, &param);
 #else /* __KERNEL__ */
 	cpu = sched_getcpu();
 	display_thread_sched_attr("");
 #endif /* __KERNEL__ */
 
-	PRINT("INFO %x / %x\n",lpj,loop_nr);
 	pcpu = &cpu_dat[cpu];
 	sprintf(pcpu->cpu_name,"cpu_%d",cpu);
 
@@ -230,8 +240,10 @@ static int measure_tsc_cycle_per_loop(unsigned long lpj, int loop_nr)
 	warm = 0;
 again:
 #ifdef __KERNEL__
-	if(warm == 2)
-		spin_lock_irq(&lock);
+	if(warm == 2){
+		local_irq_disable();
+		preempt_disable();
+	}
 #endif		
 	for(x=0;x<loop_nr;x++){
 		t1 = get_cycles();
@@ -244,25 +256,31 @@ again:
 		goto again;
 	}
 #ifdef __KERNEL__
-	spin_unlock_irq(&lock);
+	local_irq_enable();
+	preempt_enable();
+	return 0;
+#else
+	return NULL;
 #endif
-	return cpu;
 }
 
 static int tsc_show(struct seq_file *m, void *p)
 {
-	int cpu,x;
+	int x,y;
 	struct per_cpu *pcpu;
 
-	cpu = measure_tsc_cycle_per_loop(j,l);
-	pcpu = &cpu_dat[cpu];
-	seq_printf(m, "%s\n",pcpu->cpu_name);
-	for(x=0;x<l;x++){
-		/*
-		 * The delay loop give us ~1.3 tsc cycle per loop
-		 * so the floor is j*1.3
-		 */
-		seq_printf(m, "%8Lu\n",pcpu->delta[x]);
+	for(y=0;y<MAX_CPU_NR;y++){
+		pcpu = &cpu_dat[y];
+		if(!strlen(pcpu->cpu_name))
+			continue;
+		seq_printf(m, "%s\n",pcpu->cpu_name);
+		for(x=0;x<l;x++){
+			/*
+			 * The delay loop give us ~1.3 tsc cycle per loop
+			 * so the floor is j*1.3
+			 */
+			seq_printf(m, "%8Lu\n",pcpu->delta[x]);
+		}
 	}
 	return 0;
 }
@@ -270,6 +288,8 @@ static int tsc_show(struct seq_file *m, void *p)
 #ifdef __KERNEL__
 static int tsc_open(struct inode *inode, struct file *filep)
 {
+	memset(cpu_dat,0,sizeof(cpu_dat));
+	measure_tsc_cycle_per_loop(NULL);
 	return single_open(filep, tsc_show, inode->i_private);
 }
 
@@ -283,7 +303,7 @@ static const struct file_operations fops = {
 
 static int __init init(void)
 {
-	int retval,i;
+	int i;
 
 	if(!j || !l){
 		PRINT("PER CPU lpj info\n");
@@ -321,20 +341,35 @@ main(int argc, char *argv[])
 {
 	int	c;
 	int errs;
+	int	ncpus;
+	int	nthreads;
+	cpu_set_t	cpus;
 	extern int	opterr;
 	extern int	optind;
 	extern char	*optarg;
-
+	
 	if ((program = strrchr(argv[0], '/')) != NULL)
 		++program;
 	else
 		program = argv[0];
 	set_program_name(program);
 
+	/*
+	 * default to checking all cpus
+	 */
+	for (c = 0; c < CPU_SETSIZE; c++) {
+		CPU_SET(c, &cpus);
+	}
+
 	opterr = 0;
 	errs = 0;
+
 	while ((c = getopt_long(argc, argv, optstring, options, NULL)) != EOF) {
 		switch (c) {
+			case 'c':
+				if (parse_cpu_set(optarg, &cpus) != 0)
+					++errs;
+				break;
 			case 'j':
 				j = strtol(optarg, NULL, 0);
 				break;
@@ -359,6 +394,35 @@ main(int argc, char *argv[])
 		usage();
 		exit(1);
 	}
+
+	/*
+	 * limit the set of CPUs to the ones that are currently available
+	 * (Note that on some kernel versions sched_setaffinity() will fail
+	 * if you specify CPUs that are not currently online so we ignore
+	 * the return value and hope for the best)
+	 */
+	sched_setaffinity(0, sizeof cpus, &cpus);
+	if (sched_getaffinity(0, sizeof cpus, &cpus) < 0) {
+		ERROR(errno, "sched_getaffinity() failed");
+		exit(1);
+	}
+
+	memset(cpu_dat,0,sizeof(cpu_dat));
+
+	/*
+ 	 * create the threads
+ 	 */
+	ncpus = count_cpus(&cpus);
+	nthreads = create_per_cpu_threads(&cpus, measure_tsc_cycle_per_loop, NULL);
+	if (nthreads != ncpus) {
+		ERROR(0, "failed to create threads: expected %d, got %d",
+			ncpus, nthreads);
+		if (nthreads) {
+			join_threads();
+		}
+		return 1;
+	}
+	join_threads();
 
 	tsc_show(NULL,NULL);
 }

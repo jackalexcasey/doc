@@ -1,0 +1,1 @@
+Kernel does dynamic CPU throttling; This affect the results Even in a spin_lock IRQ in the kernel.
