@@ -97,6 +97,11 @@ static struct dentry *debugfs_file;
 		fprintf(stderr, fmt, ## args); \
 } while (0)
 
+#define seq_printf(file,fmt, args...) \
+	do{ \
+		fprintf(stderr, fmt, ## args); \
+} while (0)
+
 #define DECLARE_ARGS(val, low, high)    unsigned low, high
 #define EAX_EDX_VAL(val, low, high) ((low) | ((u64)(high) << 32))                                                      
 #define EAX_EDX_ARGS(val, low, high)    "a" (low), "d" (high)
@@ -108,9 +113,11 @@ static struct dentry *debugfs_file;
 #define MAX_LOOPS_NR 1024
 #define MAX_CPU_NR 64
 
-
 typedef unsigned long long cycles_t;
 typedef uint64_t u64;
+
+struct seq_file{
+};
 
 static int j=0;
 static int l=0;
@@ -239,17 +246,9 @@ again:
 #ifdef __KERNEL__
 	spin_unlock_irq(&lock);
 #endif
-
-#ifndef __KERNEL__
-	PRINT("%s\n",pcpu->cpu_name);
-	for(x=0;x<loop_nr;x++){
-		PRINT("%8Lu\n",pcpu->delta[x]);
-	}
-#endif
 	return cpu;
 }
 
-#ifdef __KERNEL__
 static int tsc_show(struct seq_file *m, void *p)
 {
 	int cpu,x;
@@ -259,11 +258,16 @@ static int tsc_show(struct seq_file *m, void *p)
 	pcpu = &cpu_dat[cpu];
 	seq_printf(m, "%s\n",pcpu->cpu_name);
 	for(x=0;x<l;x++){
+		/*
+		 * The delay loop give us ~1.3 tsc cycle per loop
+		 * so the floor is j*1.3
+		 */
 		seq_printf(m, "%8Lu\n",pcpu->delta[x]);
 	}
 	return 0;
 }
 
+#ifdef __KERNEL__
 static int tsc_open(struct inode *inode, struct file *filep)
 {
 	return single_open(filep, tsc_show, inode->i_private);
@@ -355,8 +359,8 @@ main(int argc, char *argv[])
 		usage();
 		exit(1);
 	}
-		
-	measure_tsc_cycle_per_loop(j,l);
+
+	tsc_show(NULL,NULL);
 }
 #endif /* __KERNEL__ */
 
