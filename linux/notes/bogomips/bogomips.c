@@ -265,35 +265,10 @@ again:
 #endif
 }
 
-/*
- * Be carefull this is an iterator
- */
-static int tsc_show(struct seq_file *m, void *p)
-{
-	int x,y;
-	struct per_cpu *pcpu;
-
-	for(y=0;y<MAX_CPU_NR;y++){
-		pcpu = &cpu_dat[y];
-		if(!strlen(pcpu->cpu_name))
-			continue;
-		seq_printf(m, "%s\n",pcpu->cpu_name);
-		for(x=0;x<l;x++){
-			/*
-			 * The delay loop give us ~1.3 tsc cycle per loop
-			 * so the floor is j*1.3
-			 */
-			seq_printf(m, "%8Lu\n",pcpu->delta[x]);
-		}
-		memset(pcpu,0,sizeof(struct per_cpu));
-	}
-	return 0;
-}
-
 #ifdef __KERNEL__
 static int tsc_open(struct inode *inode, struct file *filep)
 {
-	return single_open(filep, tsc_show, inode->i_private);
+	return 0;
 }
 
 static ssize_t tsc_read(struct file *filep, char __user *buf,
@@ -386,6 +361,37 @@ MODULE_AUTHOR(DRIVER_AUTHOR);
 MODULE_DESCRIPTION(DRIVER_DESC);
 
 #else /* __KERNEL__ */
+
+/*
+ * Be carefull this is an iterator
+ */
+static int tsc_show(struct seq_file *m, void *p)
+{
+	int x,y;
+	struct per_cpu *pcpu;
+
+	for(y=0;y<MAX_CPU_NR;y++){
+		pcpu = &cpu_dat[y];
+		if(!strlen(pcpu->cpu_name))
+			continue;
+		seq_printf(m, "%s;",pcpu->cpu_name);
+	}
+	seq_printf(m, "\n",pcpu->cpu_name);
+
+
+	for(x=0;x<l;x++){
+		for(y=0;y<MAX_CPU_NR;y++){
+			pcpu = &cpu_dat[y];
+			if(!strlen(pcpu->cpu_name))
+				continue;
+			seq_printf(m, "%Lu;",pcpu->delta[x]);
+		}
+		seq_printf(m, "\n",pcpu->cpu_name);
+	}
+	seq_printf(m, "\n",pcpu->cpu_name);
+
+	return 0;
+}
 
 /*
  *
