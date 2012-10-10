@@ -227,7 +227,7 @@ static void * measure_tsc_cycle_per_loop(void *arg)
 	sprintf(pcpu->cpu_name,"Kernel_cpu_%d",cpu);
 #else /* __KERNEL__ */
 	cpu = sched_getcpu();
-	display_thread_sched_attr("");
+	//display_thread_sched_attr("");
 	pcpu = &cpu_dat[cpu];
 	sprintf(pcpu->cpu_name,"User_cpu_%d",cpu);
 #endif /* __KERNEL__ */
