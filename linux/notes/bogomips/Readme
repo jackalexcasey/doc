@@ -29,8 +29,8 @@ dmesg -c >/dev/null
 insmod bogomips.ko l=100 j=100000
 cat /sys/kernel/debug/spinloop
 
-./bogomips -l 100 -j 10000 -c1
-./bogomips -l 100 -j 10000 -c1 -k
+./bogomips -l 100 -j 100000 -c1
+./bogomips -l 100 -j 100000 -c1 -k
 
 # NOTES:
 # Current execution is done on kworker thread ... -< because of the insmod thing
