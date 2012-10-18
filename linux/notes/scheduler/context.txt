@@ -20,9 +20,24 @@ Interruption have their own stack
 
 Disable IRQ on the local CPU OR maskng IRQ in the interruption controller
 
+Interruption flow 
+~~~~~~~~~~~~~~~~~~~~
+Interruption can interrupt kernel space or process 
+
+When an interruption terminate; If a reschedule is pending, and the
+kernel is returning to user-space (that is, the interrupt interrupted a user process),
+schedule() is called. 
+
+If the kernel is returning to kernel-space (that is, the interrupt inter-
+rupted the kernel itself), schedule() is called only if the preempt_count is zero. Other-
+wise it is not safe to preempt the kernel. 
+
+After schedule() returns, or if there is no work
+pending, the initial registers are restored and the kernel resumes whatever was interrupted.
+
 
 Deferring WORK;
-
+~~~~~~~~~~~~~~~~~
 A)SoftIRQ
 ~~~~~~~~~~~~~~~~
 Static define at compile time;
@@ -56,15 +71,23 @@ B)Tasklet
 Build on top of softIRQ
 	Explicitely check if another instance is running on another CPU and if SO then don't run
 
+Because tasklets are implemented on top of softirqs, they are softirqs.
+
+DECLARE_TASKLET(name, func, data)
+
 CANNOT SLEEP
 
 tasklet_schedule(&my_tasklet); //Can schedule on once before it runs across all CPU
 
 ksoftIRQd
 ~~~~~~~~~~~~~~~~~~~~~~~
-SoftIRQ can raise themself  SO there is a high rate (potentially )
-2 approach
-
+SoftIRQ can raise themself from the handler itself SO there is a high rate (potentially )
+2 approach:
+	ksoftIRQd raise the pending softirq periodically
 
 C)WorkQueue
+Work queues defer work into a kernel thread—this bottom half always runs in process context
+	CAN sleep
+
+
 
