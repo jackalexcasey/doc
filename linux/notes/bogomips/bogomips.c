@@ -65,7 +65,6 @@ module_param(j, int, 0644);
 
 static DEFINE_SPINLOCK(lock);
 static struct dentry *debugfs_file;
-static int kthread_join;
 
 #else /* __KERNEL__ */
 
@@ -123,6 +122,7 @@ struct seq_file{
 
 static int j=0;
 static int l=0;
+static int Gfd;
 
 char *program	= "";
 const char optstring[] = "l:j:c:k";
@@ -217,19 +217,20 @@ static void * measure_tsc_cycle_per_loop(void *arg)
 	unsigned long lpj = j;
 	int loop_nr = l;
 #ifdef __KERNEL__
-	struct sched_param param = {.sched_priority = 1};
+	//struct sched_param param = {.sched_priority = 1};
+	//sched_setscheduler(current, SCHED_RR, &param);
 #endif
 
 #ifdef __KERNEL__
 	cpu = raw_smp_processor_id();
-	//sched_setscheduler(current, SCHED_RR, &param);
+	pcpu = &cpu_dat[cpu];
+	sprintf(pcpu->cpu_name,"Kernel_cpu_%d",cpu);
 #else /* __KERNEL__ */
 	cpu = sched_getcpu();
-	display_thread_sched_attr("");
-#endif /* __KERNEL__ */
-
+	//display_thread_sched_attr("");
 	pcpu = &cpu_dat[cpu];
-	sprintf(pcpu->cpu_name,"cpu_%d",cpu);
+	sprintf(pcpu->cpu_name,"User_cpu_%d",cpu);
+#endif /* __KERNEL__ */
 
 	/* 
 	 * By warming up we ensure the cache is warm
@@ -264,44 +265,64 @@ again:
 #endif
 }
 
-/*
- * Be carefull this is an iterator
- */
-static int tsc_show(struct seq_file *m, void *p)
-{
-	int x,y;
-	struct per_cpu *pcpu;
-	
-	for(y=0;y<MAX_CPU_NR;y++){
-		pcpu = &cpu_dat[y];
-		if(!strlen(pcpu->cpu_name))
-			continue;
-		seq_printf(m, "%s\n",pcpu->cpu_name);
-		for(x=0;x<l;x++){
-			/*
-			 * The delay loop give us ~1.3 tsc cycle per loop
-			 * so the floor is j*1.3
-			 */
-			seq_printf(m, "%8Lu\n",pcpu->delta[x]);
-		}
-		memset(pcpu,0,sizeof(struct per_cpu));
-	}
-	return 0;
-}
-
 #ifdef __KERNEL__
 static int tsc_open(struct inode *inode, struct file *filep)
 {
+	return 0;
+}
+
+static ssize_t tsc_read(struct file *filep, char __user *buf,
+	size_t count, loff_t *ppos)
+{
+	unsigned long p = *ppos;
+	ssize_t read, sz;
+	char *ptr,*dat;
+
+	if( (*ppos+count) > (sizeof(struct per_cpu) * MAX_CPU_NR))
+		return -EFAULT;
+
+	read = 0;
+
+	while (count > 0) {
+		/*
+		 * Handle first page in case it's not aligned
+		 */
+		if (-p & (PAGE_SIZE - 1))
+			sz = -p & (PAGE_SIZE - 1);
+		else
+			sz = PAGE_SIZE;
+
+		sz = min_t(unsigned long, sz, count);
+		dat = (char*)cpu_dat;
+		ptr = &dat[p];
+
+		if (copy_to_user(buf, ptr, sz)) {
+			return -EFAULT;
+		}
+
+		buf += sz;
+		p += sz;
+		count -= sz;
+		read += sz;
+	}
+
+	*ppos += read; //Seek the file
+	return read;
+}
+
+static ssize_t tsc_write(struct file * filep, const char __user * buf,
+	size_t count, loff_t *ppos)
+{
+	/* Run the measurement on this CPU */
 	measure_tsc_cycle_per_loop(NULL);
-	return single_open(filep, tsc_show, inode->i_private);
+	return count;
 }
 
 static const struct file_operations fops = {
 	.owner		= THIS_MODULE,
-	.read		= seq_read,
+	.read		= tsc_read,
+	.write		= tsc_write,
 	.open		= tsc_open,
-	.llseek     = seq_lseek,
-	.release    = single_release,
 };
 
 static int __init init(void)
@@ -341,23 +362,49 @@ MODULE_DESCRIPTION(DRIVER_DESC);
 
 #else /* __KERNEL__ */
 
-static int Gfd;
+/*
+ * Be carefull this is an iterator
+ */
+static int tsc_show(struct seq_file *m, void *p)
+{
+	int x,y;
+	struct per_cpu *pcpu;
+
+	for(y=0;y<MAX_CPU_NR;y++){
+		pcpu = &cpu_dat[y];
+		if(!strlen(pcpu->cpu_name))
+			continue;
+		seq_printf(m, "%s;",pcpu->cpu_name);
+	}
+	seq_printf(m, "\n",pcpu->cpu_name);
+
+
+	for(x=0;x<l;x++){
+		for(y=0;y<MAX_CPU_NR;y++){
+			pcpu = &cpu_dat[y];
+			if(!strlen(pcpu->cpu_name))
+				continue;
+			seq_printf(m, "%Lu;",pcpu->delta[x]);
+		}
+		seq_printf(m, "\n",pcpu->cpu_name);
+	}
+	seq_printf(m, "\n",pcpu->cpu_name);
+
+	return 0;
+}
 
 /*
- * All this thread does is to open the sysfs entry
- * and obtain an FD. This internally triggers the test
- * on the current CPU. This is easier than 
- * creating kthread...
+ *
+ * This thread write to sysfs which internally
+ * trigger the measurements per CPU
+ *
+ * This is easier than creating kthread and managing the cpu sets...
  */
 static void * dump_kernel(void *arg)
 {
-	int fd;
-	fd = open("/sys/kernel/debug/spinloop", O_RDONLY);
-	if(fd <0 )
+	int val;
+	if(write(Gfd, &val,sizeof(int))<0)
 		exit(1);
-
-	/* Hack */
-	Gfd = fd;
 	return NULL;
 }
 
@@ -442,8 +489,12 @@ main(int argc, char *argv[])
  	 * create the threads
  	 */
 	ncpus = count_cpus(&cpus);
-	if(kernel)
+	if(kernel){
+		Gfd = open("/sys/kernel/debug/spinloop", O_RDWR);
+		if(Gfd <0 )
+			exit(1);
 		nthreads = create_per_cpu_threads(&cpus, dump_kernel, NULL);
+	}
 	else
 		nthreads = create_per_cpu_threads(&cpus, measure_tsc_cycle_per_loop, NULL);
 	if (nthreads != ncpus) {
@@ -456,24 +507,16 @@ main(int argc, char *argv[])
 	}
 	join_threads();
 
-	if(!kernel)
-		tsc_show(NULL,NULL);
-	else{
+	if(kernel){
+		char *dat;
 		int size;
-		char *buf;
-
-		buf = malloc(4096);
-		if(!buf)
-			exit(0);
-again:
-		memset(buf,0,4096);
-		size = read(Gfd, buf,4095);
+		dat = (char*)cpu_dat;
+		size = read(Gfd, dat, (sizeof(struct per_cpu) * MAX_CPU_NR));
 		if(size <0)
-			exit(0);
-		printf("%s",buf);
-		if(size != 0)
-			goto again;
+			exit(-1);
 	}
+
+	tsc_show(NULL,NULL);
 }
 #endif /* __KERNEL__ */
 

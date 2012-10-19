@@ -24,13 +24,15 @@ chrt -p -r 'prio' 'pid'
 #
 
 
-rmmod bogomips
-dmesg -c >/dev/null
-insmod bogomips.ko l=100 j=100000
-cat /sys/kernel/debug/spinloop
+sudo rmmod bogomips
+sudo dmesg -c >/dev/null
+sudo insmod bogomips.ko l=1000 j=100000
+sudo chown etmartin /sys/kernel/debug/spinloop
+sudo chgrp etmartin /sys/kernel/debug/spinloop
+sudo chmod ug+rwx /sys/kernel/debug/spinloop
 
-./bogomips -l 100 -j 10000 -c1
-./bogomips -l 100 -j 10000 -c1 -k
+./bogomips -l 1000 -j 100000 -c1 &> u.csv
+./bogomips -l 1000 -j 100000 -c1 -k &> k.csv
 
 # NOTES:
 # Current execution is done on kworker thread ... -< because of the insmod thing
