@@ -1,0 +1,94 @@
+diff --git a/linux/notes/bogomips/bogomips.c b/linux/notes/bogomips/bogomips.c
+index 61d1bce..5278c80 100644
+--- a/linux/notes/bogomips/bogomips.c
++++ b/linux/notes/bogomips/bogomips.c
+@@ -26,6 +26,7 @@
+ #include <linux/seq_file.h>
+ #include <linux/debugfs.h>
+ #include <linux/kthread.h>
++#include <linux/ktime.h>
+ 
+ #include <linux/rtc.h>
+ #include <linux/init.h>
+@@ -116,6 +117,10 @@ static struct dentry *debugfs_file;
+ 
+ typedef unsigned long long cycles_t;
+ typedef uint64_t u64;
++struct ktime {
++	uint64_t tv64;
++};
++typedef struct ktime ktime_t;
+ 
+ struct seq_file{
+ };
+@@ -161,11 +166,30 @@ static inline cycles_t get_cycles(void)
+ 	rdtscll(ret);
+ 	return ret;
+ }
++
++uint64_t ktime_to_ns(ktime_t kt)
++{
++}
++
++ktime_t ktime_sub(ktime_t lhs, ktime_t rhs)
++{
++}
++
++ktime_t ktime_add(ktime_t lhs, ktime_t rhs)
++{
++}
++
++ktime_t ktime_get(void)
++{
++
++}
++
+ #endif /* __KERNEL__ */
+ 
+ struct per_cpu{
+ 	char cpu_name[32];
+ 	uint64_t delta[MAX_LOOPS_NR];
++	uint64_t kdelta[MAX_LOOPS_NR];
+ };
+ 
+ static struct per_cpu cpu_dat[MAX_CPU_NR];
+@@ -216,6 +240,7 @@ static void * measure_tsc_cycle_per_loop(void *arg)
+ 	struct per_cpu *pcpu;
+ 	unsigned long lpj = j;
+ 	int loop_nr = l;
++	ktime_t k1,k2,k3;
+ #ifdef __KERNEL__
+ 	//struct sched_param param = {.sched_priority = 1};
+ 	//sched_setscheduler(current, SCHED_RR, &param);
+@@ -245,13 +270,20 @@ static void * measure_tsc_cycle_per_loop(void *arg)
+ #endif
+ 	for(x=0;x<loop_nr;x++){
+ 		t1 = get_cycles();
+-		if(!x)
++		k1 = ktime_get();
++		if(!x){
+ 			t3 = 0;
+-		else
++			k3.tv64 = 0;
++		}
++		else{
+ 			t3 = t1 - t2;
++			k3 = ktime_sub(k1,k2);
++		}
+ 		__ldelay(lpj);
+ 		t2 = get_cycles();
++		k2 = ktime_get();
+ 		pcpu->delta[x] = t2-t1 + t3;
++		pcpu->kdelta[x] = ktime_to_ns(ktime_sub(k2,k1));
+ 	}
+ #ifdef __KERNEL__
+ 	local_irq_enable();
+@@ -381,7 +413,7 @@ static int tsc_show(struct seq_file *m, void *p)
+ 			pcpu = &cpu_dat[y];
+ 			if(!strlen(pcpu->cpu_name))
+ 				continue;
+-			seq_printf(m, "%Lu;",pcpu->delta[x]);
++			seq_printf(m, "%Lu;%Lu",pcpu->delta[x], pcpu->kdelta[x]);
+ 		}
+ 		seq_printf(m, "\n",pcpu->cpu_name);
+ 	}

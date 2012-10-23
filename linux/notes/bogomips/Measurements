@@ -37,14 +37,30 @@
 			pcpu->delta[x] = t2-t1 + t3; // Charge t3 on the next run
 	}									
 
-If we run the above test in a loop and in the loop we find out how much
-off we are from t2-t1 + t3;
-the calibrated value should be the one without the cache effect.
-Then we can mark a % value from the optimal case.
 
 
-# t1 is obtain when F complete execution
-# t2 is obtain when N complete execution
-# A,B,C,D,E,F [H,I,J,K,L,M,N] O,P,Q,R,S
+#
+# If we run the above test in a loop and in the loop we find out how much
+# off we are from t2-t1 + t3; the calibrated value should be the one without the cache effect.
+# Then we can mark a % value from the optimal case.
+# 
+#
+# The resolution can be obtain by changing the period in function of the CPU speed.
+# i.e. n TSC cycle for a CPU that runs at t mhz
 
-c
+The wall time to TSC time goes as follow (from measurement)
+Kernel_cpu_1;
+200448;83701
+200160;83578
+200140;83576
+200144;83577
+200140;83575
+200200;83574
+
+200200/83574 = 2.394810098 TSC cycle per nanosec ==> 0.417569644 nsec per TSC cycle ==> 2.394810098e+9
+
+cat /proc/cpuinfo
+cpu MHz		: 2393.952
+
+TSC cycle runs are the CPU frequency as shown by cat /proc/cpuinfo
+
