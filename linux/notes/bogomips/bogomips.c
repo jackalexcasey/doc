@@ -52,7 +52,7 @@
 #define MIN(a,b) (((a)<(b))?(a):(b)) 
 #define MAX(a,b) (((a)>(b))?(a):(b))
 
-#define MAX_LOOPS_NR 1024
+#define MAX_LOOPS_NR 1024*1024
 #define MAX_CPU_NR 64
 
 static int l=0;
@@ -111,7 +111,7 @@ static struct dentry *debugfs_file;
 #define MIN(a,b) (((a)<(b))?(a):(b)) 
 #define MAX(a,b) (((a)>(b))?(a):(b))
 
-#define MAX_LOOPS_NR 1024
+#define MAX_LOOPS_NR 1024*1024
 #define MAX_CPU_NR 64
 
 typedef unsigned long long cycles_t;

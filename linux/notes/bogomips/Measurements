@@ -63,4 +63,36 @@ cat /proc/cpuinfo
 cpu MHz		: 2393.952
 
 TSC cycle runs are the CPU frequency as shown by cat /proc/cpuinfo
+~~~~~~~~~~~~~~~~~~~~~~
+
+So to have a 1usec resolution we need n TSC cycle
+
+With an approx we found the resolution needed in term of LPJ
+This is the calibration part
+
+
+
+As LPJ goes to 0 the 'b' part  y = mx+b is ~=60 that is the overhead for the measurement itself.
+
+
+Example ( Characterization of the timer Interrupt latency )
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Resolution needed 100 nsec CPU freq 2393.952 Mhz => 239 cycle
+Resolution needed 1000 nsec => 2393 TSC cycle; What is LPJ???
+
+From other test we have 
+~200060 TSC cycle for LPJ = 100000
+==> 2 TSC cycle per LPJ + Constant of 64; TSC = 2*LPJ + 64
+==> 2393 TSC cycle LPG = ?
+==> (TSC - 64)/2 =  1164
+
+sudo rmmod bogomips
+sudo dmesg -c >/dev/null
+sudo insmod bogomips.ko l=1000 j=1164
+
+Perfect !!! Resolution of 1 uSec
+>>>>
+>>>>2392;
+>>>>2388;
+>>>>
 
