@@ -1,0 +1,169 @@
+diff --git a/linux/notes/bogomips/Measurements b/linux/notes/bogomips/Measurements
+index 9881506..4a1093c 100644
+--- a/linux/notes/bogomips/Measurements
++++ b/linux/notes/bogomips/Measurements
+@@ -96,3 +96,11 @@ Perfect !!! Resolution of 1 uSec
+ >>>>2388;
+ >>>>
+ 
++
++
++
++The problem with this approach is that it takes lots of memory.
++Memory is taken for every sample good or bad.
++
++Another variant would be to look at a calibrated value and if it match just keep on
++Otherwise mark the time it doesn't
+diff --git a/linux/notes/bogomips/Readme b/linux/notes/bogomips/Readme
+index e4e06a6..c72c3d2 100644
+--- a/linux/notes/bogomips/Readme
++++ b/linux/notes/bogomips/Readme
+@@ -45,3 +45,15 @@ sudo chmod ug+rwx /sys/kernel/debug/spinloop
+ cd /proc/sys/kernel
+ echo 0 >watchdog
+ 
++
++
++# 
++# Calibrated mode 
++# In the Calibrated mode -C='calibration value for the given lpj'
++# The output data is written in flip flop mode only
++# start TSC = 0
++# start TSC + 100 = 1
++# start TSC + ........ = 0
++# start TSC + ......... = 1
++#
++# So that we can plot a square wave using a vector
+diff --git a/linux/notes/bogomips/bogomips.c b/linux/notes/bogomips/bogomips.c
+index b8b839d..599faf6 100644
+--- a/linux/notes/bogomips/bogomips.c
++++ b/linux/notes/bogomips/bogomips.c
+@@ -52,7 +52,7 @@
+ #define MIN(a,b) (((a)<(b))?(a):(b)) 
+ #define MAX(a,b) (((a)>(b))?(a):(b))
+ 
+-#define MAX_LOOPS_NR 1024*1024
++#define MAX_LOOPS_NR 1024*10
+ #define MAX_CPU_NR 64
+ 
+ static int l=0;
+@@ -63,6 +63,10 @@ static int j=0;
+ MODULE_PARM_DESC(j, "lpj");
+ module_param(j, int, 0644);
+ 
++static int C=0;
++MODULE_PARM_DESC(C, "cal");
++module_param(C, int, 0644);
++
+ static DEFINE_SPINLOCK(lock);
+ static struct dentry *debugfs_file;
+ 
+@@ -111,7 +115,7 @@ static struct dentry *debugfs_file;
+ #define MIN(a,b) (((a)<(b))?(a):(b)) 
+ #define MAX(a,b) (((a)>(b))?(a):(b))
+ 
+-#define MAX_LOOPS_NR 1024*1024
++#define MAX_LOOPS_NR 1024*10
+ #define MAX_CPU_NR 64
+ 
+ typedef unsigned long long cycles_t;
+@@ -122,10 +126,11 @@ struct seq_file{
+ 
+ static int j=0;
+ static int l=0;
++static int C=0;
+ static int Gfd;
+ 
+ char *program	= "";
+-const char optstring[] = "l:j:c:k";
++const char optstring[] = "l:j:c:kC:";
+ struct option options[] = {
+ 	{ "",	required_argument,	0, 	'j'	},
+ 	{ "",	required_argument,	0, 	'l'	},
+@@ -134,7 +139,7 @@ struct option options[] = {
+ 
+ void usage(void)
+ {
+-	printf("usage: [-l loop_nr MAX %d] [-j lpj] [-c cpu sets] [-k kernel data]\n",MAX_LOOPS_NR);
++	printf("usage: [-l loop_nr MAX %d] [-j lpj] [-c cpu sets] [-k kernel data] [-C use calibration value ]\n",MAX_LOOPS_NR);
+ 	printf("dmesg |grep lpj\n");
+ }
+ 
+@@ -166,6 +171,7 @@ static inline cycles_t get_cycles(void)
+ struct per_cpu{
+ 	char cpu_name[32];
+ 	uint64_t delta[MAX_LOOPS_NR];
++	int state[MAX_LOOPS_NR];
+ };
+ 
+ static struct per_cpu cpu_dat[MAX_CPU_NR];
+@@ -211,11 +217,12 @@ static int measure_tsc_cycle_per_loop(void *arg)
+ static void * measure_tsc_cycle_per_loop(void *arg)
+ #endif
+ {
+-	int x,cpu;
++	int x,y,cpu;
+ 	u64 t1, t2,t3;
+ 	struct per_cpu *pcpu;
+ 	unsigned long lpj = j;
+ 	int loop_nr = l;
++	static int state;
+ #ifdef __KERNEL__
+ 	//struct sched_param param = {.sched_priority = 1};
+ 	//sched_setscheduler(current, SCHED_RR, &param);
+@@ -251,7 +258,32 @@ static void * measure_tsc_cycle_per_loop(void *arg)
+ 			t3 = t1 - t2;
+ 		__ldelay(lpj);
+ 		t2 = get_cycles();
+-		pcpu->delta[x] = t2-t1 + t3;
++		if(C){
++			if(x == 0){ //state; 0 no CPU // 1 full CPU
++				y = 0;
++				state = 0;
++				pcpu->delta[x] = t1;
++				pcpu->state[x] = 0;
++			}
++			else if( (MAX((t2-t1 + t3),C) > C) ){ //loosing the CPU
++				if(state == 1){
++					state = 0;
++					pcpu->delta[y] = t1;
++					pcpu->state[y] = 0;
++					y++;
++				}
++			}
++			else{ // Full CPU available
++				if(state == 0){
++					state = 1;
++					pcpu->delta[y] = t1;
++					pcpu->state[y] = 1;
++					y++;
++				}
++			}
++		}
++		else
++			pcpu->delta[x] = t2-t1 + t3;
+ 	}
+ #ifdef __KERNEL__
+ 	local_irq_enable();
+@@ -381,7 +413,10 @@ static int tsc_show(struct seq_file *m, void *p)
+ 			pcpu = &cpu_dat[y];
+ 			if(!strlen(pcpu->cpu_name))
+ 				continue;
+-			seq_printf(m, "%Lu;",pcpu->delta[x]);
++			if(C)
++				seq_printf(m, "%Lu;%d",pcpu->delta[x],pcpu->state[x]);
++			else
++				seq_printf(m, "%Lu;",pcpu->delta[x]);
+ 		}
+ 		seq_printf(m, "\n",pcpu->cpu_name);
+ 	}
+@@ -446,6 +481,9 @@ main(int argc, char *argv[])
+ 			case 'j':
+ 				j = strtol(optarg, NULL, 0);
+ 				break;
++			case 'C':
++				C = strtol(optarg, NULL, 0);
++				break;
+ 			case 'l':
+ 				l = strtol(optarg, NULL, 0);
+ 				if(l >= MAX_LOOPS_NR)
