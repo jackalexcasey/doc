@@ -211,8 +211,8 @@ static int measure_tsc_cycle_per_loop(void *arg)
 static void * measure_tsc_cycle_per_loop(void *arg)
 #endif
 {
-	int x,cpu,warm;
-	u64 t1, t2;
+	int x,cpu;
+	u64 t1, t2,t3;
 	struct per_cpu *pcpu;
 	unsigned long lpj = j;
 	int loop_nr = l;
@@ -237,24 +237,21 @@ static void * measure_tsc_cycle_per_loop(void *arg)
 	 * and the CPU runs full throttle;
 	 * NOTE that we only take the spinlock IRQ when the
 	 * cpu is warm since the governor needs IRQ to throttle...
+	 * This is not needed since we turn off cpu throttling in BIOS
 	 */ 
-	warm = 0;
-again:
 #ifdef __KERNEL__
-	if(warm == 2){
-		local_irq_disable();
-		preempt_disable();
-	}
-#endif		
+	local_irq_disable();
+	preempt_disable();
+#endif
 	for(x=0;x<loop_nr;x++){
 		t1 = get_cycles();
+		if(!x)
+			t3 = 0;
+		else
+			t3 = t1 - t2;
 		__ldelay(lpj);
 		t2 = get_cycles();
-		pcpu->delta[x] = t2-t1; 
-	}
-	if(warm != 2){
-		warm ++;
-		goto again;
+		pcpu->delta[x] = t2-t1 + t3;
 	}
 #ifdef __KERNEL__
 	local_irq_enable();

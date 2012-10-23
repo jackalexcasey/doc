@@ -1,5 +1,5 @@
-#KDIR  := /lib/modules/`uname -r`/build
-KDIR := /nobackup/gitrepo/third
+KDIR  := /lib/modules/`uname -r`/build
+#KDIR := /nobackup/gitrepo/third
 LOCAL_OBJ := bogomips.o
 obj-m := $(LOCAL_OBJ)
 
