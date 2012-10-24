@@ -52,7 +52,7 @@
 #define MIN(a,b) (((a)<(b))?(a):(b)) 
 #define MAX(a,b) (((a)>(b))?(a):(b))
 
-#define MAX_LOOPS_NR 1024*1024
+#define MAX_LOOPS_NR 1024
 #define MAX_CPU_NR 64
 
 static int l=0;
@@ -111,7 +111,7 @@ static struct dentry *debugfs_file;
 #define MIN(a,b) (((a)<(b))?(a):(b)) 
 #define MAX(a,b) (((a)>(b))?(a):(b))
 
-#define MAX_LOOPS_NR 1024*1024
+#define MAX_LOOPS_NR 1024
 #define MAX_CPU_NR 64
 
 typedef unsigned long long cycles_t;
@@ -163,9 +163,12 @@ static inline cycles_t get_cycles(void)
 }
 #endif /* __KERNEL__ */
 
+#define _VECTOR_
+
 struct per_cpu{
 	char cpu_name[32];
 	uint64_t delta[MAX_LOOPS_NR];
+	int vector_nr[MAX_LOOPS_NR];
 };
 
 static struct per_cpu cpu_dat[MAX_CPU_NR];
@@ -211,15 +214,11 @@ static int measure_tsc_cycle_per_loop(void *arg)
 static void * measure_tsc_cycle_per_loop(void *arg)
 #endif
 {
-	int x,cpu;
-	u64 t1, t2,t3;
+	int x,y,cpu;
+	u64 t1,t2,t3,t4;
 	struct per_cpu *pcpu;
 	unsigned long lpj = j;
 	int loop_nr = l;
-#ifdef __KERNEL__
-	//struct sched_param param = {.sched_priority = 1};
-	//sched_setscheduler(current, SCHED_RR, &param);
-#endif
 
 #ifdef __KERNEL__
 	cpu = raw_smp_processor_id();
@@ -251,7 +250,29 @@ static void * measure_tsc_cycle_per_loop(void *arg)
 			t3 = t1 - t2;
 		__ldelay(lpj);
 		t2 = get_cycles();
+#ifndef _VECTOR_
 		pcpu->delta[x] = t2-t1 + t3;
+#else
+		t4 = (t2-t1 + t3) &0xffffffffffffff00;
+		if(!x){
+			y=0;
+			pcpu->delta[y] = t4;
+			pcpu->vector_nr[y] = 1;
+		}
+		else if(pcpu->delta[y] == t4 ){
+			pcpu->vector_nr[y]++;
+		}
+		else{
+			y++;
+			pcpu->delta[y] = t4;
+			pcpu->vector_nr[y] = 1;
+			/* 
+			 * Because we have a jitter between the various path we
+			 * try to make it even with nop
+			 * The jitter comes from the delta / vector_nr not on the same cache line
+			 */
+		}
+#endif
 	}
 #ifdef __KERNEL__
 	local_irq_enable();
@@ -381,11 +402,13 @@ static int tsc_show(struct seq_file *m, void *p)
 			pcpu = &cpu_dat[y];
 			if(!strlen(pcpu->cpu_name))
 				continue;
-			seq_printf(m, "%Lu;",pcpu->delta[x]);
+			if(!pcpu->delta[x])
+				continue;
+			seq_printf(m, "%Lu,%d;",pcpu->delta[x],pcpu->vector_nr[x]);
 		}
-		seq_printf(m, "\n",pcpu->cpu_name);
+		seq_printf(m, "\n");
 	}
-	seq_printf(m, "\n",pcpu->cpu_name);
+	seq_printf(m, "\n");
 
 	return 0;
 }

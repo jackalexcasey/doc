@@ -96,3 +96,36 @@ Perfect !!! Resolution of 1 uSec
 >>>>2388;
 >>>>
 
+
+NOTE
+~~~~~~~
+The calibration is good and proven to work. the part that is needed is to find out if 
+we have OR not the cpu from those data.
+The current way of plotting tell us that sometime it may take a very long time 
+to compute the task. In a graph its not good.
+
+note that IRQ latency is good but it doesn't catch everything since in order to trigger it
+you need to arm it and to arm it you need to run it...
+
+
+
+Another thing would be to have a vector mode ( to compress the data )
+
+
+Another way would be to print the time we are not running ONLY
+
+while(1){
+	t1 = get time
+	delay
+	t2 = get time
+	if(t2 -t1 > Cal)
+		t1 : t2-t1         <<<< Telling that at t1 time We didn't ran for t2 -t1 cycle
+
+So the graph is
+
+TSC start|---------|TSC T1__________________|T1 + T2 - t1|--------------
+
+
+}
+
+--> if( period  
