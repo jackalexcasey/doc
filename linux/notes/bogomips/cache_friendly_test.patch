@@ -1,0 +1,61 @@
+diff --git a/linux/notes/bogomips/bogomips.c b/linux/notes/bogomips/bogomips.c
+index 9950418..08520a4 100644
+--- a/linux/notes/bogomips/bogomips.c
++++ b/linux/notes/bogomips/bogomips.c
+@@ -165,10 +165,14 @@ static inline cycles_t get_cycles(void)
+ 
+ #define _VECTOR_
+ 
++struct info{
++	uint64_t delta;
++	int vector_nr;
++};
++
+ struct per_cpu{
+ 	char cpu_name[32];
+-	uint64_t delta[MAX_LOOPS_NR];
+-	int vector_nr[MAX_LOOPS_NR];
++	struct info inf[MAX_LOOPS_NR];
+ };
+ 
+ static struct per_cpu cpu_dat[MAX_CPU_NR];
+@@ -253,19 +257,20 @@ static void * measure_tsc_cycle_per_loop(void *arg)
+ #ifndef _VECTOR_
+ 		pcpu->delta[x] = t2-t1 + t3;
+ #else
+-		t4 = (t2-t1 + t3) &0xffffffffffffff00;
++		t4 = (t2-t1 + t3);
++	//	&0xffffffffffffff00;
+ 		if(!x){
+ 			y=0;
+-			pcpu->delta[y] = t4;
+-			pcpu->vector_nr[y] = 1;
++			pcpu->inf[y].delta = t4;
++			pcpu->inf[y].vector_nr = 1;
+ 		}
+-		else if(pcpu->delta[y] == t4 ){
+-			pcpu->vector_nr[y]++;
++		else if(pcpu->inf[y].delta == t4 ){
++			pcpu->inf[y].vector_nr++;
+ 		}
+ 		else{
+ 			y++;
+-			pcpu->delta[y] = t4;
+-			pcpu->vector_nr[y] = 1;
++			pcpu->inf[y].delta = t4;
++			pcpu->inf[y].vector_nr = 1;
+ 			/* 
+ 			 * Because we have a jitter between the various path we
+ 			 * try to make it even with nop
+@@ -402,9 +407,9 @@ static int tsc_show(struct seq_file *m, void *p)
+ 			pcpu = &cpu_dat[y];
+ 			if(!strlen(pcpu->cpu_name))
+ 				continue;
+-			if(!pcpu->delta[x])
++			if(!pcpu->inf[x].delta)
+ 				continue;
+-			seq_printf(m, "%Lu,%d;",pcpu->delta[x],pcpu->vector_nr[x]);
++			seq_printf(m, "%Lu,%d;",pcpu->inf[x].delta,pcpu->inf[x].vector_nr);
+ 		}
+ 		seq_printf(m, "\n");
+ 	}
