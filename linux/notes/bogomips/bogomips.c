@@ -163,12 +163,10 @@ static inline cycles_t get_cycles(void)
 }
 #endif /* __KERNEL__ */
 
-#define _VECTOR_
-
 struct per_cpu{
 	char cpu_name[32];
+	uint64_t time[MAX_LOOPS_NR];
 	uint64_t delta[MAX_LOOPS_NR];
-	int vector_nr[MAX_LOOPS_NR];
 };
 
 static struct per_cpu cpu_dat[MAX_CPU_NR];
@@ -214,8 +212,8 @@ static int measure_tsc_cycle_per_loop(void *arg)
 static void * measure_tsc_cycle_per_loop(void *arg)
 #endif
 {
-	int x,y,cpu;
-	u64 t1,t2,t3,t4;
+	int x,y,z,cpu;
+	u64 t0,t1,t2,t3,t4;
 	struct per_cpu *pcpu;
 	unsigned long lpj = j;
 	int loop_nr = l;
@@ -242,7 +240,10 @@ static void * measure_tsc_cycle_per_loop(void *arg)
 	local_irq_disable();
 	preempt_disable();
 #endif
-	for(x=0;x<loop_nr;x++){
+	t0 = get_cycles();
+	// This is the straight pass
+	//for(x=0,y=0;x<loop_nr;x++){
+	for(y=0;y<loop_nr;){
 		t1 = get_cycles();
 		if(!x)
 			t3 = 0;
@@ -250,29 +251,16 @@ static void * measure_tsc_cycle_per_loop(void *arg)
 			t3 = t1 - t2;
 		__ldelay(lpj);
 		t2 = get_cycles();
-#ifndef _VECTOR_
-		pcpu->delta[x] = t2-t1 + t3;
-#else
-		t4 = (t2-t1 + t3) &0xffffffffffffff00;
-		if(!x){
-			y=0;
-			pcpu->delta[y] = t4;
-			pcpu->vector_nr[y] = 1;
-		}
-		else if(pcpu->delta[y] == t4 ){
-			pcpu->vector_nr[y]++;
-		}
-		else{
+		t4 = (t2-t1 + t3) & (~0x1f);
+
+		//This is the straight pass		
+		//pcpu->delta[x] = t4;
+
+		//We trick the flow to minimize the jitter across the 2 path
+		pcpu->time[y] = t1-t0;
+		pcpu->delta[y] = t4;
+		if( t4 != 200032)
 			y++;
-			pcpu->delta[y] = t4;
-			pcpu->vector_nr[y] = 1;
-			/* 
-			 * Because we have a jitter between the various path we
-			 * try to make it even with nop
-			 * The jitter comes from the delta / vector_nr not on the same cache line
-			 */
-		}
-#endif
 	}
 #ifdef __KERNEL__
 	local_irq_enable();
@@ -404,9 +392,14 @@ static int tsc_show(struct seq_file *m, void *p)
 				continue;
 			if(!pcpu->delta[x])
 				continue;
-			seq_printf(m, "%Lu,%d;",pcpu->delta[x],pcpu->vector_nr[x]);
+			seq_printf(m, "%Lu,1\n",pcpu->time[x]);
+			seq_printf(m, "%Lu,0\n",pcpu->time[x]);
+			seq_printf(m, "%Lu,0\n",pcpu->time[x]+pcpu->delta[x]);
+			seq_printf(m, "%Lu,1\n",pcpu->time[x]+pcpu->delta[x]);
+
+//			seq_printf(m, "%Lu,%Lu;",pcpu->time[x], pcpu->delta[x]);
 		}
-		seq_printf(m, "\n");
+//		seq_printf(m, "\n");
 	}
 	seq_printf(m, "\n");
 

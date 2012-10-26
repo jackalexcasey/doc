@@ -128,4 +128,29 @@ TSC start|---------|TSC T1__________________|T1 + T2 - t1|--------------
 
 }
 
---> if( period  
+
+
+RAW result interpretation
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+200064,0;
+200064,0;
+200064,0;
+212748,0;
+200064,0;
+
+Basically if we define the STD value to be 200064
+We can infer that ]***DAT ->t2] <==> ]t2
+  |      |    ***     ->T1   ||
+  T1     T2   DATA         T3 T1
+
+
+SO t2 is the last valid Timestamp.
+]t2 ---- >  t3 ---- > t1 ---- >t2]
+           +++++
+<====>
+]t2 ---- >  t3 ---- > t1 ---- >t2]
+ +++++
+
+
+Time T2 there is 212748 - 200064 cycle taken away
+
