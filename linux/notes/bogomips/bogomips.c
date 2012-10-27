@@ -163,6 +163,19 @@ static inline cycles_t get_cycles(void)
 }
 #endif /* __KERNEL__ */
 
+/*
+ * In vector mode an entry is taken for value exceding the threshold only
+ * In non-vector mode, there is an entry for each value 
+ */
+#undef __VECTOR_MODE__
+#define __VECTOR_THRESHOLD__ 200032
+
+/*
+ * In scope view the data are printed in square wave format output.
+ * In non-scope mode, the entry is printed with it's time stamp
+ */
+#undef __SCOPE_VIEW__
+
 struct per_cpu{
 	char cpu_name[32];
 	uint64_t time[MAX_LOOPS_NR];
@@ -241,9 +254,12 @@ static void * measure_tsc_cycle_per_loop(void *arg)
 	preempt_disable();
 #endif
 	t0 = get_cycles();
-	// This is the straight pass
-	//for(x=0,y=0;x<loop_nr;x++){
+
+#ifndef ___VECTOR_MODE__
+	for(x=0;x<loop_nr;x++){
+#else
 	for(y=0;y<loop_nr;){
+#endif
 		t1 = get_cycles();
 		if(!x)
 			t3 = 0;
@@ -251,17 +267,19 @@ static void * measure_tsc_cycle_per_loop(void *arg)
 			t3 = t1 - t2;
 		__ldelay(lpj);
 		t2 = get_cycles();
-		t4 = (t2-t1 + t3) & (~0x1f);
+		t4 = (t2-t1 + t3);
 
-		//This is the straight pass		
-		//pcpu->delta[x] = t4;
-
+#ifndef ___VECTOR_MODE__
+		pcpu->delta[x] = t4;
+#else
 		//We trick the flow to minimize the jitter across the 2 path
 		pcpu->time[y] = t1-t0;
-		pcpu->delta[y] = t4;
-		if( t4 != 200032)
+		pcpu->delta[y] = t4  & (~0x1f);
+		if( t4 != __VECTOR_THRESHOLD__)
 			y++;
+#endif
 	}
+
 #ifdef __KERNEL__
 	local_irq_enable();
 	preempt_enable();
@@ -392,14 +410,17 @@ static int tsc_show(struct seq_file *m, void *p)
 				continue;
 			if(!pcpu->delta[x])
 				continue;
+#ifdef __SCOPE_VIEW__
 			seq_printf(m, "%Lu,1\n",pcpu->time[x]);
 			seq_printf(m, "%Lu,0\n",pcpu->time[x]);
 			seq_printf(m, "%Lu,0\n",pcpu->time[x]+pcpu->delta[x]);
 			seq_printf(m, "%Lu,1\n",pcpu->time[x]+pcpu->delta[x]);
-
-//			seq_printf(m, "%Lu,%Lu;",pcpu->time[x], pcpu->delta[x]);
 		}
-//		seq_printf(m, "\n");
+#else
+			seq_printf(m, "%Lu,%Lu;",pcpu->time[x], pcpu->delta[x]);
+		}
+		seq_printf(m, "\n");
+#endif
 	}
 	seq_printf(m, "\n");
 
