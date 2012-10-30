@@ -1,0 +1,125 @@
+diff --git a/linux/notes/bogomips/Measurements b/linux/notes/bogomips/Measurements
+index d9af92f..85f5163 100644
+--- a/linux/notes/bogomips/Measurements
++++ b/linux/notes/bogomips/Measurements
+@@ -128,4 +128,29 @@ TSC start|---------|TSC T1__________________|T1 + T2 - t1|--------------
+ 
+ }
+ 
+---> if( period  
++
++
++RAW result interpretation
++~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
++200064,0;
++200064,0;
++200064,0;
++212748,0;
++200064,0;
++
++Basically if we define the STD value to be 200064
++We can infer that ]***DAT ->t2] <==> ]t2
++  |      |    ***     ->T1   ||
++  T1     T2   DATA         T3 T1
++
++
++SO t2 is the last valid Timestamp.
++]t2 ---- >  t3 ---- > t1 ---- >t2]
++           +++++
++<====>
++]t2 ---- >  t3 ---- > t1 ---- >t2]
++ +++++
++
++
++Time T2 there is 212748 - 200064 cycle taken away
++
+diff --git a/linux/notes/bogomips/bogomips.c b/linux/notes/bogomips/bogomips.c
+index 9950418..c4e10bd 100644
+--- a/linux/notes/bogomips/bogomips.c
++++ b/linux/notes/bogomips/bogomips.c
+@@ -163,12 +163,10 @@ static inline cycles_t get_cycles(void)
+ }
+ #endif /* __KERNEL__ */
+ 
+-#define _VECTOR_
+-
+ struct per_cpu{
+ 	char cpu_name[32];
++	uint64_t time[MAX_LOOPS_NR];
+ 	uint64_t delta[MAX_LOOPS_NR];
+-	int vector_nr[MAX_LOOPS_NR];
+ };
+ 
+ static struct per_cpu cpu_dat[MAX_CPU_NR];
+@@ -214,8 +212,8 @@ static int measure_tsc_cycle_per_loop(void *arg)
+ static void * measure_tsc_cycle_per_loop(void *arg)
+ #endif
+ {
+-	int x,y,cpu;
+-	u64 t1,t2,t3,t4;
++	int x,y,z,cpu;
++	u64 t0,t1,t2,t3,t4;
+ 	struct per_cpu *pcpu;
+ 	unsigned long lpj = j;
+ 	int loop_nr = l;
+@@ -242,7 +240,8 @@ static void * measure_tsc_cycle_per_loop(void *arg)
+ 	local_irq_disable();
+ 	preempt_disable();
+ #endif
+-	for(x=0;x<loop_nr;x++){
++	t0 = get_cycles();
++	for(x=0,y=0;y<loop_nr;x++){
+ 		t1 = get_cycles();
+ 		if(!x)
+ 			t3 = 0;
+@@ -250,29 +249,19 @@ static void * measure_tsc_cycle_per_loop(void *arg)
+ 			t3 = t1 - t2;
+ 		__ldelay(lpj);
+ 		t2 = get_cycles();
+-#ifndef _VECTOR_
+-		pcpu->delta[x] = t2-t1 + t3;
+-#else
+-		t4 = (t2-t1 + t3) &0xffffffffffffff00;
+-		if(!x){
+-			y=0;
+-			pcpu->delta[y] = t4;
+-			pcpu->vector_nr[y] = 1;
+-		}
+-		else if(pcpu->delta[y] == t4 ){
+-			pcpu->vector_nr[y]++;
+-		}
+-		else{
++		t4 = (t2-t1 + t3) & (~0x1f);
++
++		// Warm up both cache line case
++		// Here we always overwrite that value until true
++		// BUT the hit is the same on both execution flow
++		// this is the profile:
++		// 212560,0;  <IRQ 
++		// 200080,0;  <CACHE effect
++		// 200064,0;  <run time
++		pcpu->time[y] = t2-t0;
++		pcpu->delta[y] = t4-200064;
++		if( t4 != 200064)
+ 			y++;
+-			pcpu->delta[y] = t4;
+-			pcpu->vector_nr[y] = 1;
+-			/* 
+-			 * Because we have a jitter between the various path we
+-			 * try to make it even with nop
+-			 * The jitter comes from the delta / vector_nr not on the same cache line
+-			 */
+-		}
+-#endif
+ 	}
+ #ifdef __KERNEL__
+ 	local_irq_enable();
+@@ -404,7 +393,7 @@ static int tsc_show(struct seq_file *m, void *p)
+ 				continue;
+ 			if(!pcpu->delta[x])
+ 				continue;
+-			seq_printf(m, "%Lu,%d;",pcpu->delta[x],pcpu->vector_nr[x]);
++			seq_printf(m, "%Lu,%Lu;",pcpu->time[x], pcpu->delta[x]);
+ 		}
+ 		seq_printf(m, "\n");
+ 	}
