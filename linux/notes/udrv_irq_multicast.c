@@ -9,21 +9,11 @@
 #include <linux/uio_pci_proxy.h>
 
 /*
- * There is 2 level of lists:
- *
  * The global IRQ multicast list is a per IRQ slot list of descriptor
  * This list contains context from potentially multiple process.
  *
- * The per FD list is a list of pointer to descriptor present in the 
- * Global IRQ list. This list is usefull at clean-up time when an
- * FD is released where we need to remove it's entry from the global list
+ * The IRQ handler will signal all element on the list of descriptor
  */
-#if 0
-struct irq_fd_multicast{
-	struct irq_descriptor *desc;
-	struct list_head list;
-};
-#endif
 
 struct irq_multicast{
 	struct irq_descriptor desc;
@@ -95,7 +85,10 @@ static int udrv_register_irq_mc(int irq, int efd, struct uio_info *dev_info)
 		return rc;
 	}
 
-	/* Serialize this operation */
+	/* 
+	 * Serialize this operation against a udrv_release_irq_mc
+	 * and against re-entrant call to this function
+	 */
 	mutex_lock(&irq_mc_mutex);
 
 	/*
@@ -123,8 +116,8 @@ static int udrv_register_irq_mc(int irq, int efd, struct uio_info *dev_info)
 	 *
 	 * If it pass, we don't want to give an invalid entry ( &irq_mc[irq] ) 
 	 * to the IRQ handler so we add it just in case and clean-up if we where
-	 * wrong. Since the mc IRQ handler is not active we can speculate on the
-	 * entry
+	 * wrong. Since the multicast IRQ handler is not active we can speculate on 
+	 * the entry
 	 */
 	spin_lock_irq(&irq_mc_lock);
 	atomic_inc(&irq_mc[irq].refcount);
@@ -172,6 +165,15 @@ static int udrv_release_irq_mc(int irq, struct uio_info *dev_info)
 again:
 	t = NULL;
 	spin_lock_irq(&irq_mc_lock);
+	/*
+	 * We iterates the list of descriptor for this particular slots.
+	 * For each entry that we found we verify if it belongs to this context and
+	 * if it does we release it. We loop until no more valid entries are found
+	 *
+	 * The IRQ descriptor is removed in an atomic context so in theory the interruptio
+	 * can happen without any available descriptor. This is why the refcount is decremented
+	 * here since the IRQ handler check for it before signaling.
+	 */
 	list_for_each_entry_safe(mc, n, &irq_mc[irq].list, list){
 		if(same_thread_group(mc->rtn, current) ){
 			t = mc;
@@ -183,7 +185,9 @@ again:
 	spin_unlock_irq(&irq_mc_lock);
 
 	if(t){
-		/* When it reach 0 free the IRQ slot all together */
+		/* When it reach 0 free the IRQ slot all together
+		 * Some more sanity check HERE...
+		 * */
 		if(!atomic_read(&irq_mc[irq].refcount)){
 			free_irq(t->desc.irq,&t->desc);
 			UDRV_DPRINTK("IRQ %d exit from multicast group\n",irq);
