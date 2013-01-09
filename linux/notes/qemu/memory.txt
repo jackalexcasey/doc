@@ -1,0 +1,87 @@
+int cpu_register_io_memory(read(), write(), opaque)
+  This function returns an integer that identify the IO slot in Qemu ( global IO array )
+  It also ties the IO access RD/WR back to the read() / write() method
+
+pci_register_bar(PCIDevice, bar NR, Type of addr space ( MMIO / IO /... ), mmio_map_callback)
+  This function insert the PCIDevice into the Qemu dev tree for a specific BAR #
+  The mmio_map_callback is the callback from the guest enumeration logic. The guest
+  enumerates the device through the BAR access. BAR value represent the Physical ADDR in 
+  the guest ( GPA )
+  ==> The host needs to know about the GPA to HVA translation to build the MMU
+ 
+cpu_register_physical_memory(pci_bus_addr (GPA) , size, qemu_ram (HVA) )
+  This function does the magic to mmap GPA to HVA on hostOS
+  The function internally calls into KVM to setup a memory slot (KVM_SET_USER_MEMORY_REGION)
+ 
+
+
+/* for KVM_SET_USER_MEMORY_REGION */                                                                                    
+struct kvm_userspace_memory_region {                                                                                    
+    __u32 slot;                                                                                                         
+    __u32 flags;                                                                                                        
+    __u64 guest_phys_addr;                                                                                              
+    __u64 memory_size; /* bytes */                                                                                      
+    __u64 userspace_addr; /* start of the userspace allocated memory */                                                 
+};    
+
+
+Register physical RAM
+~~~~~~~~~~~~~~~~~~~~~~~~
+kvm_client_set_memory()
+452 static void kvm_set_phys_mem(target_phys_addr_t start_addr,
+453                  ram_addr_t size,
+454                  ram_addr_t phys_offset)
+...
+...
+	kvm_set_user_memory_region
+
+return kvm_vm_ioctl(s, KVM_SET_USER_MEMORY_REGION, &mem);
+
+
+603 static CPUPhysMemoryClient kvm_cpu_phys_memory_client = {
+604     .set_memory = kvm_client_set_memory,
+  
+
+1724 static void cpu_notify_set_memory(target_phys_addr_t start_addr,
+1725                                   ram_addr_t size,
+1726                                   ram_addr_t phys_offset)
+1727 {
+1728     CPUPhysMemoryClient *client;
+1729     QLIST_FOREACH(client, &memory_client_list, list) {
+1730         client->set_memory(client, start_addr, size, phys_offset);
+1731     }
+1732 }
+
+
+2585 void cpu_register_physical_memory_offset(target_phys_addr_t start_addr,
+2586                                          ram_addr_t size,
+2587                                          ram_addr_t phys_offset,
+2588                                          ram_addr_t region_offset)
+2589 {
+2590     target_phys_addr_t addr, end_addr;
+2591     PhysPageDesc *p;
+2592     CPUState *env;
+2593     ram_addr_t orig_size = size;
+2594     subpage_t *subpage;
+2595 
+2596     cpu_notify_set_memory(start_addr, size, phys_offset);
+
+
+
+UNREGISTER physical memory
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ 889             } else if (pci_region->type & IORESOURCE_MEM) {
+ 890                 if (region->u.r_virtbase) {
+ 891                     if (region->memory_index) {
+ 892                         cpu_register_physical_memory(region->e_physbase,
+ 893                                                      region->e_size,
+ 894                                                      IO_MEM_UNASSIGNED);
+ 895                         qemu_ram_unmap(region->memory_index);
+ 896                     }
+ 897                     if (munmap(region->u.r_virtbase,
+ 898                                (pci_region->size + 0xFFF) & 0xFFFFFFFFFFFFF000))
+ 899                         fprintf(stderr,
+ 900                 "Failed to unmap assigned device region: %s\n",
+
+cpu_register_physical_memory(f->base, f->size, IO_MEM_UNASSIGNED);
+

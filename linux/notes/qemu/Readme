@@ -8,5 +8,3 @@ Inside the object there is a series of method.
 The pci_qdev_register() initialize the following method: init/exit/unplug 
 and call qdev_register; The init method is then called.
 
-
-
