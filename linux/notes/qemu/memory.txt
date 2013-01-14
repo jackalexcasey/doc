@@ -2,6 +2,19 @@ int cpu_register_io_memory(read(), write(), opaque)
   This function returns an integer that identify the IO slot in Qemu ( global IO array )
   It also ties the IO access RD/WR back to the read() / write() method
 
+Qemu RAM is divided in block. There is a list of block
+In each block there is a host *ptr which hold the mmap value and there is an offset that is used to
+identify the offset in the address space of the VM ??!!
+
+qemu_ram_alloc; the *ptr is taken from the mmap anonymous ( malloc )
+qemu_ram_alloc_from_ptr; the *ptr is taken from the given *ptr ( potentially from the mmap over the BAR resource )
+
+The returned value from both function is called QEMU_RAM of type 'ram_addr_t'
+
+**
+QEMU_RAM can be translated to Userspace addr using
+mem.userspace_addr = (unsigned long)qemu_get_ram_ptr(slot->phys_offset);
+
 pci_register_bar(PCIDevice, bar NR, Type of addr space ( MMIO / IO /... ), mmio_map_callback)
   This function insert the PCIDevice into the Qemu dev tree for a specific BAR #
   The mmio_map_callback is the callback from the guest enumeration logic. The guest
@@ -9,12 +22,53 @@ pci_register_bar(PCIDevice, bar NR, Type of addr space ( MMIO / IO /... ), mmio_
   the guest ( GPA )
   ==> The host needs to know about the GPA to HVA translation to build the MMU
  
-cpu_register_physical_memory(pci_bus_addr (GPA) , size, qemu_ram (HVA) )
+cpu_register_physical_memory(pci_bus_addr (GPA) , size, QEMU_RAM )
   This function does the magic to mmap GPA to HVA on hostOS
   The function internally calls into KVM to setup a memory slot (KVM_SET_USER_MEMORY_REGION)
- 
+
+***
+Example device PT
+***
+virt_ptr = mmap ( ..., ..., resource_fd ) // mmaping the BAR for the device
+
+QEMU_RAM = qemu_ram_alloc_from_ptr(..., virt_ptr
+
+pci_register_bar ( dev, ..., iommap_callback )
+
+iommap_callback:
+cpu_register_physical_memory ( GPA, size, QEMU_RAM )
 
 
+***********
+Clone
+***********
+Can we do something like:
+Phys device is plugin; virt_ptr = mmap ( ..., ..., resource_fd ) mmaping the BAR for the device
+QEMU_RAM1 = qemu_ram_alloc_from_ptr(..., virt_ptr
+
+FIND clone GPA and Jump on top of it directly; The only problem is re-enumeration but this should not happen
+
+May have to cpu_register_physical_memory IO_MEM_UNASSIGNED
+
+cpu_register_physical_memory ( GPA, size, QEMU_RAM1
+
+pci_register_bar ( dev, ..., iommap_callback )
+
+
+The free part is clean:
+static int assigned_exitfn(struct PCIDevice *pci_dev)
+- deassign_device(dev);  // KVM unplug part
+- free_assigned_device // Free the mapping / resource FD / memory slotr
+
+Similarly in assigned_initfn
+- assigned_dev_register_regions // Takes the mmap / resource FD / memory slot
+- assign_device // Get it into KVM
+
+
+
+***
+CODE
+***
 /* for KVM_SET_USER_MEMORY_REGION */                                                                                    
 struct kvm_userspace_memory_region {                                                                                    
     __u32 slot;                                                                                                         
