@@ -1,0 +1,15 @@
+echo sched_switch >current_tracer
+echo 2 >tracing_cpumask
+cat /sys/kernel/debug/tracing/trace >/tmp/out 
+
+cp /tmp/out /auto/rp_dt_panini/etmartin/
+
+cut -d: -f 6 out | cut -d" " -f2 >p1
+
+sed -i 's/<//g' p1
+sed -i 's/>//g' p1
+sed -i 's/\///g' p1
+
+for each in `cat p1`; do echo $each >> $each; done
+
+ls -lS
