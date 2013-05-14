@@ -13,3 +13,9 @@ sed -i 's/\///g' p1
 for each in `cat p1`; do echo $each >> $each; done
 
 ls -lS
+
+for each in *; do wc -l $each; done >p1
+sort -r -t" " -k1,1n p1
+
+
+
