@@ -1,0 +1,28 @@
+#!/bin/sh
+
+# makeplot "plot.dat / title / xlabel / xrange min/max / ylabel / yrange min/max"
+
+rm -f .plotfile
+mv $1 .tmp
+
+echo "set title \"$2\"" > .plotfile
+echo "set xlabel \"$3\"" >> .plotfile
+echo "set xrange [$4:$5]" >> .plotfile
+echo "set ylabel \"$6\"" >> .plotfile
+echo "set yrange [$7:$8]" >> .plotfile
+
+cat >>.plotfile <<\_ACEOF
+unset key
+set logscale x 
+set logscale y
+plot ".tmp" using 1:2 with lines
+set terminal png
+set output ".tmp.png"
+replot
+_ACEOF
+
+gnuplot .plotfile
+mv .tmp $1
+mv .tmp.png $1.png
+
+exit

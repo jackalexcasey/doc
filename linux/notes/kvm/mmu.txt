@@ -11,11 +11,61 @@ I.E. We construct a PTE in the guest memory; points the Guest CR3 to it; All gue
 	Guest Virtual -> Guest physical   ||| PAGE_OFFSET+n -> n
 	Later the kernel will replace it with his own PTE with other translation ( kernel mapping will remain though )
 
+The guest is given an address space [ size of RAM ] and the kernel will use it by mapping PTE onto it.
+The guest PTE ops trap in the host and the host redirect the guestPTE mapping to host memory directly
+
 MMU operation trap in the Host. We reflect it onto the corresponding Host PTE.
 	EX: Guest change access right on a page RO.; trap on Host, 
 	look up guest physical pages/ know Host physical location / 
 	mark that page RO so that next attempt by the Guest to access that page will page_fault in the host
 ===> We utilize the host MMU
+
+
+Conceptualization
+~~~~~~~~~~~~~~~~~~~
+Guest is a process hence it has a set of PTE associated to it.
+The PTEs of that process are maintain by the host kernel and page_fault and handled by host kernel
+The memory behing the PTEs are brought in through the page_fault.
+
+Now bcos the guest is a virtual machine, it has his own set of PTE within it's address space
+The hostOS maintain a consistent view of the guestPTE called SPTE. { track pte pages (write protect)
+ , track TLB instruction , VMX track cr3 access}
+
+When the guest is running, CR3 points to the SPTE. SPTE page fault occurs on host and the host FIRST
+check if the fault belong to the Guest ( if this is SPTE fault then the fault in injected in guest) 
+OR it belong to host kernel for real.
+
+For example; Guest dereference a PTR that is not mapped by a PTE. CR3 point to SPTE and SPTE =~ guest PTE then
+a page_fault will happen on host. Host will inject the page_fault in the guest.
+
+	A)Like TLB the vTLB/SPTE can be flushed out ( TLB allow more access than PTE  ==> remove mapping )
+	B)Like TLB the vTLB/SPTE can be refilled ( TLB allow less access that PTE ==> New mapping )
+
+	A) is a Zap of the SPTE
+	B) a page fault on the host inside the KVM mmu, validate Guest PTE new mapping; Apply change to SPTE
+
+With EPT hardware there is EPT violation;
+When the guest is running EPT cr3 point to vmx_set_cr3(). This EPT hardware walk the 2 dimension
+page table i.e GuestPTE -> SPTE
+With EPT there is EPT violation ( no need to write protect Guest PTE anymore )
+	The guest manipulates it's own PTE without cause traps into host.
+		Because of that  guest /host PTE may not be consistent but that's OK because
+			Guest PTE Only define the translation but do not enfore the access. 
+			ONLY the virtual TLB SPTE control the access
+
+Upon inconsistent operation from the guest onto the SPTE there is a EPT violation access that is
+generated
+
+<<<<<=====>>>>>>
+In short:
+In a regular process, memory pages are page-in on demand by MMU page_fault.
+ The PTEs are filled with the corresponding Memory address ( from get_free_pages ) and the access can go through
+
+In a VM process, memory pages are page-in on demand by EPT page_fault.
+ The EPT PTEs are filled with the corresponding Memory address ( from get_free_pages ) and the access can go through
+ The EPT page fault are coming from an unresolved GPA ( which is really a HVA )
+ For that reason, the SPTE can be seen as TLB for the Guest PTE
+<<<<<=====>>>>>>
 
 Without EPT ( KVM/vt-x for example )
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
