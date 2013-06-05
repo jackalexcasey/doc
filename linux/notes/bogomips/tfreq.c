@@ -4,7 +4,7 @@
 #include <string.h>
 #include <sys/time.h>
 
-
+#if 0
 #define USECREQ 250
 #define LOOPS   1000
 
@@ -49,3 +49,4 @@ int main (int argc, char **argv)
  setitimer (ITIMER_REAL, &timer, NULL);
  while (1);
 }
+#endif

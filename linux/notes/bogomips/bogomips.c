@@ -216,9 +216,48 @@ static void __ldelay(unsigned long loops)
 	delay_fn(loops);
 }
 
+#if 0
 /*
- * Measure the number of TSC cycle it takes for a given amount of loop
+ * To measure the effect of rdtsc when suspending the VM during the 
+ * 5 sec window
  */
+static int measure_tsc_cycle_per_loop(void *arg)
+{
+	u64 t0,t1,t2,t3,t4;
+	while(1){
+		t1 = get_cycles();
+		fprintf(stderr,"!\n");
+		sleep(5);
+		fprintf(stderr,"#");
+		t2 = get_cycles();
+		fprintf(stderr,"Delta %Lu\n",t2-t1);
+	}
+}
+#endif
+
+#if 0
+/*
+ * To measure the effect of rdtsc when emulating
+ */
+volatile unsigned long z=0;
+static int measure_tsc_cycle_per_loop(void *arg)
+{
+	int x,y;
+	u64 t0,t1,t2,t3,t4;
+
+	for(y=0;y<10;y++){
+		t1 = get_cycles();
+		for(x=0;x<100000;x++){
+//			z++;
+			t3 = get_cycles();
+		}
+		t2 = get_cycles();
+		fprintf(stderr,"Delta %Lu\n",t2-t1);
+	}
+	exit(0);
+}
+#endif
+
 #ifdef __KERNEL__
 static int measure_tsc_cycle_per_loop(void *arg)
 #else
