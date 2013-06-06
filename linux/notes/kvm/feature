@@ -1,0 +1,81 @@
+
+Pause Loop Exiting
+
+Fancy feature on the very latest Intel CPUs
+
+● Detects when a guest CPU is spinning on a lock
+
+● Traps with EXIT_REASON_PAUSE_INSTRUCTION
+
+● The host can schedule another guest CPU
+
+Hyperthreading to improve spinlock behaviour
+● The extra threads allow for spinlock-holding and 
+
+spinlock-wanting guest CPUs to run simultaneously
+
+
+
+Spinlocks are the simplest kernel locks
+
+● One CPU holds the lock, does stuff, then unlocks it
+
+● Other CPUs that want the lock spin until the lock is free
+
+● Virtualization throws a monkey wrench in this scheme
+
+● The CPU that holds the lock may not be running
+
+● The CPU that wants the lock may spin for a longer time
+
+● The CPU that wants the lock may prevent the other 
+
+CPU from freeing the lock for an entire timeslice!
+
+● Only an issue if #guest CPUs > #physical CPUs.
+
+Fair ticket spinlocks add an additional complication
+
+● Multiple CPUs may be spinning on a lock
+
+● But only the CPU that has been waiting longest may 
+
+take the lock
+
+● Everybody else continues spinning ...
+
+●
+
+... even if the next-in-line CPU is not running right now
+
+● The fix: by default use unfair spinlocks in KVM guests
+
+● Provide a kernel commandline option to switch
+
+● spinlock=ticket or spinlock=unfair
+
+
+
+Timekeeping has always been a virtualization headache
+
+● Tickless kernel
+
+● Eliminate timer ticks in idle guests, reduces CPU use
+
+● More CPU time left for running guests
+
+● Pvclock
+
+●
+
+In the past, missed timer ticks caused time skew issues
+
+●
+
+Instead of keeping its own clock, guests with pvclock 
+
+ask the host what time it is
+
+● Eliminates time skew
+
+
