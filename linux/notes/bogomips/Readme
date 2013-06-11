@@ -11,18 +11,34 @@ taskset -pc 'cpu' 'pid of bash'
 chrt -p -r 'prio' 'pid'
 
 # 
-# From the dmesg per cpu lpj table run user space and kernel space
+# From the dmesg per cpu lpj table.
 #
-# [ 8908.370689] PER CPU lpj info
-# [ 8908.370696] CPU 0 : lpj 6383772
-# [ 8908.370700] CPU 1 : lpj 6383358
-# [ 8908.370703] CPU 2 : lpj 6383361
-# [ 8908.370706] CPU 3 : lpj 6383353
+# [110494.851126] PER CPU lpj info
+# [110494.851128] CPU 0 : lpj 23937110
+# [110494.851130] CPU 1 : lpj 23939898
+# [110494.851131] CPU 2 : lpj 23939924
+# [110494.851132] CPU 3 : lpj 23939942
 #
 # lpj information gives us the amount of TSC cycle in a jiffie period
 # It doesn't not give the auto-calibrate loop number value.
 #
-
+# The CPU frequency cycle is 2393.711 MHz, lpj is 23939924
+#  10msec per jiffie
+#  ==> CONFIG_HZ_100=y
+#
+#  *** BUT the TSC is 1/2  **********
+#
+#  ==> In 10msec we can count up to 23939924
+#
+#  Example of a synthetic load: <<<<<<<<<<<< !!
+#  ./bogomips -l1 -j23939924 -c1,2,3,4 -L100 -p990
+#  Loop 1 time counting to 23939924 ==> 10msec
+#    then sleep 990msec and repeat 100 times
+#
+#
+# Also counting
+# ./bogomips -l10 -j11969962 -c1
+#  0,23946552 0,23944140  0,23943948
 
 sudo rmmod bogomips
 sudo dmesg -c >/dev/null
