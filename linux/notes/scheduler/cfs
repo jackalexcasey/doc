@@ -1,0 +1,29 @@
+CFS round robin all the task;
+CFS tries to run all the tasks within the smallest possible interval and that interval 
+correcpond to the 'target latency'. 
+With target latency of 10 msec and 2 task ==> each task will run for 5 Msec.
+
+Each task has a timeslice ( weight ) which represent a fraction of total timeslice of all process.
+The timeslice cannot be smaller than the predefined limit which is tied to the scheduling cost. 
+This is the 'minimum granularity'
+
+CFS is not fair at the moment where the number of task grow high enought where the timeslice
+of each process is floored by the 'minimum granularity'
+
+Absolute nice value do not affect scheduling; Only relative value matter
+
+With ideal scheduling, the vruntime would not be needed since we know that at every place we
+look, all task ran _and_ ran for the same duration. In other word vruntime for all task would
+be always equal 
+
+Because nothing is perfect, vruntime keeps track of how long a process ran. NOTE that vruntime is 
+weighted by the nice level
+
+Again the goal of CFS is that within the 'target latency', all the task *should* have run
+for the same amount of time.
+BUT some task are CPU bounded and some are I/O bounded SO in order to ensure that all task 
+can run, CFS will run the task with very low vruntime first and then the other one so that the
+low vruntime will run a chance to catch up.
+
+
+Goal; Within 'target latency' bring vruntime of all task to the same value.
