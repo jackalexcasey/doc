@@ -542,6 +542,7 @@ main(int argc, char *argv[])
 				break;
 			case 'j':
 				j = strtol(optarg, NULL, 0);
+				j = j - 6000/2; /* Remove a constanc offset */
 				break;
 			case 'L':
 				looping = strtol(optarg, NULL, 0);

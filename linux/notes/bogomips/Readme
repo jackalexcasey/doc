@@ -11,7 +11,21 @@ taskset -pc 'cpu' 'pid of bash'
 chrt -p -r 'prio' 'pid'
 
 # 
-# From the dmesg per cpu lpj table.
+# From dmesg, kernel reports lpj.
+# Calibrating delay loop (skipped), value calculated using timer frequency.. 4788.65 BogoMIPS (lpj=23943270)
+
+# The lpj value can be either 'calibrated' -> using a binary convergence algorithm or derived 
+# against a predefined time base. In any case the lpj is the number of TSC cycle during 
+# a given interval ( 1 jiffie ) which is set from a walltime counter.
+#
+# Example:
+# The CPU frequency cycle is 2393.711 MHz, lpj is 23939924
+#  ==> 23939924 bus cycle during 1 jiffie where 1 bus cycle = 1/2393.711 MHz
+#  ==> 10msec per jiffie
+#  ==> CONFIG_HZ_100=y
+#
+# Using the bogomips.ko with no argument, the lpj per-cpu table is provided which
+# shows the jitter across the core:
 #
 # [110494.851126] PER CPU lpj info
 # [110494.851128] CPU 0 : lpj 23937110
@@ -19,26 +33,36 @@ chrt -p -r 'prio' 'pid'
 # [110494.851131] CPU 2 : lpj 23939924
 # [110494.851132] CPU 3 : lpj 23939942
 #
-# lpj information gives us the amount of TSC cycle in a jiffie period
-# It doesn't not give the auto-calibrate loop number value.
+# The number of 'SW loops' that can be done during a 1 jiffie depends on the time it
+# takes to execute 1 loop. Give the 'SW loops' is always takes 2 bus cycle per loop
+# 
+# Note:
+# - If we use the 'SW loop' and count to 23939924/2 it should take 1 jiffie exactly ( or 23939924 bus cycle )
 #
-# The CPU frequency cycle is 2393.711 MHz, lpj is 23939924
-#  10msec per jiffie
-#  ==> CONFIG_HZ_100=y
+#  ./bogomips -l100 -j11969962 -c1
+#   >>> 0,23946328; VS 23939924 =~ 6404 cycle differences >> 2.6 usec
+#   >>> 0,23946120; VS 23939924 =~ 6196 cycle differences
 #
-#  *** BUT the TSC is 1/2  **********
+#   # Correcting for this offset in the program 6000 /2 
+#   0,23940732; VS 23939924 =~ 808 >> 330 nsec
+#   0,23940684; VS 23939924 =~ 760
 #
-#  ==> In 10msec we can count up to 23939924
+# Example of a synthetic load:
+#  Let's assume we want to take exactly 1% out of 1 CPU; We can do:
+#  Count to 11969962/2 ( which is 10 msec OR 1 jiffie ) and sleep 990 msec
 #
-#  Example of a synthetic load: <<<<<<<<<<<< !!
-#  ./bogomips -l1 -j23939924 -c1,2,3,4 -L100 -p990
-#  Loop 1 time counting to 23939924 ==> 10msec
-#    then sleep 990msec and repeat 100 times
+#  1%
+#  ./bogomips -l1 -j11969962 -c1 -L100 -p990
 #
+#  4%
+#  ./bogomips -l1 -j11969962 -c1,2,3,4 -L100 -p990
 #
-# Also counting
-# ./bogomips -l10 -j11969962 -c1
-#  0,23946552 0,23944140  0,23943948
+#  50%
+#  ./bogomips -l1 -j598498100 -c1 -L100 -p500
+#
+#  40%
+#  ./bogomips -l1 -j119699620 -c1,2,3,4 -L100 -p900
+#
 
 sudo rmmod bogomips
 sudo dmesg -c >/dev/null
