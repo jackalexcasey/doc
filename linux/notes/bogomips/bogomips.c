@@ -137,7 +137,7 @@ struct option options[] = {
 void usage(void)
 {
 	printf("usage: [-l loop_nr MAX %d] [-j lpj] [-c cpu sets] [-k kernel data] \
-		[-p pause (msec) ] [-L constant loop]\n",MAX_LOOPS_NR);
+		[-p pause (usec) ] [-L constant loop]\n",MAX_LOOPS_NR);
 	printf("dmesg |grep lpj\n");
 }
 
@@ -280,8 +280,8 @@ static void * measure_tsc_cycle_per_loop(void *arg)
 	sprintf(pcpu->cpu_name,"Kernel_cpu_%d",cpu);
 #else /* __KERNEL__ */
 	if(p){
-		req.tv_sec = p/1000;
-		req.tv_nsec = ((p-(req.tv_sec*1000))*1000*1000);
+		req.tv_sec = p/(1000*1000);
+		req.tv_nsec = ((p-(req.tv_sec*1000))*1000);
 	}
 	cpu = sched_getcpu();
 	//display_thread_sched_attr("");

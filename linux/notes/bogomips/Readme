@@ -49,19 +49,19 @@ chrt -p -r 'prio' 'pid'
 #
 # Example of a synthetic load:
 #  Let's assume we want to take exactly 1% out of 1 CPU; We can do:
-#  Count to 11969962/2 ( which is 10 msec OR 1 jiffie ) and sleep 990 msec
+#  Count to 23939924/2 ( which is 10 msec OR 1 jiffie ) and sleep 990 msec
 #
 #  1%
-#  ./bogomips -l1 -j11969962 -c1 -L100 -p990
+#  ./bogomips -l1 -j11969962 -c1 -L100 -p990000
 #
 #  4%
-#  ./bogomips -l1 -j11969962 -c1,2,3,4 -L100 -p990
+#  ./bogomips -l1 -j11969962 -c1,2,3,4 -L100 -p990000
 #
 #  50%
-#  ./bogomips -l1 -j598498100 -c1 -L100 -p500
+#  ./bogomips -l1 -j598498100 -c1 -L100 -p500000
 #
 #  40%
-#  ./bogomips -l1 -j119699620 -c1,2,3,4 -L100 -p900
+#  ./bogomips -l1 -j119699620 -c1,2,3,4 -L100 -p900000
 #
 
 sudo rmmod bogomips
