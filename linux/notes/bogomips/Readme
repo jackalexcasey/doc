@@ -63,6 +63,20 @@ chrt -p -r 'prio' 'pid'
 #  40%
 #  ./bogomips -l1 -j119699620 -c1,2,3,4 -L100 -p900000
 #
+#  EX scale results:
+#  
+#  1% load/cpu at duty cycle 10 msec / 990 msec
+#  ./bogomips -l1000 -j11969962 -c0,1,2,3 -L100 -p990000 &> /tmp/p1 &
+#
+#  1% load/cpu at duty cycle 1 msec / 99 msec
+#  ./bogomips -l1000 -j1196996 -c0,1,2,3 -L100 -p99000 &> /tmp/p1 &
+
+#  1% load/cpu at duty cycle 100 usec / 9900 usec
+#  ./bogomips -l1000 -j119699 -c0,1,2,3 -L100 -p9900 &> /tmp/p1 &
+
+#  1% load/cpu at duty cycle 10 usec / 990 usec
+#  ./bogomips -l1000 -j11969 -c0,1,2,3 -L100 -p990 &> /tmp/p1 &
+#
 
 sudo rmmod bogomips
 sudo dmesg -c >/dev/null

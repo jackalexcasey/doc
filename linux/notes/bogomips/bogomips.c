@@ -325,15 +325,38 @@ static void * measure_tsc_cycle_per_loop(void *arg)
 		if( t4 != __VECTOR_THRESHOLD__)
 			y++;
 #endif
+#ifndef __KERNEL__
+		/*
+		 * This is for %cpu utilization accuraty _not_ to the 
+		 * measurements
+		 * TODO under the -L option don't event take any log
+		 * Just produce a load
+		 * For the load producer not even needed to read TSC
+		 * since this is taking cycle from the VM
+		 */
+		if(p){
+			if(nanosleep(&req, &rem)){
+				perror("");
+				exit(-1);
+			}
+		}
+#endif
 
 	}
+
 #ifndef __KERNEL__
+	/*
+	 * If we put this sleep here then it will not affect the measurement but
+	 * it will force a break of the loop which will create jitter
+	 */
+	/*
 	if(p){
 		if(nanosleep(&req, &rem)){
 			perror("");
 			exit(-1);
 		}
 	}
+	*/
 #endif
 #ifdef __KERNEL__
 	local_irq_enable();
@@ -542,7 +565,7 @@ main(int argc, char *argv[])
 				break;
 			case 'j':
 				j = strtol(optarg, NULL, 0);
-				j = j - 6000/2; /* Remove a constanc offset */
+			//	j = j - 6000/2; /* Remove a constanc offset */
 				break;
 			case 'L':
 				looping = strtol(optarg, NULL, 0);
