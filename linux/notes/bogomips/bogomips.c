@@ -123,11 +123,9 @@ struct seq_file{
 static int j=0;
 static int l=0;
 static int Gfd;
-static int p=0;
-static int looping=0;
 
 char *program	= "";
-const char optstring[] = "l:j:c:kp:L:";
+const char optstring[] = "l:j:c:k";
 struct option options[] = {
 	{ "",	required_argument,	0, 	'j'	},
 	{ "",	required_argument,	0, 	'l'	},
@@ -136,8 +134,7 @@ struct option options[] = {
 
 void usage(void)
 {
-	printf("usage: [-l loop_nr MAX %d] [-j lpj] [-c cpu sets] [-k kernel data] \
-		[-p pause (usec) ] [-L constant loop]\n",MAX_LOOPS_NR);
+	printf("usage: [-l loop_nr MAX %d] [-j lpj] [-c cpu sets] [-k kernel data]\n",MAX_LOOPS_NR);
 	printf("dmesg |grep lpj\n");
 }
 
@@ -272,17 +269,12 @@ static void * measure_tsc_cycle_per_loop(void *arg)
 	struct per_cpu *pcpu;
 	unsigned long lpj = j;
 	int loop_nr = l;
-	struct timespec req, rem;
 
 #ifdef __KERNEL__
 	cpu = raw_smp_processor_id();
 	pcpu = &cpu_dat[cpu];
 	sprintf(pcpu->cpu_name,"Kernel_cpu_%d",cpu);
 #else /* __KERNEL__ */
-	if(p){
-		req.tv_sec = p/(1000*1000);
-		req.tv_nsec = ((p-(req.tv_sec*1000))*1000);
-	}
 	cpu = sched_getcpu();
 	//display_thread_sched_attr("");
 	pcpu = &cpu_dat[cpu];
@@ -325,39 +317,8 @@ static void * measure_tsc_cycle_per_loop(void *arg)
 		if( t4 != __VECTOR_THRESHOLD__)
 			y++;
 #endif
-#ifndef __KERNEL__
-		/*
-		 * This is for %cpu utilization accuraty _not_ to the 
-		 * measurements
-		 * TODO under the -L option don't event take any log
-		 * Just produce a load
-		 * For the load producer not even needed to read TSC
-		 * since this is taking cycle from the VM
-		 */
-		if(p){
-			if(nanosleep(&req, &rem)){
-				perror("");
-				exit(-1);
-			}
-		}
-#endif
-
 	}
 
-#ifndef __KERNEL__
-	/*
-	 * If we put this sleep here then it will not affect the measurement but
-	 * it will force a break of the loop which will create jitter
-	 */
-	/*
-	if(p){
-		if(nanosleep(&req, &rem)){
-			perror("");
-			exit(-1);
-		}
-	}
-	*/
-#endif
 #ifdef __KERNEL__
 	local_irq_enable();
 	preempt_enable();
@@ -471,18 +432,14 @@ static int tsc_show(struct seq_file *m, void *p)
 {
 	int x,y;
 	struct per_cpu *pcpu;
-	static init = 0;
 
-	if(!init){
-		for(y=0;y<MAX_CPU_NR;y++){
-			pcpu = &cpu_dat[y];
-			if(!strlen(pcpu->cpu_name))
-				continue;
-			seq_printf(m, "%s;",pcpu->cpu_name);
-		}
-		seq_printf(m, "\n",pcpu->cpu_name);
-		init = 1;
+	for(y=0;y<MAX_CPU_NR;y++){
+		pcpu = &cpu_dat[y];
+		if(!strlen(pcpu->cpu_name))
+			continue;
+		seq_printf(m, "%s;",pcpu->cpu_name);
 	}
+	seq_printf(m, "\n",pcpu->cpu_name);
 
 
 	for(x=0;x<l;x++){
@@ -504,8 +461,7 @@ static int tsc_show(struct seq_file *m, void *p)
 		seq_printf(m, "\n");
 #endif
 	}
-	if(!init)
-		seq_printf(m, "\n");
+	seq_printf(m, "\n");
 
 	return 0;
 }
@@ -565,13 +521,6 @@ main(int argc, char *argv[])
 				break;
 			case 'j':
 				j = strtol(optarg, NULL, 0);
-			//	j = j - 6000/2; /* Remove a constanc offset */
-				break;
-			case 'L':
-				looping = strtol(optarg, NULL, 0);
-				break;
-			case 'p':
-				p = strtol(optarg, NULL, 0);
 				break;
 			case 'l':
 				l = strtol(optarg, NULL, 0);
@@ -607,14 +556,12 @@ main(int argc, char *argv[])
 		exit(1);
 	}
 
-again:
 	memset(cpu_dat,0,sizeof(cpu_dat));
 
 	/*
  	 * create the threads
  	 */
 	ncpus = count_cpus(&cpus);
-
 	if(kernel){
 		Gfd = open("/sys/kernel/debug/spinloop", O_RDWR);
 		if(Gfd <0 )
@@ -643,10 +590,6 @@ again:
 	}
 
 	tsc_show(NULL,NULL);
-	if(looping>1){
-		looping--;
-		goto again;
-	}
 }
 #endif /* __KERNEL__ */
 
