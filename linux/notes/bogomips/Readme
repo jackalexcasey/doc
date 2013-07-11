@@ -14,9 +14,12 @@ chrt -p -r 'prio' 'pid'
 # From dmesg, kernel reports lpj.
 # Calibrating delay loop (skipped), value calculated using timer frequency.. 4788.65 BogoMIPS (lpj=23943270)
 
-# The lpj value can be either 'calibrated' -> using a binary convergence algorithm or derived 
-# against a predefined time base. In any case the lpj is the number of TSC cycle during 
-# a given interval ( 1 jiffie ) which is set from a walltime counter.
+# The lpj value can be either 'calibrated' -> using a A) binary convergence algorithm
+# together with a SW loop construct or B) derived against a predefined time base to TSC.
+#   A) the loop takes 2 cycle to execute. Measure the loop# in 1 jiffie
+#   B) Measure the TSC diff in 1 jiffie
+#
+# The lpj measure the number of bus cycle during a given interval ( 1 jiffie )
 #
 # Example:
 # The CPU frequency cycle is 2393.711 MHz, lpj is 23939924
@@ -40,42 +43,31 @@ chrt -p -r 'prio' 'pid'
 # - If we use the 'SW loop' and count to 23939924/2 it should take 1 jiffie exactly ( or 23939924 bus cycle )
 #
 #  ./bogomips -l100 -j11969962 -c1
-#   >>> 0,23946328; VS 23939924 =~ 6404 cycle differences >> 2.6 usec
-#   >>> 0,23946120; VS 23939924 =~ 6196 cycle differences
+#  0,23944160;
+#  0,23944172;
+#  0,23944476;
+#  0,23944548;
+#  0,23944328;
+#  0,23944428;
+#		>>> 4000 cycle offset ( From 11969962*2 = 23939924 LPJ )
 #
-#   # Correcting for this offset in the program 6000 /2 
-#   0,23940732; VS 23939924 =~ 808 >> 330 nsec
-#   0,23940684; VS 23939924 =~ 760
-#
-# Example of a synthetic load:
-#  Let's assume we want to take exactly 1% out of 1 CPU; We can do:
-#  Count to 23939924/2 ( which is 10 msec OR 1 jiffie ) and sleep 990 msec
-#
-#  1%
-#  ./bogomips -l1 -j11969962 -c1 -L100 -p990000
-#
-#  4%
-#  ./bogomips -l1 -j11969962 -c1,2,3,4 -L100 -p990000
-#
-#  50%
-#  ./bogomips -l1 -j598498100 -c1 -L100 -p500000
-#
-#  40%
-#  ./bogomips -l1 -j119699620 -c1,2,3,4 -L100 -p900000
-#
-#  EX scale results:
+#  NOTE that above we count up to 1 jiffie which is 10msec SO in user-space we run
+#  the chance we getting interrupted instead let's count to 1 msec:
 #  
-#  1% load/cpu at duty cycle 10 msec / 990 msec
-#  ./bogomips -l1000 -j11969962 -c0,1,2,3 -L100 -p990000 &> /tmp/p1 &
+#  ./bogomips -l100 -j1196996 -c2
+#  0,2394064;
+#  0,2394064;
+#  0,2394064;
+#  0,2394064;
+#  		>>> 100 cycle offset ( From 1196996*2  = 2393992 LPJ )
 #
-#  1% load/cpu at duty cycle 1 msec / 99 msec
-#  ./bogomips -l1000 -j1196996 -c0,1,2,3 -L100 -p99000 &> /tmp/p1 &
-
-#  1% load/cpu at duty cycle 100 usec / 9900 usec
-#  ./bogomips -l1000 -j119699 -c0,1,2,3 -L100 -p9900 &> /tmp/p1 &
-
-#  1% load/cpu at duty cycle 10 usec / 990 usec
-#  ./bogomips -l1000 -j11969 -c0,1,2,3 -L100 -p990 &> /tmp/p1 &
+#  ./bogomips -l100 -j119699 -c2
+#  0,239472;
+#  0,239468;
+#  0,239472;
+#  0,239468;
+#  0,239472;
+#  		>>> 100 cycle offset ( From 119699*2 = 239398 LPJ )
 #
 
 sudo rmmod bogomips

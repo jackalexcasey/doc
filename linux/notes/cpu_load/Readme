@@ -1,0 +1,50 @@
+# Example:
+# The CPU frequency cycle is 2393.711 MHz, lpj is 23939924
+#  ==> 23939924 bus cycle during 1 jiffie where 1 bus cycle = 1/2393.711 MHz
+#  ==> 10msec per jiffie
+#  ==> CONFIG_HZ_100=y
+#
+# Using the bogomips.ko with no argument, the lpj per-cpu table is provided which
+# shows the jitter across the core:
+#
+# [110494.851126] PER CPU lpj info
+# [110494.851128] CPU 0 : lpj 23937110
+# [110494.851130] CPU 1 : lpj 23939898
+# [110494.851131] CPU 2 : lpj 23939924
+# [110494.851132] CPU 3 : lpj 23939942
+#
+#
+# Example of a synthetic load:
+#  Let's assume we want to take exactly 1% out of 1 CPU; We can do:
+#  Count to 23939924/2 ( which is 10 msec OR 1 jiffie ) and sleep 990 msec
+#  NOTE: Top is according relative to the number of CPU
+#
+#  1%
+#  ./cpu_load -j11969962 -c1 -p990000
+#
+#  4%
+#  ./cpu_load -j11969962 -c1,2,3,4 -p990000
+#
+#  50%
+#  ./cpu_load -j598498100 -c1 -p500000
+#
+#  40%
+#  ./cpu_load -j119699620 -c1,2,3,4 -p900000
+#
+#  EX scale results:
+#  
+#  4% load/cpu at duty cycle 10 msec / 990 msec
+#  ./cpu_load -j11969962 -c0,1,2,3,4,5,6,7 -p990000 &
+#
+#  4% load/cpu at duty cycle 1 msec / 99 msec
+#  ./cpu_load -j1196996 -c0,1,2,3,4,5,6,7 -p99000 &
+
+#  4% load/cpu at duty cycle 100 usec / 9900 usec
+#  ./cpu_load -j119699 -c0,1,2,3,4,5,6,7 -p9900 &
+
+#  4% load/cpu at duty cycle 10 usec / 990 usec
+#  ./cpu_load -j11969 -c0,1,2,3,4,5,6,7 -p990 &
+
+#  4% load/cpu at duty cycle 1 usec / 99 usec
+#  ./cpu_load -j1196 -c0,1,2,3,4,5,6,7 -p150 &
+#
