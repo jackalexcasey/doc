@@ -1,0 +1,50 @@
+/ws/ajaypat-sjc/xrng_gdb -p ../core/sdk/x86_64/boot/vmlinux-2.6.34-wrl43_std -c ../core/default-sdr--1.20130712-225905.core.host
+
+ps
+log
+foreach bt
+
+
+#
+# work with modules
+#
+mod
+...
+...
+ffffffffa01d20a0  uio_pci_proxy     49683  (not loaded)  [CONFIG_KALLSYMS]
+...
+...
+
+crash> add-symbol-file ../core/sdk/x86_64/lib/modules/2.6.34.10-131/kernel/drivers/uio/uio_pci_proxy.ko 0xffffffffa01d20a0
+
+
+crash> struct phys_alloc ffff8801c2bf91c0
+struct phys_alloc {
+ vaddr = 0xffff8801835c8780, 
+ paddr = 18446612139812895296, 
+ size = 0, 
+ priv = 0xffff880151d00000, 
+ cur = 0xffffffff00000001
+
+
+struct vm_area_struct 0xffff8801526b9b98
+
+}
+
+#
+#Set the context back to the panicking task:
+#
+crash> set -p
+
+#
+#disassemble
+#
+crash> dis -lr ffffffffa0069311
+
+
+#
+#Objdump with line
+#
+objdump -d -l 
+
+
