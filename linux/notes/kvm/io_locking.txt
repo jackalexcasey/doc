@@ -1,0 +1,19 @@
+ 860 int kvm_cpu_exec(CPUState *env)
+...
+...
+/* Before the vCPU enter in VMX mode we drop the iothread lock */
+ 888         qemu_mutex_unlock_iothread();
+ 889         ret = kvm_vcpu_ioctl(env, KVM_RUN, 0);
+ 890         qemu_mutex_lock_iothread();
+
+
+/* The main IO loop does a select on all the FDs
+ * AND before going into the select it drops the iothread lock
+ * */
+1246 void main_loop_wait(int nonblocking)
+
+  qemu_mutex_unlock_iothread();                                                                                      
+  ret = select(nfds + 1, &rfds, &wfds, &xfds, &tv);
+  qemu_mutex_lock_iothread();    
+
+
