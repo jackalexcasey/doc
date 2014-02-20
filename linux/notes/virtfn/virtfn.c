@@ -383,64 +383,42 @@ void* virtfn_bus_device_add(int type, int busnr, int devfn, int sec, int sub)
 		vdev->abus,PCI_SLOT(vdev->adevfn), PCI_FUNC(vdev->adevfn));
 	return vdev;
 }
-
+//pci_remove_bus(child);
 void virtfn_bus_device_del(struct vdev *vdev)
 {
 	struct pci_bus *bus;
 
-	pci_dev_put(vdev->pdev);
-
 	bus = pci_find_bus(0,vdev->abus);
 	if(!bus){
+		WARN_ON(1);
 		printk("DEVICE del Cannot find bus 0,%d\n",vdev->abus);
 		return;
 	}
+	printk("Removing %s under %x:%x.%x\n",vdev->type==VIRTFN_ROOT_PORT ? "root port":"end point",
+		vdev->abus,PCI_SLOT(vdev->adevfn), PCI_FUNC(vdev->adevfn));
+	pci_dev_put(vdev->pdev);
 	untap_bus(bus);
 	vdevice_del(vdev);
 	kfree(vdev);
 	return 0;
 }
 
-int vdevice_cleanup(void)
+void virtfn_cleanup(void)
 {
-	int type;
 	struct list_head *pos;
 	struct vdev *vdev;
 
-	/*
-	 * First we deal with endpoint device
-	 */
-	type = VIRTFN_ENDPOINT;
 again:
 	vdev = NULL;
 	spin_lock(&vfcn_list_lock);	
 	list_for_each(pos, &vfcn_list){
 		vdev = list_entry(pos, struct vdev, list);
-		if(vdev->type != type){
-			vdev = NULL;
-			continue;
-		}
 		break;
 	}
-	if(vdev)
-		list_del(&vdev->list);
 	spin_unlock(&vfcn_list_lock);
 
 	if(vdev){
-		printk("Removing %s under %x:%x.%x\n",vdev->type==VIRTFN_ROOT_PORT ? "root port":"end point",
-			vdev->abus,PCI_SLOT(vdev->adevfn), PCI_FUNC(vdev->adevfn));
-		untap_bus(vdev->pdev->bus);
 		pci_stop_and_remove_bus_device(vdev->pdev);
-		kfree(vdev);
-		goto again;
-	}
-
-	/*
-	 * Then we deal with bridge
-	 * Maybe we can rely only on the deepth fisrt search only
-	 */
-	if(type == VIRTFN_ENDPOINT){
-		type = VIRTFN_ROOT_PORT;
 		goto again;
 	}
 }
@@ -455,18 +433,14 @@ static int xen_pci_notifier(struct notifier_block *nb,
 
 	switch (action) {
 	case BUS_NOTIFY_ADD_DEVICE:
-		printk("BUS_NOTIFY_ADD_DEVICE:\n");
 		break;
 	case BUS_NOTIFY_DEL_DEVICE:
 		/*
 		 * Are we dealing with a virtual device or not
 		 */
 		vdev = vdevice_find(pci_domain_nr(pdev->bus), pdev->bus->number, pdev->devfn);
-		if(!vdev){
-			printk("BUS_NOTIFY_DEL_DEVICE:\n");
-			break;
-		}
-		virtfn_bus_device_del(vdev);
+		if(vdev)
+			virtfn_bus_device_del(vdev);
 		break;
 	default:
 		return NOTIFY_DONE;
@@ -498,7 +472,7 @@ void* create_device(int busnr, int devfn)
 static ssize_t debug_show(struct kobject *kobj, struct kobj_attribute *attr,
 			char *buf)
 {
-	vdevice_cleanup();
+	virtfn_cleanup();
 	return 0;
 }
 
@@ -598,6 +572,7 @@ static int __init init(void)
 
 static void __exit cleanup(void)
 {
+	virtfn_cleanup();
 	kobject_put(udrv_kobj);
 	bus_unregister_notifier(&pci_bus_type, &device_nb);
 }
