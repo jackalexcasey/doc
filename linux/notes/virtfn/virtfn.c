@@ -25,6 +25,10 @@
 #define MIN(a,b)        (min(a,b))
 #define MAX(a,b)        (max(a,b))
 
+#define VIRTFN_BRIDGE 0
+#define VIRTFN_ROOT_PORT 1
+#define VIRTFN_ENDPOINT 2
+
 struct bus_tap{
 	int refcount;
 	struct pci_ops ops;
@@ -261,10 +265,11 @@ void untap_bus(struct pci_bus *bus)
 	}
 }
 
-int virtfn_bus_device_add(int type, int busnr, int devfn, uint8_t *conf)
+static int virtfn_bus_device_add(int type, unsigned int seg, unsigned int bus,
+	unsigned int devfn, uint8_t *conf)
 {
 	struct vdev *vdev;
-	struct pci_bus *bus, *child;
+	struct pci_bus *b, *c;
 	struct pci_dev *pdev;
 
 	/*
@@ -275,7 +280,7 @@ int virtfn_bus_device_add(int type, int busnr, int devfn, uint8_t *conf)
 		return -ENOMEM;
 	
 	vdev->aseg=0;
-	vdev->abus=busnr;
+	vdev->abus=bus;
 	vdev->adevfn=devfn;
 	vdev->type = type;
 	memcpy(vdev->config, conf, MAX_CFG_SIZE);
@@ -289,14 +294,14 @@ int virtfn_bus_device_add(int type, int busnr, int devfn, uint8_t *conf)
 	 * provided by that virtual device otherwise we redirect to the original
 	 * hardware operation
 	 */
-	bus = pci_find_bus(0,busnr);
-	if(!bus){
-		printk("Cannot find bus 0,%d\n",busnr);
+	b = pci_find_bus(0,bus);
+	if(!b){
+		printk("Cannot find bus 0,%d\n",bus);
 		kfree(vdev);
 		return -EINVAL;
 	}
 	
-	tab_bus(bus);
+	tab_bus(b);
 
 	/* 
 	 * Then we add the virtual device on the global list
@@ -305,10 +310,10 @@ int virtfn_bus_device_add(int type, int busnr, int devfn, uint8_t *conf)
 	vdevice_add(vdev);
 
 	/* Now populate struct pci_dev{} by scanning the device */
-	pdev = pci_scan_single_device(bus, devfn);
+	pdev = pci_scan_single_device(b, devfn);
 	if(!pdev){
-		printk("Cannot discover device %x %x\n",busnr, devfn);
-		untap_bus(bus);
+		printk("Cannot discover device %x %x\n",bus, devfn);
+		untap_bus(b);
 		vdevice_del(vdev);
 		kfree(vdev);
 		return -EIO;
@@ -317,25 +322,38 @@ int virtfn_bus_device_add(int type, int busnr, int devfn, uint8_t *conf)
 
 	if(type == VIRTFN_ROOT_PORT){
 		/* bus are created in /sys/class/pci_bus/ */
-		child = pci_add_new_bus(bus, pdev, vdev->config[25]);
-		if(!child){
-			printk("Cannot create new bus %x %x\n",busnr, devfn);
+		c = pci_add_new_bus(b, pdev, vdev->config[25]);
+		if(!c){
+			printk("Cannot create new bus %x %x\n",bus, devfn);
 			pci_dev_put(vdev->pdev);
-			untap_bus(bus);
+			untap_bus(b);
 			vdevice_del(vdev);
 			kfree(vdev);
 			return -ENOMEM;
 		}
-		child->primary = 0;
-		child->subordinate = vdev->config[26];
+		c->primary = 0;
+		c->subordinate = vdev->config[26];
 	}
 
 	/* Insert it into the device tree */
-	pci_bus_add_devices(bus);
+	pci_bus_add_devices(b);
 
 	printk("Adding %s under %x:%x.%x\n",type==VIRTFN_ROOT_PORT ? "root port":"end point",
 		vdev->abus,PCI_SLOT(vdev->adevfn), PCI_FUNC(vdev->adevfn));
 	return 0;
+}
+
+int virtfn_bus_rootport_device_add(unsigned int seg, unsigned int bus,
+	unsigned int devfn, uint8_t *conf)
+{
+	return virtfn_bus_device_add(VIRTFN_ROOT_PORT, seg, bus, devfn, conf);
+
+}
+
+int virtfn_bus_endpoint_device_add(unsigned int seg, unsigned int bus,
+	unsigned int devfn, uint8_t *conf)
+{
+	return virtfn_bus_device_add(VIRTFN_ENDPOINT, seg, bus, devfn, conf);
 }
 
 void virtfn_bus_device_del(unsigned int seg, unsigned int bus, 

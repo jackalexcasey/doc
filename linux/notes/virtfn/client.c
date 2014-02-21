@@ -102,7 +102,7 @@ int create_root_port(int devfn, int sec, int sub)
 {
 	vbridge_conf[25] = sec;
 	vbridge_conf[26] = sub;
-	return virtfn_bus_device_add(VIRTFN_ROOT_PORT,0,devfn,vbridge_conf);
+	return virtfn_bus_rootport_device_add(0, 0, devfn, vbridge_conf);
 }
 
 /*
@@ -110,7 +110,7 @@ int create_root_port(int devfn, int sec, int sub)
  */
 int create_device(int busnr, int devfn)
 {
-	return virtfn_bus_device_add(VIRTFN_ENDPOINT,busnr,devfn,msix_conf);
+	return virtfn_bus_endpoint_device_add(0, busnr, devfn, msix_conf);
 }
 
 
