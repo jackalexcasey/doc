@@ -25,16 +25,6 @@
 #define MIN(a,b)        (min(a,b))
 #define MAX(a,b)        (max(a,b))
 
-#define VIRTFN_BRIDGE 0
-#define VIRTFN_ROOT_PORT 1
-#define VIRTFN_ENDPOINT 2
-
-#define DPRINTK(fmt, args...)	\
-	do{	\
-		if(debug) \
-			printk(KERN_DEBUG "%s: " fmt, __func__ , ## args); \
-} while (0)
-
 struct bus_tap{
 	int refcount;
 	struct pci_ops ops;
@@ -64,95 +54,19 @@ struct vdev{
 	struct pci_dev *pdev;
 };
 
-static ssize_t debug_show(struct kobject *kobj, struct kobj_attribute *attr,
-			char *buf);
-static ssize_t debug_store(struct kobject *kobj, struct kobj_attribute *attr,
-			 const char *buf, size_t count);
+extern void client_cleanup(void);
+extern int client_init(void);
 static int xen_pci_notifier(struct notifier_block *nb,
 			    unsigned long action, void *data);
 
-static int debug=1;
+int debug=1;
 static LIST_HEAD(vfcn_list);
 static DEFINE_SPINLOCK(vfcn_list_lock);
 static struct bus_tap bus_tap_lookup[256];
-static struct kobject *udrv_kobj;
-
-static struct kobj_attribute debug_attribute =
-	__ATTR(debug, 0666, debug_show, debug_store);
-
-static struct attribute *attrs[] = {
-	&debug_attribute.attr,
-	NULL,	/* need to NULL terminate the list of attributes */
-};
-
-static struct attribute_group attr_group = {
-	.attrs = attrs,
-};
 
 static struct notifier_block device_nb = {                                                                              
     .notifier_call = xen_pci_notifier,
 };                                                                                                                      
-
-static inline void vdevice_setbar(struct vdev* dev, unsigned int bar,int size, int type)
-{
-	type=type;
-	if( (bar >= PCI_BASE_ADDRESS_0) && (bar <=PCI_BASE_ADDRESS_5 ) )
-		dev->bar[ (bar-PCI_BASE_ADDRESS_0) >>2]=size;
-}
-
-/* This is a msix virtual device template */
-static uint8_t msix_conf[] = {
-	0x37, 0x11, 0x00, 0x23, 0x03, 0x00, 0x10, 0x00, 0x10, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00,
-	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-	0x00, 0x00, 0x00, 0x00, 0x40, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-	0x11, 0x4c, 0xfe, 0x00, 0x02, 0x00, 0x00, 0x00, 0x02, 0x08, 0x00, 0x00, 0x10, 0x00, 0x02, 0x00,
-	0x00, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x11, 0x04, 0x00, 0x00, 0x00, 0x00, 0x11, 0x00,
-	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-	0x00, 0x00, 0x30, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-};
-
-/* This is a root port template ( bridge ) */
-static uint8_t vbridge_conf[] = {
-	0x86, 0x80, 0x20, 0x34, 0x03, 0x00, 0xff, 0xff, 0x10, 0x00, 0x04, 0x06, 0x00, 0x00, 0x01, 0x00,
-	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-	0x00, 0x00, 0x00, 0x00, 0x40, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-	0x10, 0x00, 0x42, 0x00, 0x00, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x11, 0x04, 0x00, 0x00,
-	0x00, 0x00, 0x11, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x30, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
-};
-
-static void vdevice_add(struct vdev *dev)
-{
-	spin_lock(&vfcn_list_lock);	
-	list_add(&dev->list,&vfcn_list);
-	spin_unlock(&vfcn_list_lock);
-}
-
-static void vdevice_del(struct vdev *dev)
-{
-	spin_lock(&vfcn_list_lock);	
-	list_del(&dev->list);
-	spin_unlock(&vfcn_list_lock);
-}
 
 /*
  * Normally the PCI cfg cycle are decoded at HW level i.e. for a given
@@ -177,6 +91,20 @@ static struct vdev * vdevice_find(unsigned int seg, unsigned int bus,
 	}
 	spin_unlock(&vfcn_list_lock);
 	return NULL;
+}
+
+static void vdevice_add(struct vdev *dev)
+{
+	spin_lock(&vfcn_list_lock);	
+	list_add(&dev->list,&vfcn_list);
+	spin_unlock(&vfcn_list_lock);
+}
+
+static void vdevice_del(struct vdev *dev)
+{
+	spin_lock(&vfcn_list_lock);	
+	list_del(&dev->list);
+	spin_unlock(&vfcn_list_lock);
 }
 
 static int vfcn_read(struct vdev *pci_dev, int reg, int len, u32 *val)
@@ -333,7 +261,7 @@ void untap_bus(struct pci_bus *bus)
 	}
 }
 
-int virtfn_bus_device_add(int type, int busnr, int devfn, int sec, int sub)
+int virtfn_bus_device_add(int type, int busnr, int devfn, uint8_t *conf)
 {
 	struct vdev *vdev;
 	struct pci_bus *bus, *child;
@@ -350,25 +278,7 @@ int virtfn_bus_device_add(int type, int busnr, int devfn, int sec, int sub)
 	vdev->abus=busnr;
 	vdev->adevfn=devfn;
 	vdev->type = type;
-
-	if(type == VIRTFN_ROOT_PORT){
-		memcpy(vdev->config,vbridge_conf,sizeof(vbridge_conf));
-		vdev->config[25] = sec;
-		vdev->config[26] = sub;
-	}
-	else if(type == VIRTFN_ENDPOINT){
-		memcpy(vdev->config, msix_conf,sizeof(msix_conf));
-		vdevice_setbar(vdev, PCI_BASE_ADDRESS_0, 0xfffff000, 0);
-		vdevice_setbar(vdev, PCI_BASE_ADDRESS_1, 0x0, 0);
-		vdevice_setbar(vdev, PCI_BASE_ADDRESS_2, 0xfffff000, 0);
-		vdevice_setbar(vdev, PCI_BASE_ADDRESS_3, 0x0, 0);
-		vdevice_setbar(vdev, PCI_BASE_ADDRESS_4, 0x0, 0);
-		vdevice_setbar(vdev, PCI_BASE_ADDRESS_5, 0x0, 0);
-	}
-	else{
-		kfree(vdev);
-		return -EINVAL;
-	}
+	memcpy(vdev->config, conf, MAX_CFG_SIZE);
 
 	/*
 	 * Then we try to find if the bus where we want to insert that 
@@ -407,7 +317,7 @@ int virtfn_bus_device_add(int type, int busnr, int devfn, int sec, int sub)
 
 	if(type == VIRTFN_ROOT_PORT){
 		/* bus are created in /sys/class/pci_bus/ */
-		child = pci_add_new_bus(bus, pdev, sec);
+		child = pci_add_new_bus(bus, pdev, vdev->config[25]);
 		if(!child){
 			printk("Cannot create new bus %x %x\n",busnr, devfn);
 			pci_dev_put(vdev->pdev);
@@ -417,7 +327,7 @@ int virtfn_bus_device_add(int type, int busnr, int devfn, int sec, int sub)
 			return -ENOMEM;
 		}
 		child->primary = 0;
-		child->subordinate = sub;
+		child->subordinate = vdev->config[26];
 	}
 
 	/* Insert it into the device tree */
@@ -455,22 +365,6 @@ void virtfn_bus_device_del(unsigned int seg, unsigned int bus,
 /*
  * Helper function
  */
-int create_root_port(int devfn, int sec, int sub)
-{
-	return virtfn_bus_device_add(VIRTFN_ROOT_PORT,0,devfn,sec,sub);
-}
-
-/*
- * Helper function
- */
-int create_device(int busnr, int devfn)
-{
-	return virtfn_bus_device_add(VIRTFN_ENDPOINT,busnr,devfn,0,0);
-}
-
-/*
- * Helper function
- */
 void destroy_all_virtfn_device(void)
 {
 	struct list_head *pos;
@@ -498,16 +392,8 @@ again:
 
 static int __init init(void)
 {
-	int retval;
-
-	udrv_kobj = kobject_create_and_add("virtfn", kernel_kobj);
-	if (!udrv_kobj)
-		return -ENOMEM;
-
-	/* Create the files associated with this kobject */
-	retval = sysfs_create_group(udrv_kobj, &attr_group);
-	if (retval)
-		kobject_put(udrv_kobj);
+	if(client_init())
+		return -1;
 
 	/*
 	 * pci_stop_bus_device() will recursively remove all devices under a given
@@ -530,13 +416,13 @@ static int __init init(void)
 	bus_register_notifier(&pci_bus_type, &device_nb);
 
 	pr_info(DRIVER_DESC " version: " DRIVER_VERSION);
-	return retval;
+	return 0;
 }
 
 static void __exit cleanup(void)
 {
 	destroy_all_virtfn_device();
-	kobject_put(udrv_kobj);
+	client_cleanup();
 	bus_unregister_notifier(&pci_bus_type, &device_nb);
 }
 
@@ -547,78 +433,4 @@ MODULE_VERSION(DRIVER_VERSION);
 MODULE_LICENSE("GPL v2");
 MODULE_AUTHOR(DRIVER_AUTHOR);
 MODULE_DESCRIPTION(DRIVER_DESC);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-static ssize_t debug_show(struct kobject *kobj, struct kobj_attribute *attr,
-			char *buf)
-{
-	destroy_all_virtfn_device();
-	return 0;
-}
-
-static ssize_t debug_store(struct kobject *kobj, struct kobj_attribute *attr,
-			 const char *buf, size_t count)
-{
-	int rootport, device;
-
-	/* Create a root port at 0:9.0 and subordinate bus is 25 */
-	rootport = create_root_port(PCI_DEVFN(9,0), 0x25, 0x30);
-	if(rootport)
-		return -EINVAL;
-	/* Create a device at 25:5.0 */
-	device = create_device(0x25, PCI_DEVFN(5,0));
-	if(device)
-		return -EINVAL;
-	/* Create a device at 25:6.0 */
-	device = create_device(0x25, PCI_DEVFN(6,0));
-	if(device)
-		return -EINVAL;
-	/* Create a device at 25:7.0 */
-	device = create_device(0x25, PCI_DEVFN(7,0));
-	if(device)
-		return -EINVAL;
-
-	/* Create a root port at 0:10.0 and subordinate bus is 35 */
-	rootport = create_root_port(PCI_DEVFN(0x10,0), 0x35, 0x40);
-	if(rootport)
-		return -EINVAL;
-	/* Create a device at 35:5.0 */
-	device = create_device(0x35, PCI_DEVFN(5,0));
-	if(device)
-		return -EINVAL;
-	/* Create a device at 35:5.0 */
-	device = create_device(0x35, PCI_DEVFN(1,0));
-	if(device)
-		return -EINVAL;
-	/* Create a device at 35:5.0 */
-	device = create_device(0x35, PCI_DEVFN(2,0));
-	if(device)
-		return -EINVAL;
-	/* Create a device at 35:5.0 */
-	device = create_device(0x35, PCI_DEVFN(3,0));
-	if(device)
-		return -EINVAL;
-	return count;
-}
-
 
