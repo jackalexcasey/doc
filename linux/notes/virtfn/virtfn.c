@@ -14,11 +14,12 @@
 #include <asm/uaccess.h>
 #include <asm/ioctls.h>
 
+#include "virtfn.h"
+
 #define DRIVER_VERSION	"0.01"
 #define DRIVER_AUTHOR	"Etienne Martineau <etmartin@cisco.com>"
 #define DRIVER_DESC	"PCI virtual function"
 
-#define VDEV_MAX_RESOURCE 6 /* Equivalent to PCI_NUM_RESOURCES */
 #define MAX_CFG_SIZE 4096
 
 #define MIN(a,b)        (min(a,b))
@@ -54,7 +55,7 @@ struct vdev{
 	int subordinate_bus_nr;
 
 	/* bar config */
-	unsigned int bar[VDEV_MAX_RESOURCE];
+	unsigned int bar[PCI_NUM_RESOURCES];
 
 	/* pci config space */
 	uint8_t config[MAX_CFG_SIZE];
@@ -63,11 +64,34 @@ struct vdev{
 	struct pci_dev *pdev;
 };
 
+static ssize_t debug_show(struct kobject *kobj, struct kobj_attribute *attr,
+			char *buf);
+static ssize_t debug_store(struct kobject *kobj, struct kobj_attribute *attr,
+			 const char *buf, size_t count);
+static int xen_pci_notifier(struct notifier_block *nb,
+			    unsigned long action, void *data);
+
 static int debug=1;
 static LIST_HEAD(vfcn_list);
 static DEFINE_SPINLOCK(vfcn_list_lock);
 static struct bus_tap bus_tap_lookup[256];
 static struct kobject *udrv_kobj;
+
+static struct kobj_attribute debug_attribute =
+	__ATTR(debug, 0666, debug_show, debug_store);
+
+static struct attribute *attrs[] = {
+	&debug_attribute.attr,
+	NULL,	/* need to NULL terminate the list of attributes */
+};
+
+static struct attribute_group attr_group = {
+	.attrs = attrs,
+};
+
+static struct notifier_block device_nb = {                                                                              
+    .notifier_call = xen_pci_notifier,
+};                                                                                                                      
 
 static inline void vdevice_setbar(struct vdev* dev, unsigned int bar,int size, int type)
 {
@@ -134,7 +158,7 @@ static void vdevice_del(struct vdev *dev)
  * Normally the PCI cfg cycle are decoded at HW level i.e. for a given
  * bus/device/function the endpoint device grabs the transaction.
  * Here this is different since we are emulating the cfg cycle hence we
- * have to 'decode' in SW i.e. walk through the list of device on a given bus.
+ * have to 'decode' in SW i.e. walk the list
  */
 static struct vdev * vdevice_find(unsigned int seg, unsigned int bus,
 			  unsigned int devfn)
@@ -226,6 +250,25 @@ static int pci_write(struct pci_bus *bus, unsigned int devfn, int where, int siz
 	return vfcn_write(dev,where,size,value);
 }
 
+static int xen_pci_notifier(struct notifier_block *nb,
+			    unsigned long action, void *data)
+{
+	struct device *dev = data;
+	struct pci_dev *pdev = to_pci_dev(dev);
+
+	switch (action) {
+	case BUS_NOTIFY_ADD_DEVICE:
+		break;
+	case BUS_NOTIFY_DEL_DEVICE:
+		virtfn_bus_device_del(pci_domain_nr(pdev->bus), pdev->bus->number, 
+			pdev->devfn);
+		break;
+	default:
+		return NOTIFY_DONE;
+	}
+	return NOTIFY_OK;
+}
+
 /*
  * In the case when we tap on BUS #0 ( when we create root port for example ),
  * we may endup in pci_read OR pci_write above for busses different than 
@@ -290,7 +333,7 @@ void untap_bus(struct pci_bus *bus)
 	}
 }
 
-void* virtfn_bus_device_add(int type, int busnr, int devfn, int sec, int sub)
+int virtfn_bus_device_add(int type, int busnr, int devfn, int sec, int sub)
 {
 	struct vdev *vdev;
 	struct pci_bus *bus, *child;
@@ -301,7 +344,7 @@ void* virtfn_bus_device_add(int type, int busnr, int devfn, int sec, int sub)
 	 */
 	vdev=kzalloc(sizeof(struct vdev) ,GFP_KERNEL);
 	if(!vdev)
-		return NULL;
+		return -ENOMEM;
 	
 	vdev->aseg=0;
 	vdev->abus=busnr;
@@ -324,7 +367,7 @@ void* virtfn_bus_device_add(int type, int busnr, int devfn, int sec, int sub)
 	}
 	else{
 		kfree(vdev);
-		return NULL;
+		return -EINVAL;
 	}
 
 	/*
@@ -340,7 +383,7 @@ void* virtfn_bus_device_add(int type, int busnr, int devfn, int sec, int sub)
 	if(!bus){
 		printk("Cannot find bus 0,%d\n",busnr);
 		kfree(vdev);
-		return NULL;
+		return -EINVAL;
 	}
 	
 	tab_bus(bus);
@@ -358,7 +401,7 @@ void* virtfn_bus_device_add(int type, int busnr, int devfn, int sec, int sub)
 		untap_bus(bus);
 		vdevice_del(vdev);
 		kfree(vdev);
-		return NULL;
+		return -EIO;
 	}
 	vdev->pdev = pci_dev_get(pdev);
 
@@ -371,6 +414,7 @@ void* virtfn_bus_device_add(int type, int busnr, int devfn, int sec, int sub)
 			untap_bus(bus);
 			vdevice_del(vdev);
 			kfree(vdev);
+			return -ENOMEM;
 		}
 		child->primary = 0;
 		child->subordinate = sub;
@@ -381,15 +425,21 @@ void* virtfn_bus_device_add(int type, int busnr, int devfn, int sec, int sub)
 
 	printk("Adding %s under %x:%x.%x\n",type==VIRTFN_ROOT_PORT ? "root port":"end point",
 		vdev->abus,PCI_SLOT(vdev->adevfn), PCI_FUNC(vdev->adevfn));
-	return vdev;
+	return 0;
 }
-//pci_remove_bus(child);
-void virtfn_bus_device_del(struct vdev *vdev)
-{
-	struct pci_bus *bus;
 
-	bus = pci_find_bus(0,vdev->abus);
-	if(!bus){
+void virtfn_bus_device_del(unsigned int seg, unsigned int bus, 
+	unsigned int devfn)
+{
+	struct pci_bus *b;
+	struct vdev *vdev;
+
+	vdev = vdevice_find(seg, bus, devfn);
+	if(!vdev)
+		return;
+	
+	b = pci_find_bus(0,vdev->abus);
+	if(!b){
 		WARN_ON(1);
 		printk("DEVICE del Cannot find bus 0,%d\n",vdev->abus);
 		return;
@@ -397,13 +447,31 @@ void virtfn_bus_device_del(struct vdev *vdev)
 	printk("Removing %s under %x:%x.%x\n",vdev->type==VIRTFN_ROOT_PORT ? "root port":"end point",
 		vdev->abus,PCI_SLOT(vdev->adevfn), PCI_FUNC(vdev->adevfn));
 	pci_dev_put(vdev->pdev);
-	untap_bus(bus);
+	untap_bus(b);
 	vdevice_del(vdev);
 	kfree(vdev);
-	return 0;
 }
 
-void virtfn_cleanup(void)
+/*
+ * Helper function
+ */
+int create_root_port(int devfn, int sec, int sub)
+{
+	return virtfn_bus_device_add(VIRTFN_ROOT_PORT,0,devfn,sec,sub);
+}
+
+/*
+ * Helper function
+ */
+int create_device(int busnr, int devfn)
+{
+	return virtfn_bus_device_add(VIRTFN_ENDPOINT,busnr,devfn,0,0);
+}
+
+/*
+ * Helper function
+ */
+void destroy_all_virtfn_device(void)
 {
 	struct list_head *pos;
 	struct vdev *vdev;
@@ -418,121 +486,15 @@ again:
 	spin_unlock(&vfcn_list_lock);
 
 	if(vdev){
-		pci_stop_bus_device(vdev->pdev);
+		/*
+		 * Here we rely on the bus notifier call back to do the cleanup.
+		 * This is executed under the same context so we won't miss any entry
+		 * from the list...
+		 */
 		pci_remove_bus_device(vdev->pdev);
 		goto again;
 	}
 }
-
-static int xen_pci_notifier(struct notifier_block *nb,
-			    unsigned long action, void *data)
-{
-	struct device *dev = data;
-	struct pci_dev *pdev = to_pci_dev(dev);
-	struct vdev *vdev;
-	int r = 0;
-
-	switch (action) {
-	case BUS_NOTIFY_ADD_DEVICE:
-		break;
-	case BUS_NOTIFY_DEL_DEVICE:
-		/*
-		 * Are we dealing with a virtual device or not
-		 */
-		vdev = vdevice_find(pci_domain_nr(pdev->bus), pdev->bus->number, pdev->devfn);
-		if(vdev)
-			virtfn_bus_device_del(vdev);
-		break;
-	default:
-		return NOTIFY_DONE;
-	}
-	return NOTIFY_OK;
-}
-
-static struct notifier_block device_nb = {                                                                              
-    .notifier_call = xen_pci_notifier,
-};                                                                                                                      
-
-/*
- * Helper function
- */
-void* create_root_port(int devfn, int sec, int sub)
-{
-	return virtfn_bus_device_add(VIRTFN_ROOT_PORT,0,devfn,sec,sub);
-}
-
-/*
- * Helper function
- */
-void* create_device(int busnr, int devfn)
-{
-	return virtfn_bus_device_add(VIRTFN_ENDPOINT,busnr,devfn,0,0);
-}
-
-
-static ssize_t debug_show(struct kobject *kobj, struct kobj_attribute *attr,
-			char *buf)
-{
-	virtfn_cleanup();
-	return 0;
-}
-
-static ssize_t debug_store(struct kobject *kobj, struct kobj_attribute *attr,
-			 const char *buf, size_t count)
-{
-	void *rootport, *device;
-
-	/* Create a root port at 0:9.0 and subordinate bus is 25 */
-	rootport = create_root_port(PCI_DEVFN(9,0), 0x25, 0x30);
-	if(!rootport)
-		return -EINVAL;
-	/* Create a device at 25:5.0 */
-	device = create_device(0x25, PCI_DEVFN(5,0));
-	if(!device)
-		return -EINVAL;
-	/* Create a device at 25:6.0 */
-	device = create_device(0x25, PCI_DEVFN(6,0));
-	if(!device)
-		return -EINVAL;
-	/* Create a device at 25:7.0 */
-	device = create_device(0x25, PCI_DEVFN(7,0));
-	if(!device)
-		return -EINVAL;
-
-	/* Create a root port at 0:10.0 and subordinate bus is 35 */
-	rootport = create_root_port(PCI_DEVFN(0x10,0), 0x35, 0x40);
-	if(!rootport)
-		return -EINVAL;
-	/* Create a device at 35:5.0 */
-	device = create_device(0x35, PCI_DEVFN(5,0));
-	if(!device)
-		return -EINVAL;
-	/* Create a device at 35:5.0 */
-	device = create_device(0x35, PCI_DEVFN(1,0));
-	if(!device)
-		return -EINVAL;
-	/* Create a device at 35:5.0 */
-	device = create_device(0x35, PCI_DEVFN(2,0));
-	if(!device)
-		return -EINVAL;
-	/* Create a device at 35:5.0 */
-	device = create_device(0x35, PCI_DEVFN(3,0));
-	if(!device)
-		return -EINVAL;
-	return count;
-}
-
-static struct kobj_attribute debug_attribute =
-	__ATTR(debug, 0666, debug_show, debug_store);
-
-static struct attribute *attrs[] = {
-	&debug_attribute.attr,
-	NULL,	/* need to NULL terminate the list of attributes */
-};
-
-static struct attribute_group attr_group = {
-	.attrs = attrs,
-};
 
 static int __init init(void)
 {
@@ -548,22 +510,22 @@ static int __init init(void)
 		kobject_put(udrv_kobj);
 
 	/*
-
-	 * Device removal works this way;
-	 * The device is removed using pci_stop_bus_device(struct pci_dev *dev);
-	 * 	This function will recursively remove all device under the topology.
-	 * 	Then it will call into pci_stop_dev() which will release the sysfs/ files
-	 * 	and call device_unregister().
-	 * 	  device_unregister() will trigger a pci_device_remove() ( which if a driver
-	 * 	  is bounded to it will call drv->remove ) then pci_device_remove() will call
-	 * 	  into pci_dev_put() to free up the pci_dev{} structure
+	 * pci_stop_bus_device() will recursively remove all devices under a given
+	 * topology. For each devices it will call into device_unregister().
+	 * device_unregister() call into the bus->remove method ( for PCI this is
+	 * pci_device_remove()). If a driver is bounded to that device it will call
+	 * the associated drv->remove method. Then pci_device_remove() will call 
+	 * into pci_dev_put() which will free up the pci_dev{} structure.
 	 *
-	 * The problem with this scheme is that struct vdev{} is never released.
+	 * The problem here is that pci_dev{} structure is associated with a 
+	 * vdev{} structure which cannot be release by normal code path
 	 *
-	 * Moreover the associated bus is not taken out of tap mode either.
+	 * For that reason we register for pci bus notifier so that we can track
+	 * device removal appropriatly.
 	 *
-	 * For that reason we register for bus notifier on the pci_bus so that
-	 * we can track device removal appropriatly.
+	 * First pci_remove_bus_device() calls into pci_stop_bus_device() and 
+	 * then it call into pci_destroy_dev() which remove the device from the 
+	 * list and free up the resource
 	 */
 	bus_register_notifier(&pci_bus_type, &device_nb);
 
@@ -573,7 +535,7 @@ static int __init init(void)
 
 static void __exit cleanup(void)
 {
-	virtfn_cleanup();
+	destroy_all_virtfn_device();
 	kobject_put(udrv_kobj);
 	bus_unregister_notifier(&pci_bus_type, &device_nb);
 }
@@ -585,4 +547,78 @@ MODULE_VERSION(DRIVER_VERSION);
 MODULE_LICENSE("GPL v2");
 MODULE_AUTHOR(DRIVER_AUTHOR);
 MODULE_DESCRIPTION(DRIVER_DESC);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+static ssize_t debug_show(struct kobject *kobj, struct kobj_attribute *attr,
+			char *buf)
+{
+	destroy_all_virtfn_device();
+	return 0;
+}
+
+static ssize_t debug_store(struct kobject *kobj, struct kobj_attribute *attr,
+			 const char *buf, size_t count)
+{
+	int rootport, device;
+
+	/* Create a root port at 0:9.0 and subordinate bus is 25 */
+	rootport = create_root_port(PCI_DEVFN(9,0), 0x25, 0x30);
+	if(rootport)
+		return -EINVAL;
+	/* Create a device at 25:5.0 */
+	device = create_device(0x25, PCI_DEVFN(5,0));
+	if(device)
+		return -EINVAL;
+	/* Create a device at 25:6.0 */
+	device = create_device(0x25, PCI_DEVFN(6,0));
+	if(device)
+		return -EINVAL;
+	/* Create a device at 25:7.0 */
+	device = create_device(0x25, PCI_DEVFN(7,0));
+	if(device)
+		return -EINVAL;
+
+	/* Create a root port at 0:10.0 and subordinate bus is 35 */
+	rootport = create_root_port(PCI_DEVFN(0x10,0), 0x35, 0x40);
+	if(rootport)
+		return -EINVAL;
+	/* Create a device at 35:5.0 */
+	device = create_device(0x35, PCI_DEVFN(5,0));
+	if(device)
+		return -EINVAL;
+	/* Create a device at 35:5.0 */
+	device = create_device(0x35, PCI_DEVFN(1,0));
+	if(device)
+		return -EINVAL;
+	/* Create a device at 35:5.0 */
+	device = create_device(0x35, PCI_DEVFN(2,0));
+	if(device)
+		return -EINVAL;
+	/* Create a device at 35:5.0 */
+	device = create_device(0x35, PCI_DEVFN(3,0));
+	if(device)
+		return -EINVAL;
+	return count;
+}
+
 
