@@ -418,7 +418,8 @@ again:
 	spin_unlock(&vfcn_list_lock);
 
 	if(vdev){
-		pci_stop_and_remove_bus_device(vdev->pdev);
+		pci_stop_bus_device(vdev->pdev);
+		pci_remove_bus_device(vdev->pdev);
 		goto again;
 	}
 }
