@@ -18,6 +18,8 @@ To have it through a pipe you can do
 cat > /proc/sys/kernel/core_pattern
 |/etc/cmpressdump.sh %h.%e.%p.core
 
+echo "|/etc/cmpressdump.sh %p" > /proc/sys/kernel/core_pattern
+
 The core dump is calling into binfmt that support various mode
 
 0 ia32_aout.c        <global>     113 .core_dump = aout_core_dump,

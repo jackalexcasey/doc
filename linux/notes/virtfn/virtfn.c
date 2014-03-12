@@ -163,6 +163,24 @@ static int pci_read(struct pci_bus *bus, unsigned int devfn, int where, int size
 	}
 	return vfcn_read(dev,where,size,value);
 }
+#if 0
+[   36.766937] Adjusting nested tapping 15
+[   36.767417] Adjusting nested tapping 15
+[   36.767879] Adjusting nested tapping 15
+[   36.768359] Adjusting nested tapping 15
+[   36.768834] vdevice_find: vdevice_find 0 0:9.0
+[   36.769337] vfcn_read: CFG Read 18->4= 302500
+[   36.769897] vdevice_find: vdevice_find 0 0:9.0
+[   36.770402] vfcn_read: CFG Read 3e->2= 0
+[   36.770911] vdevice_find: vdevice_find 0 0:9.0
+[   36.771415] vfcn_write: CFG Write 3e->2= 0
+[   36.772302] BUG: unable to handle kernel NULL pointer dereference at           (null)
+[   36.772937] IP: [<          (null)>]           (null)
+[   36.772937] PGD 54cb067 PUD 250000000572e067 PMD 5579067 PTE 8000000001d4a225
+[   36.772937] Thread overran stack, or stack corrupted
+[   36.772937] Oops: 0011 [#1] SMP 
+recursive check with that bus tapping crap...
+#endif
 
 static int pci_write(struct pci_bus *bus, unsigned int devfn, int where, int size, u32 value)
 {
@@ -174,6 +192,7 @@ static int pci_write(struct pci_bus *bus, unsigned int devfn, int where, int siz
 		if(!tap->refcount){
 			//printk("Adjusting nested tapping %x\n",bus->number);
 			tap = &bus_tap_lookup[0];
+			//What is bus tap 0 get us back here???
 			if(!(tap->refcount))
 				BUG();
 		}
@@ -218,7 +237,7 @@ static int xen_pci_notifier(struct notifier_block *nb,
  * parent and see if the refcount is value.
  *
  */
-void tab_bus(struct pci_bus *bus)
+static void tab_bus(struct pci_bus *bus)
 {
 	static int init=0;
 	struct bus_tap *tap = &bus_tap_lookup[bus->number];
@@ -246,7 +265,7 @@ void tab_bus(struct pci_bus *bus)
 	printk("Tapping BUS %x\n",bus->number);
 }
 
-void untap_bus(struct pci_bus *bus)
+static void untap_bus(struct pci_bus *bus)
 {
 	struct bus_tap *tap = &bus_tap_lookup[bus->number];
 
@@ -265,6 +284,12 @@ void untap_bus(struct pci_bus *bus)
 	}
 }
 
+/*
+ * Akin to pciehp_configure_device that we don't do deepth first scan. Instead
+ * we insert device point to point
+ *
+ * We need to use similar technique than pciehp_configure for deepth first scan
+ */
 static int virtfn_bus_device_add(int type, unsigned int seg, unsigned int bus,
 	unsigned int devfn, uint8_t *conf)
 {
@@ -283,6 +308,7 @@ static int virtfn_bus_device_add(int type, unsigned int seg, unsigned int bus,
 	vdev->abus=bus;
 	vdev->adevfn=devfn;
 	vdev->type = type;
+	/* Latch the config locally */
 	memcpy(vdev->config, conf, MAX_CFG_SIZE);
 
 	/*
@@ -294,22 +320,41 @@ static int virtfn_bus_device_add(int type, unsigned int seg, unsigned int bus,
 	 * provided by that virtual device otherwise we redirect to the original
 	 * hardware operation
 	 */
-	b = pci_find_bus(0,bus);
+	b = pci_find_bus(seg, bus);
 	if(!b){
-		printk("Cannot find bus 0,%d\n",bus);
+		printk("Cannot find bus %d,%d\n",seg ,bus);
 		kfree(vdev);
 		return -EINVAL;
 	}
+
+	pdev = pci_get_slot(b, devfn);
+	if(pdev){
+		printk("Device %s already exists " 
+			"at %04x:%02x:00, cannot hot-add\n", pci_name(pdev),
+			pci_domain_nr(b), b->number);
+		pci_dev_put(pdev);
+		kfree(vdev);
+		return -EBUSY;
+	}
 	
+	/*
+	 * After this point all the bus->ops RD/WR will be redirected to our
+	 * own version. This will be transparent for the existing devices
+	 */
 	tab_bus(b);
 
 	/* 
 	 * Then we add the virtual device on the global list
-	 * From that point on PCI can see the new device
+	 * From that point on PCI can see the new device.
+	 * NOTE what happen if a rescan happen after vdevice_add but before
+	 * pci_scan_single_device?
 	 */
 	vdevice_add(vdev);
 
-	/* Now populate struct pci_dev{} by scanning the device */
+	/* 
+	 * Now populate struct pci_dev{} by scanning the device.
+	 * After this step the device is on the pci list of devices 
+	 */
 	pdev = pci_scan_single_device(b, devfn);
 	if(!pdev){
 		printk("Cannot discover device %x %x\n",bus, devfn);
