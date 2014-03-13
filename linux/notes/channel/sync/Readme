@@ -1,0 +1,36 @@
+Suppose we have two execution process fireing a timer at every 10 msec
+Can that stays in sync if they staart at the same time??
+
+One thing we know from cyclictest is the jitter that we have for servicing a timer
+The jitter range from 10usec to 100usec with an average of lets say 90 usec.
+
+This means that the 10msec timer will fire mostly at 10.090 msec
+The 10usec to 100usec is the zone where the S/N become <1 
+The other assumption is that the 10usec to 100usec noise is going to be distributed evenly across each timer such that
+ over time the error introduce is going to cancel each other 
+There is other elements of noise such as process running we need to find out what it is?
+
+The same is true for both processes so in theory is we have a mechanism to sync to
+two process they can stay hand to hand loosely coupled for some time. We can even have a convergence for the
+synchronistation
+EX: synchronization mode [ coarse, medium, fine, optimal ]
+
+For the sake of measurement we could try the following:
+Start two thread and right aftert the timer is armed write down the TSC  ( This is going to be the base DELTA )
+i.e. the offset from where each thread start initially ( since they where not synchronized )
+
+*********
+Let's define one of the thread as the leader. The follower thread want to sync-in ( catchup ) by minimizing the TSC diff.
+
+The leader thread starts the interval timer and mark the TSC when the timer expire
+   In a channel cases making the TSC would not work and instead the leader would create a H_sync
+
+! We could simulate the channel H_SYNC but a special TSC based spinlock collision scheme i.e.
+  
+The follower thread start and probe at a high frequency the TSC spinlock and search for contention pattern.
+
+nanosleep OR clock_nanosleep
+The leader thread issue a contention pattern when the timer expired.
+	 The contention pattern last for n cycle
+If the follower detect the contention pattern it set it's timer to come back and the next cycle and verify it/.
+

@@ -1,0 +1,35 @@
+What we are doing here looks very close than what hotplug is doing i.e.
+we are adding devices dynamically.
+
+Hotplug handling start from a struct slot{}.
+
+A slot is a physical location on the pci topology. it always hangs off a parent
+For example there is n slot behind a bridge. The bus where that slot lives is on
+the parent->subordinate
+
++The hotplug driver works detect the presence/absence
++at slot level using the hotplug controller.
++
++Slot contain the B:D.F of the location
++Slot can go in power on state / power off state
++board_added(struct slot *p_slot) is where the pci story starts
++	pciehp_configure_device
++
++FIRST pciehp_configure_device call into num = pci_scan_slot(parent, PCI_DEVFN(0, 0));
++which call into dev = pci_scan_single_device(bus, devfn);
++THIS gives the number of device on that slot
++
++Then the logic adds bridges first pciehp_add_bridge with things like pci_scan_child_bus
++ // pci_add_new_bus
++ //
++SLOT hangs off struct pci_bus *parent = bridge->subordinate;
++The the device are added on the bus...
++
++this way:
++
++POWEROFF_STATE:
++pciehp_disable_slot
++
++POWERON_STATE:
++pciehp_enable_slot
++
