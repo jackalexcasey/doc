@@ -5,7 +5,6 @@
  * Author: Etienne Martineau <etmartin@cisco.com>
  *
  * This work is licensed under the terms of the GNU GPL, version 2.
- *
  */
 #define _GNU_SOURCE
 #include <errno.h>
@@ -32,6 +31,7 @@
 #include "spinlock.h"
 #include "threads.h"
 #include "logging.h"
+#include "atomic_64.h"
 
 #define PRINT(fmt, args...)	\
 	do{	\
@@ -44,12 +44,30 @@
 }while(0)
 
 int leader = 0;
+volatile int *spinlock = NULL;
 char *program	= "";
 const char optstring[] = "c:l";
 struct option options[] = {
 	{ "",	required_argument,	0, 	'j'	},
 	{ "",	required_argument,	0, 	'l'	},
 	{ 0,	0,	0,	0 }
+};
+#define TIMER_RELTIME       0
+
+/*
+ * Basic definition
+ */
+#define USEC_PER_SEC	1000000
+#define NSEC_PER_SEC	1000000000
+
+/* V sync is 60HZ => 16666666 nsec period*/
+#define V_SYNC_HZ			60
+#define V_SYNC_SEC_PERIOD	16666666 / NSEC_PER_SEC
+#define V_SYNC_NSEC_PERIOD	16666666 % NSEC_PER_SEC
+
+const struct timespec v_sync_ts = {
+	.tv_sec = V_SYNC_SEC_PERIOD,
+	.tv_nsec = V_SYNC_NSEC_PERIOD,
 };
 
 void usage(void)
@@ -62,24 +80,18 @@ void help(void)
 	usage();
 }
 
-void * worker_thread(void *arg)
-{
-	int cpu;
-
-	cpu = sched_getcpu();
-	PRINT("worker_thread start on CPU %d in %s\n",cpu ,leader ? "Leader mode":"Slave mode");
-	while(1)
-		sleep(1);
-}
-
-void *open_channel(void)
+/*
+ * This hides the detail about the method used for communication.
+ * For modelization we used shared memory variable.
+ * For real implementation we use SMT pipeline contention. In that
+ * case this function takes care to set the affinity of the HT siblings...
+ */
+void open_channel(void)
 {
 	int fd;
 	void *ptr;
 
-	/* try opening with O_EXCL and if it succeeds zero the memory
-	 * by truncating to 0 */
-	if ((fd = shm_open("channel", O_CREAT|O_RDWR|O_EXCL,
+	if ((fd = shm_open("channel", O_CREAT|O_RDWR,
 					S_IRWXU|S_IRWXG|S_IRWXO)) > 0) {
 		if (ftruncate(fd, 1024) != 0)
 			DIE("could not truncate shared file\n");
@@ -90,9 +102,116 @@ void *open_channel(void)
 	ptr = mmap(NULL,1024,PROT_READ|PROT_WRITE,MAP_SHARED,fd,0);
 	if(ptr == MAP_FAILED)
 		DIE("mmap");
-	return ptr;
+
+	spinlock = ptr; /* spinlock is the first object in the mmap */
+	if(leader)
+		*spinlock = 0;
+	return;
 }
 
+
+void v_sync(void)
+{
+	int x, ret;
+
+	x=0;
+	while(1){
+		ret = clock_nanosleep(CLOCK_MONOTONIC, TIMER_RELTIME, &v_sync_ts, NULL);
+		if(ret)
+			DIE("clock_nanosleep");
+		if(!(x%V_SYNC_HZ))
+			fprintf(stderr, ".");
+		x++;
+	}
+}
+
+void data_out(void)
+{
+	sleep(1);
+//	usleep(10000);
+}
+
+#if 0
+void detect_carrier(void)
+{
+	int x;
+
+	x=0;
+	while(1){
+		/* we have to measure timestamp also to make sure we see 100 hops in the
+		 * required amount of time
+		 */
+		/* Here we wait for the rising edge */
+		while(*spinlock == 0)
+			usleep(1);
+		/* Here there is a 1 state */
+		usleep(1);
+		while(*spinlock == 1);
+		/* Here there is a 1 state */
+		usleep(2);
+		x++;
+		if(x==100){
+			fprintf(stderr, ".");
+			x=0;
+		}
+	}
+}
+#endif
+
+void leader_loop(void)
+{
+
+	fprintf(stderr," V_SYNC_SEC_PERIOD %d V_SYNC_NSEC_PERIOD %d",
+		V_SYNC_SEC_PERIOD,V_SYNC_NSEC_PERIOD);
+	while(1){
+		v_sync();
+	}
+}
+
+void sniffer_loop(void)
+{
+}
+
+void * worker_thread(void *arg)
+{
+	int cpu;
+
+	cpu = sched_getcpu();
+	PRINT("worker_thread start on CPU %d in %s\n",cpu ,leader ? "Leader mode":"Slave mode");
+	if(leader)
+		leader_loop();
+	else
+		sniffer_loop();
+
+	return NULL;
+}
+
+/*
+interval is usec
+ 589     interval.tv_sec = par->interval / USEC_PER_SEC;
+  590     interval.tv_nsec = (par->interval % USEC_PER_SEC) * 1000;
+  struct timespec now, next, interval,
+ */
+
+/*
+ *
+ * Here we have a execution stream that modulate contention in a SMT pipeline.
+ * The detection of that contention is achieve by measuring the time it takes
+ * for an execution stream to execute. 
+ *
+ * The leader does the modulation
+ * The sniffer does the detection. This is a one way channel
+ *
+ * For modelization purpose we modulate a shared memory variable ( spinlock ).
+ * The detection of the contention is achieve by reading the variable's value.
+ * The leader does WR and the sniffer does RD
+ * RD and WR are atomic on x86_64.
+ *
+ * The signal we modulate is AKIN to a TV monitor i.e.:
+ *  V_sync, [Hsync:data,data,data...], [Hsync:data,data,data...], ..., V_sync
+ *
+ * The frequency of V_sync is 60HZ
+ */
 int
 main(int argc, char *argv[])
 {
@@ -155,6 +274,11 @@ main(int argc, char *argv[])
 	}
 
 	/*
+	 * Open the comm channel
+	 */
+	open_channel();
+
+	/*
  	 * create the threads
  	 */
 	ncpus = count_cpus(&cpus);
@@ -168,6 +292,5 @@ main(int argc, char *argv[])
 		return 1;
 	}
 	join_threads();
-
 }
 
