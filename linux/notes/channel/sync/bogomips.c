@@ -144,11 +144,6 @@ void detect_v_sync(void)
 	struct timespec pll_v_sync_ts;
 
 	pll_v_sync_ts.tv_sec = V_SYNC_SEC_PERIOD;
-
-	/* 
-	 * The detection on it's own take longer than the sync so we need 
-	 * to compensate for it 
-	 */
 	pll_v_sync_ts.tv_nsec = V_SYNC_NSEC_PERIOD;
 
 	x=0;
@@ -171,13 +166,26 @@ void detect_v_sync(void)
 		 */
 		// Here is a mistake to have 10; Instead we have to have variable up to 10...
 		// THEN this is going to do the catch on its own.
-		for(y=0;y<10;y++){
+		// OR we use the lenght as an indication of the sync up code
+#if 0
+		for(y=0;y<20;y=y+2){
 			v1 = *spinlock;
+			if(v1)
+				y=v1;
 			usleep(2);
 			v2 = *spinlock;
 			usleep(2);
 			if(v1 != v2)
 				z++;
+		}
+#endif
+		for(y=0;y<10;y++){
+			v1 = *spinlock;
+			usleep(2);
+			if(v1){
+				y=v1;
+				z++;
+			}
 		}
 		/* Z represent to amount of hit on the sync;
 		 * 0 is none and 10 is 100%
@@ -188,10 +196,10 @@ void detect_v_sync(void)
 			conv = 50;
 		else
 			conv = 0;
-		else if(z ==10)
-			conv = 0;
-		else
-			conv = z*z*z*100;
+//		else if(z ==10)
+//			conv = 0;
+//		else
+//			conv = z*z*z*100;
 		if(conv)
 			pll_v_sync_ts.tv_nsec = pll_v_sync_ts.tv_nsec - (pll_v_sync_ts.tv_nsec/conv);
 
@@ -213,16 +221,28 @@ void trigger_v_sync(void)
 
 	x=0;
 	while(1){
+		/*
+		 * From cyclictest we know that the jitter we have for servicing a 
+		 * timer is in the order of ~100uSec
+		 * So here we may want to adapt 
+		 * OR
+		 * we rely on the fact that the other end have the same noise distribution
+		 * The one problem is that is we burn too much CPU CFS will flag us
+		 * This is not a problem for the sampler code
+		 */
 		ret = clock_nanosleep(CLOCK_MONOTONIC, TIMER_RELTIME, &v_sync_ts, NULL);
 		if(ret)
 			DIE("clock_nanosleep");
 
+		/*
+		 * Here we trigger some time increasing pattern in the sync
+		 * In simulation we do that with the incrementing value
+		 */
 		for(y=0;y<10;y++){
-			*spinlock = 1;
-			usleep(2);
-			*spinlock = 0;
+			*spinlock = y;
 			usleep(2);
 		}
+		*spinlock = 0;
 
 		if(!(x%V_SYNC_HZ))
 			fprintf(stderr, ".");
