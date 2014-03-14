@@ -138,13 +138,17 @@ void detect_carrier(void)
 	}
 }
 #endif
-
 void detect_v_sync(void)
 {
 	int x, y, z, t, ret, v1, v2, conv;
 	struct timespec pll_v_sync_ts;
 
 	pll_v_sync_ts.tv_sec = V_SYNC_SEC_PERIOD;
+
+	/* 
+	 * The detection on it's own take longer than the sync so we need 
+	 * to compensate for it 
+	 */
 	pll_v_sync_ts.tv_nsec = V_SYNC_NSEC_PERIOD;
 
 	x=0;
@@ -161,7 +165,12 @@ void detect_v_sync(void)
 		/* 
 		 * Here we have the double sampling rate
 		 * We need to know how long this is executing to perform the convergence
+		 * The sampling must be timing based i.e. we need to know 
+		 * how long it takes to create the sync TIME WISE
+		 * This is auto calibration....
 		 */
+		// Here is a mistake to have 10; Instead we have to have variable up to 10...
+		// THEN this is going to do the catch on its own.
 		for(y=0;y<10;y++){
 			v1 = *spinlock;
 			usleep(2);
@@ -170,16 +179,19 @@ void detect_v_sync(void)
 			if(v1 != v2)
 				z++;
 		}
+		/* Z represent to amount of hit on the sync;
+		 * 0 is none and 10 is 100%
+		 * SO if we have 0 then we want to iterate over the vsync period quickly
+		 * BUT as soon as we have some hit we need to be very carefull
+		 */
 		if(z == 0)
 			conv = 50;
-		else if(z < 2)
-			conv = 100;
-		else if(z<4)
-			conv = 200;
-		else if(z<6)
-			conv = 400;
 		else
 			conv = 0;
+		else if(z ==10)
+			conv = 0;
+		else
+			conv = z*z*z*100;
 		if(conv)
 			pll_v_sync_ts.tv_nsec = pll_v_sync_ts.tv_nsec - (pll_v_sync_ts.tv_nsec/conv);
 
