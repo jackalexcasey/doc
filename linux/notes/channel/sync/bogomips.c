@@ -128,7 +128,7 @@ void detect_v_sync(void)
 		/* always make sure to have the original delay by default */
 		pll_v_sync_ts.tv_nsec = V_SYNC_NSEC_PERIOD;
 
-		for(y=0;y<10;y++){
+		for(y=1;y<11;y++){
 			v1 = *spinlock;
 			usleep(1);
 			/*
@@ -167,7 +167,13 @@ void sniffer_loop(void)
 	}
 }
 
-
+// WE casn try to do few things:
+// A) come with a wavw form generator using this technique
+// This one would pin down the CPU all together...
+// OR use the cache for the payload inter-vsync...
+//   Frame#1 frame #2 ( flip flop )
+//
+//
 void trigger_v_sync(void)
 {
 	int x, y, ret;
@@ -191,7 +197,7 @@ void trigger_v_sync(void)
 		 * In real mode we would create a increasing contention pattern
 		 * over that period of time.
 		 */
-		for(y=0;y<10;y++){
+		for(y=1;y<11;y++){
 			*spinlock = y;
 			usleep(1);
 		}
