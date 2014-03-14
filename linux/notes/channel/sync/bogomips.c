@@ -110,26 +110,7 @@ void open_channel(void)
 }
 
 
-void v_sync(void)
-{
-	int x, ret;
 
-	x=0;
-	while(1){
-		ret = clock_nanosleep(CLOCK_MONOTONIC, TIMER_RELTIME, &v_sync_ts, NULL);
-		if(ret)
-			DIE("clock_nanosleep");
-		if(!(x%V_SYNC_HZ))
-			fprintf(stderr, ".");
-		x++;
-	}
-}
-
-void data_out(void)
-{
-	sleep(1);
-//	usleep(10000);
-}
 
 #if 0
 void detect_carrier(void)
@@ -158,18 +139,98 @@ void detect_carrier(void)
 }
 #endif
 
-void leader_loop(void)
+void detect_v_sync(void)
 {
+	int x, y, z, t, ret, v1, v2, conv;
+	struct timespec pll_v_sync_ts;
 
-	fprintf(stderr," V_SYNC_SEC_PERIOD %d V_SYNC_NSEC_PERIOD %d",
-		V_SYNC_SEC_PERIOD,V_SYNC_NSEC_PERIOD);
+	pll_v_sync_ts.tv_sec = V_SYNC_SEC_PERIOD;
+	pll_v_sync_ts.tv_nsec = V_SYNC_NSEC_PERIOD;
+
+	x=0;
+	t=0;
 	while(1){
-		v_sync();
+		z=0;
+
+		ret = clock_nanosleep(CLOCK_MONOTONIC, TIMER_RELTIME, &pll_v_sync_ts, NULL);
+		if(ret)
+			DIE("clock_nanosleep");
+		/* reset to original delay */
+		pll_v_sync_ts.tv_nsec = V_SYNC_NSEC_PERIOD;
+
+		/* 
+		 * Here we have the double sampling rate
+		 * We need to know how long this is executing to perform the convergence
+		 */
+		for(y=0;y<10;y++){
+			v1 = *spinlock;
+			usleep(2);
+			v2 = *spinlock;
+			usleep(2);
+			if(v1 != v2)
+				z++;
+		}
+		if(z == 0)
+			conv = 50;
+		else if(z < 2)
+			conv = 100;
+		else if(z<4)
+			conv = 200;
+		else if(z<6)
+			conv = 400;
+		else
+			conv = 0;
+		if(conv)
+			pll_v_sync_ts.tv_nsec = pll_v_sync_ts.tv_nsec - (pll_v_sync_ts.tv_nsec/conv);
+
+	//NEED a SW PLL
+//		fprintf(stderr, "%d ",conv);
+		
+		t=t+z;
+		if(!(x%V_SYNC_HZ)){
+			fprintf(stderr, "#%d",t);
+			t=0;
+		}
+		x++;
 	}
 }
 
+void trigger_v_sync(void)
+{
+	int x, y, ret;
+
+	x=0;
+	while(1){
+		ret = clock_nanosleep(CLOCK_MONOTONIC, TIMER_RELTIME, &v_sync_ts, NULL);
+		if(ret)
+			DIE("clock_nanosleep");
+
+		for(y=0;y<10;y++){
+			*spinlock = 1;
+			usleep(2);
+			*spinlock = 0;
+			usleep(2);
+		}
+
+		if(!(x%V_SYNC_HZ))
+			fprintf(stderr, ".");
+		x++;
+	}
+}
+
+
 void sniffer_loop(void)
 {
+	while(1){
+		detect_v_sync();
+	}
+}
+
+void leader_loop(void)
+{
+	while(1){
+		trigger_v_sync();
+	}
 }
 
 void * worker_thread(void *arg)
