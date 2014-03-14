@@ -43,7 +43,7 @@
 	exit(1);\
 }while(0)
 
-int leader = 0;
+int sender = 0;
 volatile int *spinlock = NULL;
 char *program	= "";
 const char optstring[] = "c:l";
@@ -52,11 +52,11 @@ struct option options[] = {
 	{ "",	required_argument,	0, 	'l'	},
 	{ 0,	0,	0,	0 }
 };
-#define TIMER_RELTIME       0
 
 /*
  * Basic definition
  */
+#define TIMER_RELTIME       0
 #define USEC_PER_SEC	1000000
 #define NSEC_PER_SEC	1000000000
 
@@ -72,7 +72,7 @@ const struct timespec v_sync_ts = {
 
 void usage(void)
 {
-	printf("usage: [-c cpu sets] [-l leader mode] \n");
+	printf("usage: [-c cpu sets] [-l sender mode] \n");
 }
 
 void help(void)
@@ -104,43 +104,14 @@ void open_channel(void)
 		DIE("mmap");
 
 	spinlock = ptr; /* spinlock is the first object in the mmap */
-	if(leader)
+	if(sender)
 		*spinlock = 0;
 	return;
 }
 
-
-
-
-#if 0
-void detect_carrier(void)
-{
-	int x;
-
-	x=0;
-	while(1){
-		/* we have to measure timestamp also to make sure we see 100 hops in the
-		 * required amount of time
-		 */
-		/* Here we wait for the rising edge */
-		while(*spinlock == 0)
-			usleep(1);
-		/* Here there is a 1 state */
-		usleep(1);
-		while(*spinlock == 1);
-		/* Here there is a 1 state */
-		usleep(2);
-		x++;
-		if(x==100){
-			fprintf(stderr, ".");
-			x=0;
-		}
-	}
-}
-#endif
 void detect_v_sync(void)
 {
-	int x, y, z, t, ret, v1, v2, conv;
+	int x, y, z, t, ret, v1;
 	struct timespec pll_v_sync_ts;
 
 	pll_v_sync_ts.tv_sec = V_SYNC_SEC_PERIOD;
@@ -154,66 +125,48 @@ void detect_v_sync(void)
 		ret = clock_nanosleep(CLOCK_MONOTONIC, TIMER_RELTIME, &pll_v_sync_ts, NULL);
 		if(ret)
 			DIE("clock_nanosleep");
-		/* reset to original delay */
+		/* always make sure to have the original delay by default */
 		pll_v_sync_ts.tv_nsec = V_SYNC_NSEC_PERIOD;
 
-		/* 
-		 * Here we have the double sampling rate
-		 * We need to know how long this is executing to perform the convergence
-		 * The sampling must be timing based i.e. we need to know 
-		 * how long it takes to create the sync TIME WISE
-		 * This is auto calibration....
-		 */
-		// Here is a mistake to have 10; Instead we have to have variable up to 10...
-		// THEN this is going to do the catch on its own.
-		// OR we use the lenght as an indication of the sync up code
-#if 0
-		for(y=0;y<20;y=y+2){
-			v1 = *spinlock;
-			if(v1)
-				y=v1;
-			usleep(2);
-			v2 = *spinlock;
-			usleep(2);
-			if(v1 != v2)
-				z++;
-		}
-#endif
 		for(y=0;y<10;y++){
 			v1 = *spinlock;
-			usleep(2);
+			usleep(1);
+			/*
+			 * Here we use this auto-adjusting trick to nail down on the 
+			 * synchronization. This is the fine trim.
+			 * In real mode the same technique can be applied
+			 */
 			if(v1){
 				y=v1;
 				z++;
 			}
 		}
-		/* Z represent to amount of hit on the sync;
-		 * 0 is none and 10 is 100%
-		 * SO if we have 0 then we want to iterate over the vsync period quickly
-		 * BUT as soon as we have some hit we need to be very carefull
+		/*
+		 * If we detect that we are off the sync then we try to catch up at the
+		 * coarse level by trimming 1/50 of the period
 		 */
-		if(z == 0)
-			conv = 50;
-		else
-			conv = 0;
-//		else if(z ==10)
-//			conv = 0;
-//		else
-//			conv = z*z*z*100;
-		if(conv)
-			pll_v_sync_ts.tv_nsec = pll_v_sync_ts.tv_nsec - (pll_v_sync_ts.tv_nsec/conv);
-
-	//NEED a SW PLL
-//		fprintf(stderr, "%d ",conv);
+		if(!z){
+			fprintf(stderr, ".");
+			pll_v_sync_ts.tv_nsec = pll_v_sync_ts.tv_nsec - (pll_v_sync_ts.tv_nsec/50);
+		}
 		
 		t=t+z;
 		if(!(x%V_SYNC_HZ)){
-			fprintf(stderr, "#%d",t);
+			if(t)
+				fprintf(stderr, "Locked %d\n",t);
 			t=0;
 		}
 		x++;
 	}
 }
+
+void sniffer_loop(void)
+{
+	while(1){
+		detect_v_sync();
+	}
+}
+
 
 void trigger_v_sync(void)
 {
@@ -222,25 +175,25 @@ void trigger_v_sync(void)
 	x=0;
 	while(1){
 		/*
-		 * From cyclictest we know that the jitter we have for servicing a 
-		 * timer is in the order of ~100uSec
-		 * So here we may want to adapt 
-		 * OR
-		 * we rely on the fact that the other end have the same noise distribution
-		 * The one problem is that is we burn too much CPU CFS will flag us
-		 * This is not a problem for the sampler code
+		 *  From cyclictest we know that the jitter for servicing a timer is in
+		 *  the order of ~100uSec. Here we can either try to adapt/compensate OR
+		 *  rely on the fact that the other end have the same noise distribution
+		 *  pattern which at the end cancel each other.
 		 */
 		ret = clock_nanosleep(CLOCK_MONOTONIC, TIMER_RELTIME, &v_sync_ts, NULL);
 		if(ret)
 			DIE("clock_nanosleep");
 
 		/*
-		 * Here we trigger some time increasing pattern in the sync
-		 * In simulation we do that with the incrementing value
+		 * Here we generate the v_sync signal;
+		 * In simulation we do that by incrementing a shared memory 
+		 * variable during a predefined period of time.
+		 * In real mode we would create a increasing contention pattern
+		 * over that period of time.
 		 */
 		for(y=0;y<10;y++){
 			*spinlock = y;
-			usleep(2);
+			usleep(1);
 		}
 		*spinlock = 0;
 
@@ -250,15 +203,7 @@ void trigger_v_sync(void)
 	}
 }
 
-
-void sniffer_loop(void)
-{
-	while(1){
-		detect_v_sync();
-	}
-}
-
-void leader_loop(void)
+void sender_loop(void)
 {
 	while(1){
 		trigger_v_sync();
@@ -270,9 +215,9 @@ void * worker_thread(void *arg)
 	int cpu;
 
 	cpu = sched_getcpu();
-	PRINT("worker_thread start on CPU %d in %s\n",cpu ,leader ? "Leader mode":"Slave mode");
-	if(leader)
-		leader_loop();
+	PRINT("worker_thread start on CPU %d in %s\n",cpu ,sender ? "Sender mode":"Receiver mode");
+	if(sender)
+		sender_loop();
 	else
 		sniffer_loop();
 
@@ -280,28 +225,25 @@ void * worker_thread(void *arg)
 }
 
 /*
-interval is usec
- 589     interval.tv_sec = par->interval / USEC_PER_SEC;
-  590     interval.tv_nsec = (par->interval % USEC_PER_SEC) * 1000;
-  struct timespec now, next, interval,
- */
+ * Background:
 
-/*
  *
  * Here we have a execution stream that modulate contention in a SMT pipeline.
  * The detection of that contention is achieve by measuring the time it takes
  * for an execution stream to execute. 
  *
- * The leader does the modulation
+ * The sender does the modulation
  * The sniffer does the detection. This is a one way channel
  *
  * For modelization purpose we modulate a shared memory variable ( spinlock ).
  * The detection of the contention is achieve by reading the variable's value.
- * The leader does WR and the sniffer does RD
+ * The sender does WR and the sniffer does RD
  * RD and WR are atomic on x86_64.
  *
  * The signal we modulate is AKIN to a TV monitor i.e.:
  *  V_sync, [Hsync:data,data,data...], [Hsync:data,data,data...], ..., V_sync
+ *
+ *  The one problem is that is we burn too much CPU CFS will flag us
  *
  * The frequency of V_sync is 60HZ
  */
@@ -340,7 +282,7 @@ main(int argc, char *argv[])
 					++errs;
 				break;
 			case 'l':
-				leader = 1;
+				sender = 1;
 				break;
 			default:
 				ERROR(0, "unknown option '%c'", c);
