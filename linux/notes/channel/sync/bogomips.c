@@ -43,10 +43,10 @@
 	exit(1);\
 }while(0)
 
-int sender = 0;
+int transmitter = 0;
 volatile int *spinlock = NULL;
-extern void sender_loop(void);
-extern void sniffer_loop(void);
+extern void transmitter_loop(void);
+extern void receiver_loop(void);
 char *program	= "";
 const char optstring[] = "c:l";
 struct option options[] = {
@@ -57,7 +57,7 @@ struct option options[] = {
 
 void usage(void)
 {
-	printf("usage: [-c cpu sets] [-l sender mode] \n");
+	printf("usage: [-c cpu sets] [-l transmitter mode] \n");
 }
 
 void help(void)
@@ -89,7 +89,7 @@ void open_channel(void)
 		DIE("mmap");
 
 	spinlock = ptr; /* spinlock is the first object in the mmap */
-	if(sender)
+	if(transmitter)
 		*spinlock = 0;
 	return;
 }
@@ -99,11 +99,11 @@ void * worker_thread(void *arg)
 	int cpu;
 
 	cpu = sched_getcpu();
-	PRINT("worker_thread start on CPU %d in %s\n",cpu ,sender ? "Sender mode":"Receiver mode");
-	if(sender)
-		sender_loop();
+	PRINT("worker_thread start on CPU %d in %s\n",cpu ,transmitter ? "Transmitter mode":"Receiver mode");
+	if(transmitter)
+		transmitter_loop();
 	else
-		sniffer_loop();
+		receiver_loop();
 
 	return NULL;
 }
@@ -143,7 +143,7 @@ main(int argc, char *argv[])
 					++errs;
 				break;
 			case 'l':
-				sender = 1;
+				transmitter = 1;
 				break;
 			default:
 				ERROR(0, "unknown option '%c'", c);

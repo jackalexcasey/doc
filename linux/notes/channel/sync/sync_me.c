@@ -3,26 +3,6 @@
  *
  * This work is licensed under the terms of the GNU GPL, version 2.
  *
- * Background:
- *
- * Here we have a execution stream that modulate contention in a SMT pipeline.
- * The detection of that contention is achieve by measuring the time it takes
- * for an execution stream to execute. 
- *
- * The sender does the modulation
- * The sniffer does the detection. This is a one way channel
- *
- * For modelization purpose we modulate a shared memory variable ( spinlock ).
- * The detection of the contention is achieve by reading the variable's value.
- * The sender does WR and the sniffer does RD
- * RD and WR are atomic on x86_64.
- *
- * The signal we modulate is AKIN to a TV monitor i.e.:
- *  V_sync, [Hsync:data,data,data...], [Hsync:data,data,data...], ..., V_sync
- *
- *  The one problem is that is we burn too much CPU CFS will flag us
- *
- * The frequency of V_sync is 60HZ
  */
 #define _GNU_SOURCE
 #include <errno.h>
@@ -63,7 +43,7 @@
 	exit(1);\
 }while(0)
 
-extern int sender;
+extern int transmitter;
 extern volatile int *spinlock;
 
 /*
@@ -76,10 +56,16 @@ extern volatile int *spinlock;
 #define V_SYNC_HZ			60
 #define V_SYNC_SEC_PERIOD	16666666 / NSEC_PER_SEC
 #define V_SYNC_NSEC_PERIOD	16666666 % NSEC_PER_SEC
+#define TIMER_AVG_JITTER	100*1000 /* 100 uSec in average */
 
-const struct timespec v_sync_ts = {
+const struct timespec carrier_ts = {
 	.tv_sec = V_SYNC_SEC_PERIOD,
 	.tv_nsec = V_SYNC_NSEC_PERIOD,
+};
+
+const struct timespec carrier_adj_ts = {
+	.tv_sec = V_SYNC_SEC_PERIOD,
+	.tv_nsec = V_SYNC_NSEC_PERIOD - TIMER_AVG_JITTER,
 };
 
 /* simple loop based delay: */
@@ -180,13 +166,158 @@ void detect_v_sync(void)
 	}
 }
 
-void sniffer_loop(void)
+
+
+/*
+ *
+ * Background:
+ *  Like AM/FM radio here we have a transmitter that does the modulation and a 
+ *  receiver that does the de-modulation.
+ *
+ *  The power of the transmitter is related to the amount of CPU cycle it 
+ *  burns i.e. the CFS vruntime. The transmitter can be in low power mode 
+ *  ( barely visible by CFS ) and high power mode for maximum throughput.
+ *  The 'stealth' factor is directly related to the amount of power available
+ *  for communication.
+ *
+ *  The receiver can operate is high power mode all the time since this 
+ *  end belong to us
+ *
+ *  The signal we modulate is AKIN to a TV monitor i.e.:
+ *   carrier
+ *   vsync, [hsync:data,data,data...], [hsync:data,data,data...], ..., v_sync
+ *
+ * Simulation:
+ *  The end goal is to use an execution stream that modulate contention in a
+ *  SMT pipeline. The detection of that contention is achieve by measuring the
+ *  time it takes for a given execution stream to execute. 
+ *
+ *  For modelization purpose we modulate a shared memory variable ( spinlock ).
+ *  The detection of the contention is achieve by reading the variable's value.
+ *  RD and WR are atomic on x86_64.
+ *
+ * Synchronization & communication :
+ *  The first step is to establish basic synchronization this is done by the
+ *  carrier detection logic. Transmitter stays in low power mode till the
+ *  synchronization is establish.
+ *
+ *  Transmittter trigger a carrier at regular interval using a timer. During
+ *  this time the transmitter stay in low power mode to avoid detection.
+ *  Right after the carrier, the transmitter probe the channel to see if there
+ *  is a receiver on the other end. If there is then the transmitter will start
+ *  sending out data.
+ *
+ *
+ *  Initially the receiver aggressively probes the channel at high frequence to
+ *  detect any possible carrier.  As soon as a carrier is detected the receive enter in timer mode
+ *  in order to reduce power consumption. The trick here is that since we know that 
+ *  there is a lots of jitter on timer we wake up earlier and probe
+ *  manually the channel using a TSC projection.
+ *
+		 *  From cyclictest we know that the jitter for servicing a timer is in
+		 *  the order of ~100uSec. Here we can either try to adapt/compensate OR
+		 *  rely on the fact that the other end have the same noise distribution
+		 *  pattern which at the end cancel each other.
+ *
+ *  Part of carrier detection logic, the transmitter send out a vsync() signal
+ *  The vsync signal is a 10 usec ramp in a 16.666 msec (60 HZ) duty cycle.
+
+ *
+ *  At first, the receiver tries to detect the ramp by doing a coarse tunning 
+ *  ( shifting 1/50 of 16.666 msec at every cycle it doesn't find it) then it 
+ *  fall on the fine grain locking scheme which feeds its retro-action loop 
+ *  using the amplitude of the ramp itself.
+ *
+ *  The fine gr
+ *  The vsync() signal's frequence is 60 HZ 
+ *
+ */
+
+void do_carrier(void)
 {
-	while(1){
-		detect_v_sync();
+	int x;
+	for(x=1; x<100; x++){
+		*spinlock = x;
+	}
+	*spinlock = 0;
+}
+
+int detect_carrier(void)
+{
+	int x;
+
+	// Add the fast forward logic as well
+	for(x=1; x<100; x++){
+		if(*spinlock)
+			return;
 	}
 }
 
+void relax_cpu(const struct timespec *request)
+{
+	int ret;
+	static int x=0;
+
+	ret = clock_nanosleep(CLOCK_MONOTONIC, TIMER_RELTIME, request, NULL);
+	if(ret)
+		DIE("clock_nanosleep");
+	if(!(x%V_SYNC_HZ))
+		fprintf(stderr, ".");
+	x++;
+}
+
+int tx_data(char *payload)
+{
+	int state = 0;
+	int x;
+
+	while(1){
+		switch (state){
+		case 0: /* Carrier modulation */
+			relax_cpu(&carrier_ts);
+			do_carrier();
+			if(detect_carrier()){
+				state = 1;
+				break;
+			}
+		break;
+		}
+	}
+}
+
+char *rx_data(void)
+{
+	int state = 0;
+	int x;
+
+	while(1){
+		switch (state){
+		case 0: /* Carrier detection */
+			if(detect_carrier()){
+				state = 1;
+				break;
+			}
+		break;
+		case 1:
+			fprintf(stderr, " Carrier detected");
+			break;
+		}
+	}
+}
+
+void transmitter_loop(void)
+{
+	char dat[] = "fsdfsdf";
+	tx_data(dat);
+}
+
+void receiver_loop(void)
+{
+	rx_data();
+}
+
+
+#if 0
 // WE casn try to do few things:
 // A) come with a wavw form generator using this technique
 // This one would pin down the CPU all together...
@@ -194,44 +325,4 @@ void sniffer_loop(void)
 //   Frame#1 frame #2 ( flip flop )
 //
 //
-void trigger_v_sync(void)
-{
-	int x, y, ret;
-
-	x=0;
-	while(1){
-		/*
-		 *  From cyclictest we know that the jitter for servicing a timer is in
-		 *  the order of ~100uSec. Here we can either try to adapt/compensate OR
-		 *  rely on the fact that the other end have the same noise distribution
-		 *  pattern which at the end cancel each other.
-		 */
-		ret = clock_nanosleep(CLOCK_MONOTONIC, TIMER_RELTIME, &v_sync_ts, NULL);
-		if(ret)
-			DIE("clock_nanosleep");
-
-		/*
-		 * Here we generate the v_sync signal;
-		 * In simulation we do that by incrementing a shared memory 
-		 * variable during a predefined period of time.
-		 * In real mode we would create a increasing contention pattern
-		 * over that period of time.
-		 */
-		for(y=1;y<11;y++){
-			*spinlock = y;
-			usleep(1);
-		}
-		*spinlock = 0;
-
-		if(!(x%V_SYNC_HZ))
-			fprintf(stderr, ".");
-		x++;
-	}
-}
-
-void sender_loop(void)
-{
-	while(1){
-		trigger_v_sync();
-	}
-}
+#endif
