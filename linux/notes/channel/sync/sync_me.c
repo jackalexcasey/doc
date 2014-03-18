@@ -1,3 +1,4 @@
+#if 0
 /*
  * Author: Etienne Martineau <etmartin@cisco.com>
  *
@@ -315,14 +316,5 @@ void receiver_loop(void)
 {
 	rx_data();
 }
-
-
-#if 0
-// WE casn try to do few things:
-// A) come with a wavw form generator using this technique
-// This one would pin down the CPU all together...
-// OR use the cache for the payload inter-vsync...
-//   Frame#1 frame #2 ( flip flop )
-//
-//
 #endif
+
