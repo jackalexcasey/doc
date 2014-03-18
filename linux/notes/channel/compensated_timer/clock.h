@@ -6,6 +6,7 @@
  */
 #define USEC_PER_SEC	1000000
 #define NSEC_PER_SEC	1000000000
+#define TIMER_JITTER_NSEC_PERIOD	100000 	
 
 #define TIMER_RELTIME 0
 
@@ -24,5 +25,6 @@ hp_timing_t get_clockfreq (void);
 inline cycles_t get_cycles(void);
 void __ldelay(unsigned long loops);
 void calibrated_ldelay(unsigned long loops);
+void calibrated_timer(unsigned long loops, struct timespec *ts);
 
 #endif
