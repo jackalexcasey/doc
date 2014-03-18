@@ -116,8 +116,10 @@ void calibrate_compensated_timer(void)
  */
 #ifdef __CALIBRATED_JIFFIE__
 #define CPU_FREQ				2393715000
-#define CPU_CYCLE_PER_NSEC		2393
-#define MONOTONIC_PULSE_CYCLE	200000000/2
+
+#define FREQ 60
+#define PERIOD_CPU_CYCLE	CPU_FREQ/FREQ
+#define MONOTONIC_PULSE_CYCLE	PERIOD_CPU_CYCLE/2
 
 void calibrate_lpj(void)
 {
@@ -149,72 +151,64 @@ void calibrate_lpj(void)
  * jitter. The trick here is to use a calibrated loop to 'pad' the jitter out.
  *
  * Below the MONOTONIC_PULSE_CYCLE is the end goal i.e. have a perfect pulse
- * at every 100000000 CPU cycle.
+ * at every n CPU cycle.
  *
  * We know that timer are subjected to jitter. From above calibration we have measured
  * that typically TIMER_MAX_JITTER_CYCLE is the max
  *
- * We calculate the timer period like that
- *  (MONOTONIC_PULSE_CYCLE - TIMER_MAX_JITTER_CYCLE) * 1/CPU_FREQ
- *
  */
 #ifdef __CALIBRATED_TIMER__
 #define CPU_FREQ				2393715000
-#define CPU_CYCLE_PER_NSEC		2393
-#define MONOTONIC_PULSE_CYCLE	100000000
-#define TIMER_MAX_JITTER_CYCLE	150000 	
-#define V_SYNC_SEC_PERIOD	41713403 / NSEC_PER_SEC
-#define V_SYNC_NSEC_PERIOD	41713403 % NSEC_PER_SEC
+
+#define FREQ 60
+#define PERIOD_CPU_CYCLE	CPU_FREQ/FREQ
+#define MONOTONIC_PULSE_CYCLE	PERIOD_CPU_CYCLE/2
+
+#define SEC_PERIOD	(1/FREQ) %1
+#define NSEC_PERIOD (NSEC_PER_SEC/FREQ ) /* 1/FREQ * NSEC_PER_SEC */
+#define TIMER_JITTER_NSEC_PERIOD	100000 	
 
 struct timespec carrier_ts = {
-	.tv_sec = V_SYNC_SEC_PERIOD,
-	.tv_nsec = V_SYNC_NSEC_PERIOD,
+	.tv_sec = SEC_PERIOD,
+	/* Here we provision for the timer jitter */
+	.tv_nsec = NSEC_PERIOD - TIMER_JITTER_NSEC_PERIOD,
 };
+
+void calibrated_timer(unsigned long loops)
+{
+	int ret, x;
+	cycles_t t1, t2, delta;
+
+//	fprintf(stderr, "%Lu %Lu\n",carrier_ts.tv_sec, carrier_ts.tv_nsec);
+
+	t1 = get_cycles();
+
+	ret = clock_nanosleep(CLOCK_MONOTONIC, TIMER_RELTIME, &carrier_ts, NULL);
+	if(ret)
+		DIE("clock_nanosleep");
+	delta  = (get_cycles() - t1)/2;
+	if(delta > MONOTONIC_PULSE_CYCLE){
+		fprintf(stderr,"#");
+		return;
+	}
+	calibrated_ldelay(MONOTONIC_PULSE_CYCLE - delta);
+}
 
 void compensated_timer(void)
 {
-	int ret, x;
-	cycles_t before, delta, jitter;
+	int ret;
+	cycles_t before,delta;
 
-	x=0;
 	while(1){
 		before = get_cycles();
-		ret = clock_nanosleep(CLOCK_MONOTONIC, TIMER_RELTIME, &carrier_ts, NULL);
-		if(ret)
-			DIE("clock_nanosleep");
+		calibrated_timer(MONOTONIC_PULSE_CYCLE);
 		delta = get_cycles() - before;
-
-again:
-		/* 
-		 * If we are pass our max tolerance there is nothing we can do
-		 * other than compensating the time base backward
-		 */
-		if(delta > MONOTONIC_PULSE_CYCLE){
-			carrier_ts.tv_nsec = carrier_ts.tv_nsec - 
-				((delta - MONOTONIC_PULSE_CYCLE)/CPU_CYCLE_PER_NSEC);
-			fprintf(stderr, "#%Lu\n",carrier_ts.tv_nsec);
-
-			/* 
-			 * Here this is a cut & paste from above to avoid clobbering the
-			 * main loop with if / else
-			 */
-			before = get_cycles();
-			ret = clock_nanosleep(CLOCK_MONOTONIC, TIMER_RELTIME, &carrier_ts, NULL);
-			/* Reset the time base to original value */
-			carrier_ts.tv_nsec = V_SYNC_NSEC_PERIOD;
-			if(ret)
-				DIE("clock_nanosleep");
-			delta = get_cycles() - before;
-			goto again;
-		}
-		calibrated_ldelay(MONOTONIC_PULSE_CYCLE - delta);
-		
-		fprintf(stderr," %Lu\n", (get_cycles() - before));
-		if(!(x%100))
-			fprintf(stderr, ".");
+		fprintf(stderr," %Lu\n", delta);
 	}
 }
 #endif /* __CALIBRATED_TIMER__ */
+
+
 void * worker_thread(void *arg)
 {
 	int cpu;
@@ -307,4 +301,52 @@ main(int argc, char *argv[])
 	}
 	join_threads();
 }
+
+
+
+#if 0
+void compensated_timer(void)
+{
+	int ret, x;
+	cycles_t t1, t2, error;
+
+	x=0;
+	while(1){
+		before = get_cycles();
+		ret = clock_nanosleep(CLOCK_MONOTONIC, TIMER_RELTIME, &carrier_ts, NULL);
+		if(ret)
+			DIE("clock_nanosleep");
+		delta = get_cycles() - before;
+
+again:
+		/* 
+		 * If we are pass our max tolerance there is nothing we can do
+		 * other than compensating the time base backward
+		 */
+		if(delta > MONOTONIC_PULSE_CYCLE){
+			carrier_ts.tv_nsec = carrier_ts.tv_nsec - 
+				((delta - MONOTONIC_PULSE_CYCLE)/CPU_CYCLE_PER_NSEC);
+			fprintf(stderr, "#%Lu\n",carrier_ts.tv_nsec);
+
+			/* 
+			 * Here this is a cut & paste from above to avoid clobbering the
+			 * main loop with if / else
+			 */
+			before = get_cycles();
+			ret = clock_nanosleep(CLOCK_MONOTONIC, TIMER_RELTIME, &carrier_ts, NULL);
+			/* Reset the time base to original value */
+			carrier_ts.tv_nsec = V_SYNC_NSEC_PERIOD;
+			if(ret)
+				DIE("clock_nanosleep");
+			delta = get_cycles() - before;
+			goto again;
+		}
+		calibrated_ldelay(MONOTONIC_PULSE_CYCLE - delta);
+		
+		fprintf(stderr," %Lu\n", (get_cycles() - before));
+		if(!(x%100))
+			fprintf(stderr, ".");
+	}
+}
+#endif
 

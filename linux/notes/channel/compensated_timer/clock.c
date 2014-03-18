@@ -110,7 +110,8 @@ void calibrated_ldelay(unsigned long loops)
 	cycles_t t1, t2, error;
 
 	chunk = loops / LPJ_MAX_RESOLUTION;
-		
+//	fprintf(stderr, "%Lu %Lu\n",loops, chunk);
+
 	/* 
 	 * Running the loop itself has a noticeable impact when the chunk size
 	 * tends toward 0. For that reason we compensate for the loop itself.
