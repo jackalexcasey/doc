@@ -33,8 +33,8 @@
 #include "atomic_64.h"
 
 //#define __CALIBRATION__
-//#define __CALIBRATED_TIMER__
-#define __CALIBRATED_JIFFIE__
+#define __CALIBRATED_TIMER__
+//#define __CALIBRATED_JIFFIE__
 
 char *program	= "";
 const char optstring[] = "c:";
@@ -117,59 +117,7 @@ void calibrate_compensated_timer(void)
 #ifdef __CALIBRATED_JIFFIE__
 #define CPU_FREQ				2393715000
 #define CPU_CYCLE_PER_NSEC		2393
-#define MONOTONIC_PULSE_CYCLE	100000000
-
-/*
- * The idea here is to do a SW loop for a certain number of time
- * and see the basis overhead. The LPJ takes exactly 2 cycle per loop
- *
- * LPJ is very accurate. It can actually measure the interruption cycle
- * EX for a MONOTONIC_PULSE_CYCLE:
- *  100040, 100040, 112812, 100060, 100040
- *  The typical overhead is 40 CYCLE but sometime where there is IRQ this
- *  number can be much larger.
- *
- * NOTE that interruption cannot be taken away hence if MONOTONIC_PULSE_CYCLE
- * goes to something large it will at some point accumulate many IRQs which
- * will enlarge the value.
- * In other word, LPJ is only accurate for small value most of the time and
- * sometime it goes out of bound. For that reason we need a convergence
- * loop based on a series of small LPJ value and adjust accordingly.
- *
- */
-#define LPJ_MAX_RESOLUTION 100
-void calibrated_ldelay(unsigned long loops)
-{
-	int x;
-	unsigned long chunk;
-	cycles_t t1, t2, error;
-
-	chunk = loops / LPJ_MAX_RESOLUTION;
-		
-	/* 
-	 * Running the loop itself has a noticeable impact when the chunk size
-	 * tends toward 0. For that reason we compensate for the loop itself.
-	 * In order to keep it simple we do the following:
-	 *  t1 -> t2 == LPJ delay loop
-	 *  t2 -> t1 == Loop RTT overhead
-	 */
-	t1 = 0;
-	t2 = 0;
-	error = 0;
-	for(x=0; x<chunk; x++){
-		t1 = get_cycles();
-		if(!t2)
-			t2 = t1;
-		error += t1 - t2; /* Measure t2 -> t1 == Loop RTT overhead */
-		__ldelay(LPJ_MAX_RESOLUTION);
-		t2 = get_cycles();
-		error += t2 - t1; /* Measure t1 -> t2 == LPJ delay loop */
-		if(error >= loops*2){ 
-//			fprintf(stderr, "%Lu %d %Lu\n",error, x);
-			return;
-		}
-	}
-}
+#define MONOTONIC_PULSE_CYCLE	200000000/2
 
 void calibrate_lpj(void)
 {
@@ -179,7 +127,7 @@ void calibrate_lpj(void)
 	x=0;
 	while(1){
 		before = get_cycles();
-		calibrated_ldelay(10000000);
+		calibrated_ldelay(MONOTONIC_PULSE_CYCLE);
 		delta = get_cycles() - before;
 		fprintf(stderr," %Lu\n", delta);
 		if(!(x%100))
@@ -259,7 +207,7 @@ again:
 			delta = get_cycles() - before;
 			goto again;
 		}
-		__ldelay(MONOTONIC_PULSE_CYCLE - delta);
+		calibrated_ldelay(MONOTONIC_PULSE_CYCLE - delta);
 		
 		fprintf(stderr," %Lu\n", (get_cycles() - before));
 		if(!(x%100))

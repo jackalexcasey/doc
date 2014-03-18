@@ -23,5 +23,6 @@ typedef uint64_t u64;
 hp_timing_t get_clockfreq (void);
 inline cycles_t get_cycles(void);
 void __ldelay(unsigned long loops);
+void calibrated_ldelay(unsigned long loops);
 
 #endif

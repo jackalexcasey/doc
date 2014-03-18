@@ -87,6 +87,57 @@ void __ldelay(unsigned long loops)
 }
 
 /*
+ * LPJ is very accurate and takes exactly 2 bus cycle per loop. It can 
+ * actually measure things like the interruption cycle
+ * EX for a MONOTONIC_PULSE_CYCLE:
+ *  100040, 100040, 112812, 100060, 100040
+ *  The typical overhead is 40 CYCLE but sometime where there is IRQ this
+ *  number can be much larger.
+ *
+ * NOTE that interruption cannot be taken away hence if MONOTONIC_PULSE_CYCLE
+ * goes to something large it will at some point accumulate many IRQs which
+ * will enlarge the value.
+ * In other word, LPJ is only accurate for small value most of the time and
+ * sometime it goes out of bound. For that reason we need a convergence
+ * loop based on a series of small LPJ value and adjust accordingly.
+ *
+ */
+#define LPJ_MAX_RESOLUTION 100
+void calibrated_ldelay(unsigned long loops)
+{
+	int x;
+	unsigned long chunk;
+	cycles_t t1, t2, error;
+
+	chunk = loops / LPJ_MAX_RESOLUTION;
+		
+	/* 
+	 * Running the loop itself has a noticeable impact when the chunk size
+	 * tends toward 0. For that reason we compensate for the loop itself.
+	 * In order to keep it simple we do the following:
+	 *  t1 -> t2 == LPJ delay loop
+	 *  t2 -> t1 == Loop RTT overhead
+	 */
+	t1 = 0;
+	t2 = 0;
+	error = 0;
+	for(x=0; x<chunk; x++){
+		t1 = get_cycles();
+		if(!t2)
+			t2 = t1;
+		error += t1 - t2; /* Measure t2 -> t1 == Loop RTT overhead */
+		__ldelay(LPJ_MAX_RESOLUTION);
+		t2 = get_cycles();
+		error += t2 - t1; /* Measure t1 -> t2 == LPJ delay loop */
+		if(error >= loops*2){ 
+//			fprintf(stderr, "%Lu %d %Lu\n",error, x);
+			return;
+		}
+	}
+}
+
+
+/*
  * get the TSC as 64 bit value with CPU clock frequency resolution
  */
 #if defined(__x86_64__)
