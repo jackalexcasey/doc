@@ -154,8 +154,11 @@ void calibrate_lpj(void)
  * at every n CPU cycle.
  *
  * We know that timer are subjected to jitter. From above calibration we have measured
- * that typically TIMER_MAX_JITTER_CYCLE is the max
- *
+ * that typically TIMER_JITTER_NSEC_PERIOD is the max
+ * NOTE that TIMER_JITTER_NSEC_PERIOD is our immunity to noise. The cost of
+ * a higher TIMER_JITTER_NSEC_PERIOD is a higher CPU usage bcos the timer is 
+ * shorter ( provision for longer delay ) and in average the algo needs
+ * to compensate with LPJ manually
  */
 #ifdef __CALIBRATED_TIMER__
 #define CPU_FREQ				2393715000
@@ -174,34 +177,32 @@ struct timespec carrier_ts = {
 	.tv_nsec = NSEC_PERIOD - TIMER_JITTER_NSEC_PERIOD,
 };
 
-void calibrated_timer(unsigned long loops)
+void calibrated_timer(unsigned long loops, struct timespec *ts)
 {
-	int ret, x;
-	cycles_t t1, t2, delta;
+	int ret;
+	cycles_t t1, delta;
 
-//	fprintf(stderr, "%Lu %Lu\n",carrier_ts.tv_sec, carrier_ts.tv_nsec);
+//	fprintf(stderr, "%Lu %Lu\n",ts->tv_sec, ts->tv_nsec);
 
 	t1 = get_cycles();
-
-	ret = clock_nanosleep(CLOCK_MONOTONIC, TIMER_RELTIME, &carrier_ts, NULL);
+	ret = clock_nanosleep(CLOCK_MONOTONIC, TIMER_RELTIME, ts, NULL);
 	if(ret)
 		DIE("clock_nanosleep");
 	delta  = (get_cycles() - t1)/2;
-	if(delta > MONOTONIC_PULSE_CYCLE){
+	if(delta > loops){
 		fprintf(stderr,"#");
 		return;
 	}
-	calibrated_ldelay(MONOTONIC_PULSE_CYCLE - delta);
+	calibrated_ldelay(loops - delta);
 }
 
 void compensated_timer(void)
 {
-	int ret;
 	cycles_t before,delta;
 
 	while(1){
 		before = get_cycles();
-		calibrated_timer(MONOTONIC_PULSE_CYCLE);
+		calibrated_timer(MONOTONIC_PULSE_CYCLE, &carrier_ts);
 		delta = get_cycles() - before;
 		fprintf(stderr," %Lu\n", delta);
 	}
