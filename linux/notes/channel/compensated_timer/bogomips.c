@@ -35,12 +35,14 @@
 //#define __CALIBRATION__
 //#define __CALIBRATED_TIMER__
 //#define __CALIBRATED_JIFFIE__
-#define __CALIBRATED_TX__
+#define __CALIBRATED_LSTREAM__
+//#define __CALIBRATED_TX__
 
 char *program	= "";
 const char optstring[] = "c:t";
 int transmitter = 0;
 volatile int *spinlock = NULL;
+int data[1024];
 struct option options[] = {
 	{ "",	required_argument,	0, 	'j'	},
 	{ "",	required_argument,	0, 	'l'	},
@@ -171,6 +173,30 @@ void calibrate_lpj(void)
 
 #endif /*__CALIBRATED_JIFFIE__ */
 
+#ifdef __CALIBRATED_LSTREAM__
+#define CPU_FREQ				2393715000
+
+#define FREQ 60
+#define PERIOD_CPU_CYCLE	CPU_FREQ/FREQ
+#define MONOTONIC_PULSE_CYCLE	PERIOD_CPU_CYCLE/2
+
+void calibrate_lstream(void)
+{
+	int ret, x;
+	cycles_t before,delta;
+
+	x=0;
+	while(1){
+		before = get_cycles();
+		calibrated_ldelay(MONOTONIC_PULSE_CYCLE);
+		delta = get_cycles() - before;
+		fprintf(stderr," %Lu\n", delta);
+		if(!(x%100))
+			fprintf(stderr, ".");
+	}
+}
+#endif /* __CALIBRATED_LSTREAM__ */
+
 /*
  * -------------------------------------------------
  *           Compensated timer
@@ -221,7 +247,6 @@ struct timespec carrier_ts = {
 	.tv_nsec = NSEC_PERIOD - TIMER_JITTER_NSEC_PERIOD,
 };
 
-int data[1024];
 
 void calibrated_tx(void)
 {
@@ -292,6 +317,9 @@ void * worker_thread(void *arg)
 #endif
 #ifdef __CALIBRATED_JIFFIE__
 	calibrate_lpj();
+#endif
+#ifdef __CALIBRATED_LSTREAM__
+	calibrate_lstream();
 #endif
 #ifdef __CALIBRATED_TX__
 	if(transmitter)
