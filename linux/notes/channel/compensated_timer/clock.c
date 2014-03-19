@@ -137,6 +137,51 @@ void calibrated_ldelay(unsigned long loops)
 	}
 }
 
+extern volatile int *spinlock;
+
+#define LPJ_MAX_RESOLUTION 100
+void calibrated_stream_tx(int size, int *data)
+{
+	int x, y;
+	unsigned long chunk;
+	cycles_t t1, t2, error;
+	unsigned long loops = size * LPJ_MAX_RESOLUTION;
+
+	chunk = loops / LPJ_MAX_RESOLUTION;
+//	fprintf(stderr, "%Lu %Lu\n",loops, chunk);
+
+	/* 
+	 * Running the loop itself has a noticeable impact when the chunk size
+	 * tends toward 0. For that reason we compensate for the loop itself.
+	 * In order to keep it simple we do the following:
+	 *  t1 -> t2 == LPJ delay loop
+	 *  t2 -> t1 == Loop RTT overhead
+	 */
+	t1 = 0;
+	t2 = 0;
+	error = 0;
+	for(x=0; x<chunk; x++){
+		t1 = get_cycles();
+		if(!t2)
+			t2 = t1;
+		error += t1 - t2; /* Measure t2 -> t1 == Loop RTT overhead */
+		/* TODO This loop is not calibrated.... 
+		 * WE need to same than __ldelay()
+		 */
+		for(y=0;y<30;y++){
+			*spinlock = data[x];
+		}
+		//fprintf(stderr, "%d\n",*spinlock);
+		t2 = get_cycles();
+		error += t2 - t1; /* Measure t1 -> t2 == LPJ delay loop */
+		if(error >= loops*2){ 
+		//	fprintf(stderr, "%Lu %d %Lu\n",error, x);
+			return;
+		}
+	}
+}
+
+
 /*
  * The goal of calibrated timer is to have 'perfect' monotonic pulse.
  * Timer on their own cannot achieve that goal since they are subject to

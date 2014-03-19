@@ -26,5 +26,6 @@ inline cycles_t get_cycles(void);
 void __ldelay(unsigned long loops);
 void calibrated_ldelay(unsigned long loops);
 void calibrated_timer(unsigned long loops, struct timespec *ts);
+void calibrated_stream_tx(int size, int *data);
 
 #endif

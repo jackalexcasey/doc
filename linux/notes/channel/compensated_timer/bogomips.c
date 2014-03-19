@@ -33,11 +33,14 @@
 #include "atomic_64.h"
 
 //#define __CALIBRATION__
-#define __CALIBRATED_TIMER__
+//#define __CALIBRATED_TIMER__
 //#define __CALIBRATED_JIFFIE__
+#define __CALIBRATED_TX__
 
 char *program	= "";
-const char optstring[] = "c:";
+const char optstring[] = "c:t";
+int transmitter = 0;
+volatile int *spinlock = NULL;
 struct option options[] = {
 	{ "",	required_argument,	0, 	'j'	},
 	{ "",	required_argument,	0, 	'l'	},
@@ -46,12 +49,41 @@ struct option options[] = {
 
 void usage(void)
 {
-	printf("usage: [-c cpu sets]\n");
+	printf("usage: [-c cpu sets] [-t transmitter mode] \n");
 }
 
 void help(void)
 {
 	usage();
+}
+
+/*
+ * This hides the detail about the method used for communication.
+ * For modelization we used shared memory variable.
+ * For real implementation we use SMT pipeline contention. In that
+ * case this function takes care to set the affinity of the HT siblings...
+ */
+void open_channel(void)
+{
+	int fd;
+	void *ptr;
+
+	if ((fd = shm_open("channel", O_CREAT|O_RDWR,
+					S_IRWXU|S_IRWXG|S_IRWXO)) > 0) {
+		if (ftruncate(fd, 1024) != 0)
+			DIE("could not truncate shared file\n");
+	}
+	else
+		DIE("Open channel");
+	
+	ptr = mmap(NULL,1024,PROT_READ|PROT_WRITE,MAP_SHARED,fd,0);
+	if(ptr == MAP_FAILED)
+		DIE("mmap");
+
+	spinlock = ptr; /* spinlock is the first object in the mmap */
+	if(transmitter)
+		*spinlock = 0;
+	return;
 }
 
 /*
@@ -173,10 +205,82 @@ void compensated_timer(void)
 }
 #endif /* __CALIBRATED_TIMER__ */
 
+#ifdef __CALIBRATED_TX__
+#define CPU_FREQ				2393715000
+
+#define FREQ 60
+#define PERIOD_CPU_CYCLE	CPU_FREQ/FREQ
+#define MONOTONIC_PULSE_CYCLE	PERIOD_CPU_CYCLE/2
+
+#define SEC_PERIOD	(1/FREQ) %1
+#define NSEC_PERIOD (NSEC_PER_SEC/FREQ ) /* 1/FREQ * NSEC_PER_SEC */
+
+struct timespec carrier_ts = {
+	.tv_sec = SEC_PERIOD,
+	/* Here we provision for the timer jitter */
+	.tv_nsec = NSEC_PERIOD - TIMER_JITTER_NSEC_PERIOD,
+};
+
+int data[1024];
+
+void calibrated_tx(void)
+{
+	int ret;
+	cycles_t t1, t2, t3, delta;
+
+	while(1){
+		/* Here we mark the beginning of the cycle */
+		t1 = get_cycles();
+		fprintf(stderr,"%Lu\n", t1-t3);
+		
+		/* 
+		 * Then we sleep for a period of time define as:
+		 *  [(NSEC_PERIOD - TIMER_JITTER) - ((NSEC_PERIOD - TIMER_JITTER) + TIMER_JITTER)]
+		 */
+		ret = clock_nanosleep(CLOCK_MONOTONIC, TIMER_RELTIME, &carrier_ts, NULL);
+		if(ret)
+			DIE("clock_nanosleep");
+
+		/* Calculater the real length of the sleep */
+		delta = (get_cycles() - t1)/2;
+
+		/* 
+		 * If the sleep period is larger than the fundamental period (the timmer
+		 * jitter is larger than TIMER_JITTER ) then error out
+		 * TODO We need to ripple that value to the next sample
+		 */
+		if(delta > MONOTONIC_PULSE_CYCLE){
+			fprintf(stderr,"#");
+			return;
+		}
+		/*
+		 * Then we trigger the padding LPJ to reach the exact value of 
+		 * MONOTONIC_PULSE_CYCLE
+		 */
+		calibrated_ldelay(MONOTONIC_PULSE_CYCLE - delta);
+		
+		/* 
+		 * Then we mark the time after the whole cycle
+		 * t2 - t1 should be very close to MONOTONIC_PULSE_CYCLE
+		 */
+		t2 = get_cycles();
+
+		/*
+		 * Then we start TX ops
+		 * REMEMBER that we can be interrupted at any point in time 
+		 * so the fundamental TX algo must be time adjusted as well
+		 */
+		calibrated_stream_tx(1024, data);
+		//WE need to prob back that jitter to the top of the loop
+		t3 = get_cycles();
+		fprintf(stderr,"%Lu\n", t3-t1);
+	}
+}
+#endif /* __CALIBRATED_TX__ */
 
 void * worker_thread(void *arg)
 {
-	int cpu;
+	int cpu, v1;
 
 	cpu = sched_getcpu();
 	PRINT("worker_thread start on CPU %d\n",cpu);
@@ -189,7 +293,17 @@ void * worker_thread(void *arg)
 #ifdef __CALIBRATED_JIFFIE__
 	calibrate_lpj();
 #endif
-
+#ifdef __CALIBRATED_TX__
+	if(transmitter)
+		calibrated_tx();
+	else{
+		while(1){
+			v1 = *spinlock;
+			while(*spinlock == v1);
+			fprintf(stderr, "%d\n",v1);
+		}
+	}
+#endif
 	return NULL;
 }
 
@@ -221,8 +335,13 @@ main(int argc, char *argv[])
 	opterr = 0;
 	errs = 0;
 
+	open_channel();
+
 	while ((c = getopt_long(argc, argv, optstring, options, NULL)) != EOF) {
 		switch (c) {
+			case 't':
+				transmitter = 1;
+				break;
 			case 'c':
 				if (parse_cpu_set(optarg, &cpus) != 0)
 					++errs;
@@ -231,6 +350,11 @@ main(int argc, char *argv[])
 				ERROR(0, "unknown option '%c'", c);
 				++errs;
 				break;
+		}
+	}
+	if(transmitter){
+		for(c=0; c<1024; c++){
+			data[c] = c;
 		}
 	}
 
