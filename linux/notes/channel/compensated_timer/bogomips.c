@@ -343,12 +343,15 @@ void calibrated_tx(void)
  */
 #define MAX(a,b) (((a)>(b))?(a):(b))
 #define MIN(a,b) (((a)<(b))?(a):(b))
-void auto_calibration(unsigned long loops, int conv)
+void auto_calibration(unsigned long loops, int slow)
 {
 	int x, y=0,  packet_drop_max = 0, lpj_res = loops;
 	unsigned long chunk;
 	cycles_t t1, t2, error;
 	cycles_t start, jitter, max=0;
+
+	if(slow)
+		lpj_res = 6000;
 
 again:
 	chunk = loops / lpj_res;
@@ -388,10 +391,14 @@ again:
 
 	y++;
 	if(!(y%10)){
-		fprintf(stderr,"lpj_res %ld, MAX jitter %Lu, MAX packet drop %d \% \n",
-			lpj_res, max, (packet_drop_max*100)/chunk);
-		if(max > conv){
-			lpj_res = lpj_res / 2;
+		fprintf(stderr,"lpj_res %ld, MAX jitter %Lu, packet NR %d MAX packet drop %d \% \n",
+			lpj_res, max, chunk, (packet_drop_max*100)/chunk);
+		if(max > 200){
+			/* Determine the convergence rate */
+			if(slow)
+				lpj_res = lpj_res - 100;
+			else
+				lpj_res = lpj_res / 2;
 			if(lpj_res < 10){
 				fprintf(stderr,"Cannot converge\n");
 				return;
@@ -419,7 +426,8 @@ void auto_calibration_main(unsigned long cpu_freq)
 		monotonic_pulse_cycle = period_cpu_cycle/2;
 	
 		fprintf(stderr, "auto_calibration Freq %dHZ \n",freq);
-		auto_calibration(monotonic_pulse_cycle, 200);
+		auto_calibration(monotonic_pulse_cycle, 0);
+//		auto_calibration(monotonic_pulse_cycle, 1);
 	}
 }
 #endif /* __AUTO_CALIBRATION__ */
