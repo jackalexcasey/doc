@@ -35,8 +35,9 @@
 //#define __CALIBRATION__
 //#define __CALIBRATED_TIMER__
 //#define __CALIBRATED_JIFFIE__
-#define __CALIBRATED_LSTREAM__
+//#define __CALIBRATED_LSTREAM__
 //#define __CALIBRATED_TX__
+#define __AUTO_CALIBRATION__
 
 char *program	= "";
 const char optstring[] = "c:t";
@@ -303,6 +304,127 @@ void calibrated_tx(void)
 }
 #endif /* __CALIBRATED_TX__ */
 
+#ifdef __AUTO_CALIBRATION__
+/*
+ * From code POV __ldelay() is very accurate i.e. it takes exactly 2 bus cycle
+ * per loop with a typical 'pre-charge' overhead of 40 cycle.
+ *
+ * From system POV __ldelay() is subject to noise and for that reason the 
+ * choice of 'lpj_res' is critical. In other word, the best we can do is to
+ * chose 'lpj_res' so that __ldelay() is accurate _most_ of the time. EX:
+ * 	If 'lpj_res' is larger than the noise ( timer IRQ period ) then __ldelay()
+ * 	will have considerable jitter since A) the delay may contain more than
+ * 	one IRQ and B) the IRQs execution time is variable.
+ * 
+ * Another factor to consider is that the overall construct must stays 
+ * MONOTONIC. The internal mechanism to achieve this is to drop packet i.e. 
+ * skip some calls to __ldelay().
+ *
+ * Our goal here is to minimize the jitter and maximize the packet rates
+ *
+ * lpj_res 13298416, MAX jitter 21416, MAX packet drop 100 % 
+ * lpj_res 6649208, MAX jitter 6958, MAX packet drop 50 % 
+ * lpj_res 3324604, MAX jitter 17966, MAX packet drop 25 % 
+ * lpj_res 1662302, MAX jitter 59378, MAX packet drop 12 % 
+ * lpj_res 831151, MAX jitter 18612, MAX packet drop 6 % 
+ * lpj_res 415575, MAX jitter 9980, MAX packet drop 3 % 
+ * lpj_res 207787, MAX jitter 9898, MAX packet drop 1 % 
+ * lpj_res 103893, MAX jitter 33990, MAX packet drop 0 % 
+ * lpj_res 51946, MAX jitter 18298, MAX packet drop 0 % 
+ * lpj_res 25973, MAX jitter 24998, MAX packet drop 0 % 
+ * lpj_res 12986, MAX jitter 12874, MAX packet drop 0 % 
+ * lpj_res 6493, MAX jitter 5982, MAX packet drop 0 %  <<< Sweet spot around HERE
+ * lpj_res 3246, MAX jitter 3304, MAX packet drop 1 %  <<< Sweet spot around HERE
+ * lpj_res 1623, MAX jitter 1708, MAX packet drop 2 %  <<< From HERE
+ * lpj_res 811, MAX jitter 844, MAX packet drop 4 %    <<< TO HERE there is a 2X
+ * lpj_res 405, MAX jitter 466, MAX packet drop 8 %    <<< SAME
+ * lpj_res 202, MAX jitter 232, MAX packet drop 15 %   <<< SAME
+ * lpj_res 101, MAX jitter 178, MAX packet drop 26 % 
+ */
+#define MAX(a,b) (((a)>(b))?(a):(b))
+#define MIN(a,b) (((a)<(b))?(a):(b))
+void auto_calibration(unsigned long loops, int conv)
+{
+	int x, y=0,  packet_drop_max = 0, lpj_res = loops;
+	unsigned long chunk;
+	cycles_t t1, t2, error;
+	cycles_t start, jitter, max=0;
+
+again:
+	chunk = loops / lpj_res;
+//	fprintf(stderr, "%Lu %Lu\n",loops, chunk);
+
+	start = get_cycles();
+
+	/* 
+	 * Running the loop itself has a noticeable impact when the chunk size
+	 * tends toward 0. For that reason we compensate for the loop itself.
+	 * In order to keep it simple we do the following:
+	 *  t1 -> t2 == LPJ delay loop
+	 *  t2 -> t1 == Loop RTT overhead
+	 */
+	t1 = 0;
+	t2 = 0;
+	error = 0;
+	for(x=0; x<chunk; x++){
+		t1 = get_cycles();
+		if(!t2)
+			t2 = t1;
+		error += t1 - t2; /* Measure t2 -> t1 == Loop RTT overhead */
+		__ldelay(lpj_res);
+		t2 = get_cycles();
+		error += t2 - t1; /* Measure t1 -> t2 == LPJ delay loop */
+
+		/* 
+		 * As soon as we exceed the total period we stop and drop
+		 * the remainin packet on the floor
+		 */
+		if(error >= loops*2) 
+			break;
+	}
+	jitter = (get_cycles() - start)/2 - loops;
+	max = MAX(jitter, max);
+	packet_drop_max = MAX(packet_drop_max, chunk - x);
+
+	y++;
+	if(!(y%10)){
+		fprintf(stderr,"lpj_res %ld, MAX jitter %Lu, MAX packet drop %d \% \n",
+			lpj_res, max, (packet_drop_max*100)/chunk);
+		if(max > conv){
+			lpj_res = lpj_res / 2;
+			if(lpj_res < 10){
+				fprintf(stderr,"Cannot converge\n");
+				return;
+			}
+			max = 0;
+			packet_drop_max = 0;
+			goto again;
+		}
+		else
+			return;
+	}
+	goto again;
+}
+
+void auto_calibration_main(unsigned long cpu_freq)
+{
+	int x;
+	unsigned long freq;
+	unsigned long period_cpu_cycle;
+	unsigned long monotonic_pulse_cycle;
+
+	for(x=49;x<100;x+=10){
+		freq = x+1;
+		period_cpu_cycle = cpu_freq / freq;
+		monotonic_pulse_cycle = period_cpu_cycle/2;
+	
+		fprintf(stderr, "auto_calibration Freq %dHZ \n",freq);
+		auto_calibration(monotonic_pulse_cycle, 200);
+	}
+}
+#endif /* __AUTO_CALIBRATION__ */
+
+
 void * worker_thread(void *arg)
 {
 	int cpu, v1;
@@ -331,6 +453,9 @@ void * worker_thread(void *arg)
 			fprintf(stderr, "%d\n",v1);
 		}
 	}
+#endif
+#ifdef __AUTO_CALIBRATION__
+	auto_calibration_main(2393715000);
 #endif
 	return NULL;
 }

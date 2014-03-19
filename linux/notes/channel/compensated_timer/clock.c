@@ -185,7 +185,6 @@ void calibrated_timer(unsigned long loops, struct timespec *ts)
 	calibrated_ldelay(loops - delta);
 }
 
-
 /*
  * get the TSC as 64 bit value with CPU clock frequency resolution
  */
