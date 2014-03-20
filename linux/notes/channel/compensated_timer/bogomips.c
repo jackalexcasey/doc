@@ -44,7 +44,7 @@ char *program	= "";
 const char optstring[] = "c:t";
 int transmitter = 0;
 volatile int *spinlock = NULL;
-int data[1024];
+
 struct option options[] = {
 	{ "",	required_argument,	0, 	'j'	},
 	{ "",	required_argument,	0, 	'l'	},
@@ -67,9 +67,10 @@ void help(void)
  * For real implementation we use SMT pipeline contention. In that
  * case this function takes care to set the affinity of the HT siblings...
  */
+extern void tx_init(void);
 void open_channel(void)
 {
-	int fd,c;
+	int fd;
 	void *ptr;
 
 	if ((fd = shm_open("channel", O_CREAT|O_RDWR,
@@ -85,12 +86,8 @@ void open_channel(void)
 		DIE("mmap");
 
 	spinlock = ptr; /* spinlock is the first object in the mmap */
-	if(transmitter){
-		for(c=0; c<1024; c++){
-			data[c] = c;
-		}
-		*spinlock = 0;
-	}
+	if(transmitter)
+		tx_init();
 	return;
 }
 
@@ -301,7 +298,7 @@ void calibrated_tx(void)
 		 * REMEMBER that we can be interrupted at any point in time 
 		 * so the fundamental TX algo must be time adjusted as well
 		 */
-		calibrated_stream_tx(1024, data);
+		calibrated_stream_tx(128, data);
 		//WE need to prob back that jitter to the top of the loop
 		t3 = get_cycles();
 		fprintf(stderr,"%Lu\n", t3-t1);
@@ -504,8 +501,6 @@ main(int argc, char *argv[])
 	opterr = 0;
 	errs = 0;
 
-
-
 	while ((c = getopt_long(argc, argv, optstring, options, NULL)) != EOF) {
 		switch (c) {
 			case 't':
@@ -523,8 +518,6 @@ main(int argc, char *argv[])
 	}
 
 	open_channel();
-
-
 
 	if (errs) {
 		usage();

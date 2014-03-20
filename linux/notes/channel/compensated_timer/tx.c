@@ -59,41 +59,67 @@ struct timespec carrier_ts = {
 
 extern int transmitter;
 extern volatile int *spinlock;
-extern int data[1024];
+
+
+
+
 /*
- * This function modulate the data over the wire
+ * This function modulate the data over the wire.
+ *
+ * payload_cycle_length determine the amount of cycle this function is allowed
+ * to execute. This value is typically variable because of compensation in the 
+ * high level loop.
+ *
+ * data is transmitted in packet. Packet size is DATA_PACKET_SIZE
+ *
  */
-void modulate_data(unsigned long loops)
+#define DATA_PACKET_SIZE 100
+int data[DATA_PACKET_SIZE];
+
+void modulate_data(cycles_t payload_cycle_length)
 {
-	int x,y;
-	for(x=0,y=0;x<loops;x++,y++){
-		if(y==1024)
-			y=0;
+	int x,z;
+	unsigned long chunk;
+	cycles_t t3, t4, error;
+
+	chunk = payload_cycle_length / DATA_PACKET_SIZE;
+
+	t4 = 0;
+	error = 0;
+	for(z=0; z<chunk; z++){
+		t3 = get_cycles();
+		if(!t4)
+			t4 = t3;
+		error += t3 - t4; /* Measure t4 -> t3 == Loop RTT overhead */
+
+		/* 
+		 * Here we cut at the end of the transmission but instead we
+		 * want variable bit rate i.e. for every sample we track the
+		 * appropriate amount of seek needed.
+		 *
+		 * OR here we modulate a frame entirely and
+		 * repeat it over and over until we reach error >= loops*2
+		 */
+		for(x=0;x<DATA_PACKET_SIZE;x++){
+			if(transmitter)
+				*spinlock = data[x];
+			else
+				data[x] = *spinlock;
+		}
 		if(transmitter)
-			*spinlock = data[y];
-		else
-			data[y] = *spinlock;
+			*spinlock = 0;
+
+		t4 = get_cycles();
+		error += t4 - t3; /* Measure t3 -> t4 == LPJ delay loop */
+		if(error >= payload_cycle_length * 2)
+			break;
 	}
-	if(transmitter)
-		*spinlock = 0;
 }
 
 void tx(void)
 {
-	int x=0,y;
-	unsigned long loops, chunk;
-	cycles_t t0, t1, t2, t3, t4, delta=0, error;
-
-#if 0
-	while(1){
-		t1 = get_cycles();
-		//__ldelay(LOOP_RESOLUTION);
-		__lstream(LOOP_RESOLUTION/10);
-		t2 = get_cycles();
-		fprintf(stderr, "%Ld\n", t2-t1);
-	}
-#endif
-
+	int x=0;
+	cycles_t t0, t1, t2, delta=0;
 
 	/*
 	 * t0 mark the start of the cycle. The goal is to keep the system
@@ -123,31 +149,7 @@ void tx(void)
 		// DATA start
 		calibrated_ldelay(PAYLOAD_PULSE_CYCLE_LENGTH-delta);
 #else
-		loops = PAYLOAD_PULSE_CYCLE_LENGTH -delta;
-		chunk = loops / LOOP_RESOLUTION;
-
-		t4 = 0;
-		error = 0;
-		for(y=0; y<chunk; y++){
-			t3 = get_cycles();
-			if(!t4)
-				t4 = t3;
-			error += t3 - t4; /* Measure t4 -> t3 == Loop RTT overhead */
-			/* 
-			 * Here we cut at the end of the transmission but instead we
-			 * want variable bit rate i.e. for every sample we track the
-			 * appropriate amount of seek needed.
-			 *
-			 * OR here we modulate a frame entirely and
-			 * repeat it over and over until we reach error >= loops*2
-			 */
-			modulate_data(LOOP_RESOLUTION);
-			t4 = get_cycles();
-			error += t4 - t3; /* Measure t3 -> t4 == LPJ delay loop */
-			if(error >= loops*2)
-				break;
-		}
-		//TODO Merge this logic in modulate_dat
+		modulate_data(PAYLOAD_PULSE_CYCLE_LENGTH-delta);
 #endif
 		/* 
 		 * try to avoid division as much as possible 
@@ -158,7 +160,7 @@ void tx(void)
 
 		/* Sampling for debug */
 		if(!(x%1000)){
-			fprintf(stderr, "%d %Ld %d %d %d %d %d %d %d %d %d %d %d %d %d %d\n", x, delta, y, chunk,
+			fprintf(stderr, "%d %Ld %d %d %d %d %d %d %d %d %d %d %d %d\n", x, delta,
 				data[0], data[1], data[2],
 				data[10], data[11], data[12],
 				data[20], data[21], data[22],
@@ -173,7 +175,50 @@ void tx(void)
 	}
 }
 
+void tx_init(void)
+{	
+	int c;
+
+	for(c=0; c<DATA_PACKET_SIZE; c++){
+		data[c] = c;
+	}
+	*spinlock = 0;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 #if 0
+
+#if 0
+	while(1){
+		t1 = get_cycles();
+		//__ldelay(LOOP_RESOLUTION);
+		__lstream(LOOP_RESOLUTION/10);
+		t2 = get_cycles();
+		fprintf(stderr, "%Ld\n", t2-t1);
+	}
+#endif
+
+
 void tx(void)
 {
 	int x;
