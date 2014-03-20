@@ -55,19 +55,34 @@ struct timespec carrier_ts = {
 	.tv_nsec = NSEC_PERIOD - JITTER_NSEC_PERIOD - PAYLOAD_NSEC_PERIOD,
 };
 
-#define LPJ_MAX_RESOLUTION 100
+#define LOOP_RESOLUTION 100
+
+extern volatile int *spinlock;
+extern int data[1024];
+/*
+ * This function modulate the data over the wire
+ */
+void modulate_data(unsigned long loops)
+{
+	int x,y;
+	for(x=0,y=0;x<loops;x++,y++){
+		if(y==1024)
+			y=0;
+		*spinlock = data[y];
+	}
+}
 
 void tx(void)
 {
-	int x=0;
-	int ret;
-	cycles_t t0, t1, t2, delta=0;
+	int x=0,y;
+	unsigned long loops, chunk;
+	cycles_t t0, t1, t2, t3, t4, delta=0, error;
 
 #if 0
 	while(1){
 		t1 = get_cycles();
-		//__ldelay(LPJ_MAX_RESOLUTION);
-		__lstream(LPJ_MAX_RESOLUTION/10);
+		//__ldelay(LOOP_RESOLUTION);
+		__lstream(LOOP_RESOLUTION/10);
 		t2 = get_cycles();
 		fprintf(stderr, "%Ld\n", t2-t1);
 	}
@@ -98,9 +113,32 @@ void tx(void)
 	while(1){
 		t1 = get_cycles();
 
+#if 0
 		// DATA start
 		calibrated_ldelay(PAYLOAD_PULSE_CYCLE_LENGTH-delta);
+#else
+		loops = PAYLOAD_PULSE_CYCLE_LENGTH -delta;
+		chunk = loops / LOOP_RESOLUTION;
 
+		t4 = 0;
+		error = 0;
+		for(y=0; y<chunk; y++){
+			t3 = get_cycles();
+			if(!t4)
+				t4 = t3;
+			error += t3 - t4; /* Measure t4 -> t3 == Loop RTT overhead */
+			/* 
+			 * Here we cut at the end of the transmission but instead we
+			 * want variable bit rate i.e. for every sample we track the
+			 * appropriate amount of seek needed.
+			 */
+			modulate_data(LOOP_RESOLUTION);
+			t4 = get_cycles();
+			error += t4 - t3; /* Measure t3 -> t4 == LPJ delay loop */
+			if(error >= loops*2)
+				break;
+		}
+#endif
 		/* 
 		 * try to avoid division as much as possible 
 		 * delta is damped by a linear factor 2
@@ -108,9 +146,11 @@ void tx(void)
 		 */
 		delta = ((t2 - t0) - (2* x * PAYLOAD_PULSE_CYCLE_LENGTH))>>3;
 
-		if(!(x%1000))
-			fprintf(stderr, "%d %Ld\n", x, delta );
+		/* Sampling for debug */
+		if(!(x%1000)){
+			fprintf(stderr, "%d %Ld %d %d\n", x, delta, y, chunk);
 		//	fprintf(stderr, "%Ld\n", t2);
+		}
 		x++;
 
 		// DATA end
