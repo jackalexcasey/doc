@@ -92,10 +92,19 @@ void modulate_data(cycles_t payload_cycle_length)
 		 *
 		 * OR here we modulate a frame entirely and
 		 * repeat it over and over until we reach error >= loops*2
+		 *
+		 * Here is what is needed;
+		 * THE modulation window last for so long. The receiver has to sync with it...
+		 *
+		 * WE modulate the data packets ( including sync phase ) a certain number
+		 * of time
+		 * Then the receiver captures every thing and search for sync
+		 *
 		 */
 		for(x=0;x<DATA_PACKET_SIZE;x++){
-			if(transmitter)
+			if(transmitter){
 				*spinlock = data[x];
+			}
 			else
 				data[x] = *spinlock;
 		}
