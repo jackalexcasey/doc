@@ -143,8 +143,8 @@ void calibrated_ldelay(unsigned long loops)
 		if(!t2)
 			t2 = t1;
 		error += t1 - t2; /* Measure t2 -> t1 == Loop RTT overhead */
-		__ldelay(LPJ_MAX_RESOLUTION);
-//		__lstream(LPJ_MAX_RESOLUTION);
+//		__ldelay(LPJ_MAX_RESOLUTION);
+		__lstream(LPJ_MAX_RESOLUTION);
 		t2 = get_cycles();
 		error += t2 - t1; /* Measure t1 -> t2 == LPJ delay loop */
 		if(error >= loops*2){ 

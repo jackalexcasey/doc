@@ -55,43 +55,63 @@ struct timespec carrier_ts = {
 	.tv_nsec = NSEC_PERIOD - JITTER_NSEC_PERIOD - PAYLOAD_NSEC_PERIOD,
 };
 
+#define LPJ_MAX_RESOLUTION 100
+
 void tx(void)
 {
 	int x=0;
 	int ret;
-	cycles_t t0, t1, t2=0, delta=0;
+	cycles_t t0, t1, t2, delta=0;
+
+#if 0
+	while(1){
+		t1 = get_cycles();
+		//__ldelay(LPJ_MAX_RESOLUTION);
+		__lstream(LPJ_MAX_RESOLUTION/10);
+		t2 = get_cycles();
+		fprintf(stderr, "%Ld\n", t2-t1);
+	}
+#endif
+
 
 	/*
 	 * t0 mark the start of the cycle. The goal is to keep the system
-	 * perfectly monotonic with respect to that t0.
+	 * perfectly monotonic with respect to t0.
 	 *
-	 * To achieve this goal we need some compensation. ! compensation is also subject to noise...
+	 * The challenge is that the amount of noise we are subjected to depends
+	 * directly on the amount of time spend for DATA transmission
+	 *
+	 * To achieve this goal we need some compensation. 
 	 *  t1 -> t2 == [DATA start, DATA END] + NOISE during [DATA start, DATA END]
 	 *  			+ NOISE [t1 to DATA start] + NOISE [ DATA end to t2 ]
 	 *  t2 -> t1 == Loop RTT overhead
 	 *
-	 * The goal is to have t2 perfectly monotonic
 	 */
 	fprintf(stderr, "%Lu\n",PAYLOAD_PULSE_CYCLE_LENGTH);
+
+	/* Mark the beginning of time */
 	t0 = get_cycles();
+
+	/* Pre-charge t2 to avoid a 'if' within the loop */
+	t2 = t0;
+
 	while(1){
 		t1 = get_cycles();
 
 		// DATA start
-		calibrated_ldelay(PAYLOAD_PULSE_CYCLE_LENGTH-(delta/2));
+		calibrated_ldelay(PAYLOAD_PULSE_CYCLE_LENGTH-delta);
 
-		if(t2)
-			delta = (t2 - t0)/2 - (x * PAYLOAD_PULSE_CYCLE_LENGTH);
+		/* 
+		 * try to avoid division as much as possible 
+		 * delta is damped by a linear factor 2
+		 * May need some order 2 convergence algo
+		 */
+		delta = ((t2 - t0) - (2* x * PAYLOAD_PULSE_CYCLE_LENGTH))>>3;
 
 		if(!(x%1000))
 			fprintf(stderr, "%d %Ld\n", x, delta );
+		//	fprintf(stderr, "%Ld\n", t2);
 		x++;
-
-		/*
-		 * NOTE that the amount of noise we are subjected to depends
-		 * directly on the amount of time spend from DATA start to DATA END
-		 * Do we need to characterize the noise???
-		 */
 
 		// DATA end
 
