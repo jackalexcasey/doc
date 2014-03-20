@@ -47,21 +47,14 @@
 #define JITTER_PULSE_CYCLE_LENGTH (MONOTONIC_PULSE_CYCLE_LENGTH * JITTER_NSEC_PERIOD) / NSEC_PERIOD
 #define PAYLOAD_PULSE_CYCLE_LENGTH (MONOTONIC_PULSE_CYCLE_LENGTH * PAYLOAD_NSEC_PERIOD) / NSEC_PERIOD
 
-//#define PAYLOAD_PULSE_CYCLE_LENGTH MONOTONIC_PULSE_CYCLE_LENGTH
-
 struct timespec carrier_ts = {
 	.tv_sec = SEC_PERIOD,
 	/* Here we provision for the timer jitter and the payload */
 	.tv_nsec = NSEC_PERIOD - JITTER_NSEC_PERIOD - PAYLOAD_NSEC_PERIOD,
 };
 
-#define LOOP_RESOLUTION 100
-
 extern int transmitter;
 extern volatile int *spinlock;
-
-
-
 
 /*
  * This function modulate the data over the wire.
@@ -119,7 +112,7 @@ void modulate_data(cycles_t payload_cycle_length)
 void tx(void)
 {
 	int x=0;
-	cycles_t t0, t1, t2, delta=0;
+	cycles_t t0, t2, delta=0;
 
 	/*
 	 * t0 mark the start of the cycle. The goal is to keep the system
@@ -133,6 +126,7 @@ void tx(void)
 	 *  			+ NOISE [t1 to DATA start] + NOISE [ DATA end to t2 ]
 	 *  t2 -> t1 == Loop RTT overhead
 	 *
+	 * OR we compensate from the origin 't0' directly !!!
 	 */
 	fprintf(stderr, "%Lu\n",PAYLOAD_PULSE_CYCLE_LENGTH);
 
@@ -143,10 +137,9 @@ void tx(void)
 	t2 = t0;
 
 	while(1){
-		t1 = get_cycles();
+		//t1 = get_cycles();
 
 #if 0 
-		// DATA start
 		calibrated_ldelay(PAYLOAD_PULSE_CYCLE_LENGTH-delta);
 #else
 		modulate_data(PAYLOAD_PULSE_CYCLE_LENGTH-delta);
@@ -158,7 +151,7 @@ void tx(void)
 		 */
 		delta = ((t2 - t0) - (2* x * PAYLOAD_PULSE_CYCLE_LENGTH))>>3;
 
-		/* Sampling for debug */
+		/* DEBUG code */
 		if(!(x%1000)){
 			fprintf(stderr, "%d %Ld %d %d %d %d %d %d %d %d %d %d %d %d\n", x, delta,
 				data[0], data[1], data[2],
@@ -168,8 +161,6 @@ void tx(void)
 		//	fprintf(stderr, "%Ld\n", t2);
 		}
 		x++;
-
-		// DATA end
 
 		t2 = get_cycles();
 	}
