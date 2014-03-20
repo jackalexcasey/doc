@@ -71,16 +71,6 @@ int data[DATA_PACKET_SIZE];
 
 void modulate_data(cycles_t payload_cycle_length)
 {
-	int x;
-	for(x=0;x<DATA_PACKET_SIZE;x++){
-		if(transmitter)
-			*spinlock = data[x];
-		else
-			data[x] = *spinlock;
-	}
-	if(transmitter)
-		*spinlock = 0;
-#if 0
 	int x,z;
 	unsigned long chunk;
 	cycles_t t3, t4, error;
@@ -117,7 +107,6 @@ void modulate_data(cycles_t payload_cycle_length)
 		if(error >= payload_cycle_length * 2)
 			break;
 	}
-#endif
 }
 
 void tx(void)
@@ -140,7 +129,7 @@ void tx(void)
 	 * OR we compensate from the origin 't0' directly !!!
 	 *   =>> t1 = get_cycles(); _not_ needed
 	 */
-	fprintf(stderr, "%Lu\n",PAYLOAD_PULSE_CYCLE_LENGTH);
+	fprintf(stderr, "%Lu %Lu\n",PAYLOAD_PULSE_CYCLE_LENGTH, get_cycles());
 
 	/* Mark the beginning of time */
 	t0 = get_cycles();
@@ -151,7 +140,7 @@ void tx(void)
 	while(1){
 	
 		/* Here we compensate for the jitter */
-		calibrated_ldelay(PAYLOAD_PULSE_CYCLE_LENGTH-delta);
+//		calibrated_ldelay(PAYLOAD_PULSE_CYCLE_LENGTH-delta);
 
 		/* Then in theory we are monotonic right HERE */
 		modulate_data(PAYLOAD_PULSE_CYCLE_LENGTH-delta);
@@ -162,7 +151,6 @@ void tx(void)
 		 */
 		delta = ((t2 - t0) - (2* x * PAYLOAD_PULSE_CYCLE_LENGTH))>>3;
 
-		/* DEBUG code */
 		if(!(x%1000)){
 			fprintf(stderr, "%d %Ld %d %d %d %d %d %d %d %d %d %d %d %d\n", x, delta,
 				data[0], data[1], data[2],
@@ -207,6 +195,44 @@ void tx_init(void)
 
 
 
+#if 0
+	int x,z;
+	unsigned long chunk;
+	cycles_t t3, t4, error;
+
+	chunk = payload_cycle_length / DATA_PACKET_SIZE;
+
+	t4 = 0;
+	error = 0;
+	for(z=0; z<chunk; z++){
+		t3 = get_cycles();
+		if(!t4)
+			t4 = t3;
+		error += t3 - t4; /* Measure t4 -> t3 == Loop RTT overhead */
+
+		/* 
+		 * Here we cut at the end of the transmission but instead we
+		 * want variable bit rate i.e. for every sample we track the
+		 * appropriate amount of seek needed.
+		 *
+		 * OR here we modulate a frame entirely and
+		 * repeat it over and over until we reach error >= loops*2
+		 */
+		for(x=0;x<DATA_PACKET_SIZE;x++){
+			if(transmitter)
+				*spinlock = data[x];
+			else
+				data[x] = *spinlock;
+		}
+		if(transmitter)
+			*spinlock = 0;
+
+		t4 = get_cycles();
+		error += t4 - t3; /* Measure t3 -> t4 == LPJ delay loop */
+		if(error >= payload_cycle_length * 2)
+			break;
+	}
+#endif
 
 #if 0
 
