@@ -71,6 +71,16 @@ int data[DATA_PACKET_SIZE];
 
 void modulate_data(cycles_t payload_cycle_length)
 {
+	int x;
+	for(x=0;x<DATA_PACKET_SIZE;x++){
+		if(transmitter)
+			*spinlock = data[x];
+		else
+			data[x] = *spinlock;
+	}
+	if(transmitter)
+		*spinlock = 0;
+#if 0
 	int x,z;
 	unsigned long chunk;
 	cycles_t t3, t4, error;
@@ -107,6 +117,7 @@ void modulate_data(cycles_t payload_cycle_length)
 		if(error >= payload_cycle_length * 2)
 			break;
 	}
+#endif
 }
 
 void tx(void)
@@ -127,6 +138,7 @@ void tx(void)
 	 *  t2 -> t1 == Loop RTT overhead
 	 *
 	 * OR we compensate from the origin 't0' directly !!!
+	 *   =>> t1 = get_cycles(); _not_ needed
 	 */
 	fprintf(stderr, "%Lu\n",PAYLOAD_PULSE_CYCLE_LENGTH);
 
@@ -137,13 +149,12 @@ void tx(void)
 	t2 = t0;
 
 	while(1){
-		//t1 = get_cycles();
-
-#if 0 
+	
+		/* Here we compensate for the jitter */
 		calibrated_ldelay(PAYLOAD_PULSE_CYCLE_LENGTH-delta);
-#else
+
+		/* Then in theory we are monotonic right HERE */
 		modulate_data(PAYLOAD_PULSE_CYCLE_LENGTH-delta);
-#endif
 		/* 
 		 * try to avoid division as much as possible 
 		 * delta is damped by a linear factor 2
