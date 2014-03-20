@@ -37,7 +37,8 @@
 //#define __CALIBRATED_JIFFIE__
 //#define __CALIBRATED_LSTREAM__
 //#define __CALIBRATED_TX__
-#define __AUTO_CALIBRATION__
+//#define __AUTO_CALIBRATION__
+#define __TX__
 
 char *program	= "";
 const char optstring[] = "c:t";
@@ -464,6 +465,9 @@ void * worker_thread(void *arg)
 #endif
 #ifdef __AUTO_CALIBRATION__
 	auto_calibration_main(2393715000);
+#endif
+#ifdef __TX__
+	tx();
 #endif
 	return NULL;
 }

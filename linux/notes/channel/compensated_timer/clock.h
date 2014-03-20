@@ -18,7 +18,7 @@ uint64_t rdclock(void);
 
 /* We use 64bit values for the times.  */
 typedef unsigned long long int hp_timing_t;
-typedef unsigned long long cycles_t;  
+typedef long long cycles_t;  
 typedef uint64_t u64;
 
 hp_timing_t get_clockfreq (void);
