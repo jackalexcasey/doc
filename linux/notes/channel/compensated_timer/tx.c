@@ -138,8 +138,8 @@ void tx(void)
 	 * OR we compensate from the origin 't0' directly !!!
 	 *   =>> t1 = get_cycles(); _not_ needed
 	 */
-	fprintf(stderr, "%Lu %Lu\n",PAYLOAD_PULSE_CYCLE_LENGTH, get_cycles());
-
+	//fprintf(stderr, "%Lu %Lu\n",PAYLOAD_PULSE_CYCLE_LENGTH, get_cycles());
+	
 	/* Mark the beginning of time */
 	t0 = get_cycles();
 
@@ -149,10 +149,10 @@ void tx(void)
 	while(1){
 	
 		/* Here we compensate for the jitter */
-//		calibrated_ldelay(PAYLOAD_PULSE_CYCLE_LENGTH-delta);
+		calibrated_ldelay(PAYLOAD_PULSE_CYCLE_LENGTH-delta);
 
 		/* Then in theory we are monotonic right HERE */
-		modulate_data(PAYLOAD_PULSE_CYCLE_LENGTH-delta);
+//		modulate_data(PAYLOAD_PULSE_CYCLE_LENGTH-delta);
 		/* 
 		 * try to avoid division as much as possible 
 		 * delta is damped by a linear factor 2
@@ -161,12 +161,16 @@ void tx(void)
 		delta = ((t2 - t0) - (2* x * PAYLOAD_PULSE_CYCLE_LENGTH))>>3;
 
 		if(!(x%1000)){
+#if 0 
 			fprintf(stderr, "%d %Ld %d %d %d %d %d %d %d %d %d %d %d %d\n", x, delta,
 				data[0], data[1], data[2],
 				data[10], data[11], data[12],
 				data[20], data[21], data[22],
 				data[30], data[31], data[32]);
-		//	fprintf(stderr, "%Ld\n", t2);
+#else
+			if(x)
+				fprintf(stderr, "%Ld\n", ((t2-t0)/2)/x);
+#endif
 		}
 		x++;
 
