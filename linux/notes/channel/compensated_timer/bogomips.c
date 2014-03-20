@@ -69,7 +69,7 @@ void help(void)
  */
 void open_channel(void)
 {
-	int fd;
+	int fd,c;
 	void *ptr;
 
 	if ((fd = shm_open("channel", O_CREAT|O_RDWR,
@@ -85,8 +85,12 @@ void open_channel(void)
 		DIE("mmap");
 
 	spinlock = ptr; /* spinlock is the first object in the mmap */
-	if(transmitter)
+	if(transmitter){
+		for(c=0; c<1024; c++){
+			data[c] = c;
+		}
 		*spinlock = 0;
+	}
 	return;
 }
 
@@ -500,7 +504,7 @@ main(int argc, char *argv[])
 	opterr = 0;
 	errs = 0;
 
-	open_channel();
+
 
 	while ((c = getopt_long(argc, argv, optstring, options, NULL)) != EOF) {
 		switch (c) {
@@ -517,11 +521,10 @@ main(int argc, char *argv[])
 				break;
 		}
 	}
-	if(transmitter){
-		for(c=0; c<1024; c++){
-			data[c] = c;
-		}
-	}
+
+	open_channel();
+
+
 
 	if (errs) {
 		usage();

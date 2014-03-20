@@ -57,6 +57,7 @@ struct timespec carrier_ts = {
 
 #define LOOP_RESOLUTION 100
 
+extern int transmitter;
 extern volatile int *spinlock;
 extern int data[1024];
 /*
@@ -68,8 +69,13 @@ void modulate_data(unsigned long loops)
 	for(x=0,y=0;x<loops;x++,y++){
 		if(y==1024)
 			y=0;
-		*spinlock = data[y];
+		if(transmitter)
+			*spinlock = data[y];
+		else
+			data[y] = *spinlock;
 	}
+	if(transmitter)
+		*spinlock = 0;
 }
 
 void tx(void)
@@ -113,7 +119,7 @@ void tx(void)
 	while(1){
 		t1 = get_cycles();
 
-#if 0
+#if 0 
 		// DATA start
 		calibrated_ldelay(PAYLOAD_PULSE_CYCLE_LENGTH-delta);
 #else
@@ -131,6 +137,9 @@ void tx(void)
 			 * Here we cut at the end of the transmission but instead we
 			 * want variable bit rate i.e. for every sample we track the
 			 * appropriate amount of seek needed.
+			 *
+			 * OR here we modulate a frame entirely and
+			 * repeat it over and over until we reach error >= loops*2
 			 */
 			modulate_data(LOOP_RESOLUTION);
 			t4 = get_cycles();
@@ -138,6 +147,7 @@ void tx(void)
 			if(error >= loops*2)
 				break;
 		}
+		//TODO Merge this logic in modulate_dat
 #endif
 		/* 
 		 * try to avoid division as much as possible 
@@ -148,7 +158,11 @@ void tx(void)
 
 		/* Sampling for debug */
 		if(!(x%1000)){
-			fprintf(stderr, "%d %Ld %d %d\n", x, delta, y, chunk);
+			fprintf(stderr, "%d %Ld %d %d %d %d %d %d %d %d %d %d %d %d %d %d\n", x, delta, y, chunk,
+				data[0], data[1], data[2],
+				data[10], data[11], data[12],
+				data[20], data[21], data[22],
+				data[30], data[31], data[32]);
 		//	fprintf(stderr, "%Ld\n", t2);
 		}
 		x++;
