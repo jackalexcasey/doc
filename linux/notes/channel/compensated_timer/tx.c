@@ -45,7 +45,11 @@
 #define PAYLOAD_NSEC_PERIOD    100000
 
 #define JITTER_PULSE_CYCLE_LENGTH (MONOTONIC_PULSE_CYCLE_LENGTH * JITTER_NSEC_PERIOD) / NSEC_PERIOD
-#define PAYLOAD_PULSE_CYCLE_LENGTH (MONOTONIC_PULSE_CYCLE_LENGTH * PAYLOAD_NSEC_PERIOD) / NSEC_PERIOD
+//#define PAYLOAD_PULSE_CYCLE_LENGTH ((MONOTONIC_PULSE_CYCLE_LENGTH * PAYLOAD_NSEC_PERIOD) / NSEC_PERIOD)
+
+/* Here we use a rounded value to ease the convergence */
+//#define PAYLOAD_PULSE_CYCLE_LENGTH (cycles_t)100000
+#define PAYLOAD_PULSE_CYCLE_LENGTH (cycles_t)0x20000
 
 struct timespec carrier_ts = {
 	.tv_sec = SEC_PERIOD,
@@ -68,9 +72,23 @@ extern volatile int *spinlock;
  */
 #define DATA_PACKET_SIZE 100
 int data[DATA_PACKET_SIZE];
-
+int hit = 0;
 void modulate_data(cycles_t payload_cycle_length)
 {
+	int x;
+
+		for(x=0;x<DATA_PACKET_SIZE;x++){
+			if(transmitter){
+				*spinlock = data[x];
+			}
+			else
+				data[x] = *spinlock;
+			if(data[x])
+				hit++;
+		}
+		if(transmitter)
+			*spinlock = 0;
+#if 0
 	int x,z;
 	unsigned long chunk;
 	cycles_t t3, t4, error;
@@ -116,11 +134,12 @@ void modulate_data(cycles_t payload_cycle_length)
 		if(error >= payload_cycle_length * 2)
 			break;
 	}
+#endif
 }
 
 void tx(void)
 {
-	int x=0;
+	int x=0, init=0;
 	cycles_t t0, t2, delta=0;
 
 	/*
@@ -135,10 +154,30 @@ void tx(void)
 	 *  			+ NOISE [t1 to DATA start] + NOISE [ DATA end to t2 ]
 	 *  t2 -> t1 == Loop RTT overhead
 	 *
-	 * OR we compensate from the origin 't0' directly !!!
+	 *  This technique reveal to be not working that well
+	 *
+	 * OR 
+	 *
+	 * We compensate from the origin 't0' directly !!!
 	 *   =>> t1 = get_cycles(); _not_ needed
+	 * This compensation is achieve by computing the delta value
+	 *
+	 * From that point on we know we are monotonic with respect to T0.
+	 *
+	 * Now we need to address the phase shift from the two execution
+	 * context i.e. we want to get RX and TX in phases. 
+	 *
+	 * The easiest method is shift back the phase to a common known 
+	 * denominator i.e. 0 (assuming same TSC offset from both CPU )
+	 *
+	 * With this technique we can have the broadcast band aligned so that
+	 * data is effectively transferred 
+	 *
+	 * Without this technique (init = 1 initially ) data cannot be 
+	 * transferred OR only very little
+	 *
 	 */
-	//fprintf(stderr, "%Lu %Lu\n",PAYLOAD_PULSE_CYCLE_LENGTH, get_cycles());
+	fprintf(stderr, "%Lu %Lu\n",PAYLOAD_PULSE_CYCLE_LENGTH, get_cycles());
 	
 	/* Mark the beginning of time */
 	t0 = get_cycles();
@@ -152,26 +191,43 @@ void tx(void)
 		calibrated_ldelay(PAYLOAD_PULSE_CYCLE_LENGTH-delta);
 
 		/* Then in theory we are monotonic right HERE */
-//		modulate_data(PAYLOAD_PULSE_CYCLE_LENGTH-delta);
+		modulate_data(PAYLOAD_PULSE_CYCLE_LENGTH-delta);
+
 		/* 
-		 * try to avoid division as much as possible 
-		 * delta is damped by a linear factor 2
-		 * May need some order 2 convergence algo
+		 * This is how we obtain the retro-feedback compensation value
+		 * NOTE that we try to avoid division as much as possible 
 		 */
 		delta = ((t2 - t0) - (2* x * PAYLOAD_PULSE_CYCLE_LENGTH))>>3;
 
-		if(!(x%1000)){
-#if 0 
-			fprintf(stderr, "%d %Ld %d %d %d %d %d %d %d %d %d %d %d %d\n", x, delta,
-				data[0], data[1], data[2],
-				data[10], data[11], data[12],
-				data[20], data[21], data[22],
-				data[30], data[31], data[32]);
-#else
-			if(x)
-				fprintf(stderr, "%Ld\n", ((t2-t0)/2)/x);
-#endif
+
+		if(!(x%0x1000)){
+			/* 
+			 * This is how we do phase shift;
+			 * First we shift back at coarse level. We've seen that once this
+			 * is locked down it typically doesn't move
+			 */
+			if(!init){
+				if((t2 & 0xf0000) != 0x0)
+					t0 = t0 - 0x10000;
+				else if((t2 & 0xf000) != 0x0)
+					t0 = t0 - 0x1000;
+//				else if((t2 & 0xf00) != 0x500){
+//					t0 = t0 - 0x50;
+//				}
+				else
+					init = 1;
+			}
+			if(init){
+				fprintf(stderr, "%Lu %Ld %d %d %d %d %d %d %d %d %d %d %d %d %d\n", t2, delta, hit,
+					data[0], data[1], data[2],
+					data[10], data[11], data[12],
+					data[20], data[21], data[22],
+					data[30], data[31], data[32]);
+			}
+			else
+				fprintf(stderr, "%Lx\n", t2);
 		}
+
 		x++;
 
 		t2 = get_cycles();
