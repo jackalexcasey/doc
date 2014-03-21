@@ -72,8 +72,8 @@ extern volatile int *spinlock;
  */
 #define DATA_PACKET_SIZE 100
 int data[DATA_PACKET_SIZE];
-int hit = 0;
-void modulate_data(cycles_t payload_cycle_length)
+unsigned long hit = 0;
+void modulate_data(void)
 {
 	int x;
 
@@ -83,64 +83,17 @@ void modulate_data(cycles_t payload_cycle_length)
 			}
 			else
 				data[x] = *spinlock;
-			if(data[x])
-				hit++;
+
+			hit = hit + data[x];
 		}
 		if(transmitter)
 			*spinlock = 0;
-#if 0
-	int x,z;
-	unsigned long chunk;
-	cycles_t t3, t4, error;
-
-	chunk = payload_cycle_length / DATA_PACKET_SIZE;
-
-	t4 = 0;
-	error = 0;
-	for(z=0; z<chunk; z++){
-		t3 = get_cycles();
-		if(!t4)
-			t4 = t3;
-		error += t3 - t4; /* Measure t4 -> t3 == Loop RTT overhead */
-
-		/* 
-		 * Here we cut at the end of the transmission but instead we
-		 * want variable bit rate i.e. for every sample we track the
-		 * appropriate amount of seek needed.
-		 *
-		 * OR here we modulate a frame entirely and
-		 * repeat it over and over until we reach error >= loops*2
-		 *
-		 * Here is what is needed;
-		 * THE modulation window last for so long. The receiver has to sync with it...
-		 *
-		 * WE modulate the data packets ( including sync phase ) a certain number
-		 * of time
-		 * Then the receiver captures every thing and search for sync
-		 *
-		 */
-		for(x=0;x<DATA_PACKET_SIZE;x++){
-			if(transmitter){
-				*spinlock = data[x];
-			}
-			else
-				data[x] = *spinlock;
-		}
-		if(transmitter)
-			*spinlock = 0;
-
-		t4 = get_cycles();
-		error += t4 - t3; /* Measure t3 -> t4 == LPJ delay loop */
-		if(error >= payload_cycle_length * 2)
-			break;
-	}
-#endif
 }
 
 void tx(void)
 {
 	int x=0, init=0;
-	cycles_t t0, t2, delta=0;
+	cycles_t t0, t2, delta=0, conv=0;
 
 	/*
 	 * t0 mark the start of the cycle. The goal is to keep the system
@@ -188,10 +141,10 @@ void tx(void)
 	while(1){
 	
 		/* Here we compensate for the jitter */
-		calibrated_ldelay(PAYLOAD_PULSE_CYCLE_LENGTH-delta);
+		calibrated_ldelay(PAYLOAD_PULSE_CYCLE_LENGTH - delta - conv);
 
 		/* Then in theory we are monotonic right HERE */
-		modulate_data(PAYLOAD_PULSE_CYCLE_LENGTH-delta);
+		modulate_data();
 
 		/* 
 		 * This is how we obtain the retro-feedback compensation value
@@ -201,24 +154,32 @@ void tx(void)
 
 
 		if(!(x%0x1000)){
+			/* Bring down the offset to 0x50 ; This is frequency tuning */
+			conv = conv + ((delta - 0x50 )/4);
+//			fprintf(stderr, "%Lx %Lx\n", delta, conv);
+
+#if 1
 			/* 
 			 * This is how we do phase shift;
 			 * First we shift back at coarse level. We've seen that once this
 			 * is locked down it typically doesn't move
+			 *
+			 * //TODO need to improve 
 			 */
 			if(!init){
+//				t0 = t0 - ( ((t2 & 0xfffff)-0x500)  /10);
 				if((t2 & 0xf0000) != 0x0)
 					t0 = t0 - 0x10000;
 				else if((t2 & 0xf000) != 0x0)
 					t0 = t0 - 0x1000;
-//				else if((t2 & 0xf00) != 0x500){
-//					t0 = t0 - 0x50;
-//				}
 				else
 					init = 1;
 			}
+			fprintf(stderr, "%Lx\n", t2);
+#if 0
+
 			if(init){
-				fprintf(stderr, "%Lu %Ld %d %d %d %d %d %d %d %d %d %d %d %d %d\n", t2, delta, hit,
+				fprintf(stderr, "%Lu %Ld %Ld %d %d %d %d %d %d %d %d %d %d %d %d\n", t2, delta, hit,
 					data[0], data[1], data[2],
 					data[10], data[11], data[12],
 					data[20], data[21], data[22],
@@ -226,8 +187,10 @@ void tx(void)
 			}
 			else
 				fprintf(stderr, "%Lx\n", t2);
-		}
+#endif
 
+#endif
+		}
 		x++;
 
 		t2 = get_cycles();
