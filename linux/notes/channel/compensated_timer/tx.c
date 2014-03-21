@@ -49,7 +49,9 @@
 
 /* Here we use a rounded value to ease the convergence */
 //#define PAYLOAD_PULSE_CYCLE_LENGTH (cycles_t)100000
-#define PAYLOAD_PULSE_CYCLE_LENGTH (cycles_t)0x20000
+//#define PAYLOAD_PULSE_CYCLE_LENGTH (cycles_t)0x20000
+
+#define PAYLOAD_PULSE_CYCLE_LENGTH (cycles_t)0x2000000
 
 struct timespec carrier_ts = {
 	.tv_sec = SEC_PERIOD,
@@ -86,7 +88,6 @@ void modulate_data(void)
 
 			hit = hit + data[x];
 		}
-		if(transmitter)
 			*spinlock = 0;
 }
 
@@ -153,9 +154,9 @@ void tx(void)
 		delta = ((t2 - t0) - (2* x * PAYLOAD_PULSE_CYCLE_LENGTH))>>3;
 
 
-		if(!(x%0x1000)){
+		if(!(x%0x10)){
 			/* Bring down the offset to 0x50 ; This is frequency tuning */
-			conv = conv + ((delta - 0x50 )/4);
+			conv = conv + ((delta - 0x100 )/4);
 //			fprintf(stderr, "%Lx %Lx\n", delta, conv);
 
 #if 1
@@ -163,23 +164,26 @@ void tx(void)
 			 * This is how we do phase shift;
 			 * First we shift back at coarse level. We've seen that once this
 			 * is locked down it typically doesn't move
-			 *
-			 * //TODO need to improve 
+			 * 338260aeb648
+			 * 338286aeb670
+			 * 0x2000000
+			 * 0x20000
+			 * //TODO need to improve to cope for negative offset
 			 */
 			if(!init){
-//				t0 = t0 - ( ((t2 & 0xfffff)-0x500)  /10);
-				if((t2 & 0xf0000) != 0x0)
+				if((t2 & 0xf000000) != 0x0)
+					t0 = t0 - 0x1000000;
+				else if((t2 & 0xf00000) != 0x0)
+					t0 = t0 - 0x100000;
+				else if((t2 & 0xf0000) != 0x0)
 					t0 = t0 - 0x10000;
 				else if((t2 & 0xf000) != 0x0)
 					t0 = t0 - 0x1000;
 				else
 					init = 1;
 			}
-			fprintf(stderr, "%Lx\n", t2);
-#if 0
-
 			if(init){
-				fprintf(stderr, "%Lu %Ld %Ld %d %d %d %d %d %d %d %d %d %d %d %d\n", t2, delta, hit,
+				fprintf(stderr, "%Lx %Ld %Ld %d %d %d %d %d %d %d %d %d %d %d %d\n", t2, delta, hit,
 					data[0], data[1], data[2],
 					data[10], data[11], data[12],
 					data[20], data[21], data[22],
@@ -187,8 +191,6 @@ void tx(void)
 			}
 			else
 				fprintf(stderr, "%Lx\n", t2);
-#endif
-
 #endif
 		}
 		x++;
