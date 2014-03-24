@@ -49,6 +49,7 @@
 
 /* this is the HSYNC */
 #define PAYLOAD_PULSE_CYCLE_LENGTH (cycles_t)0x2000000
+#define PAYLOAD_PULSE_CYCLE_CARRY_OVER 0xf00000
 #define PAYLOAD_PULSE_CYCLE_MASK 0xf000000
 
 struct timespec carrier_ts = {
@@ -89,6 +90,9 @@ void modulate_data(void)
 			*spinlock = 0;
 }
 
+#define DEBUG_DATA_PACKET_SIZE 0x100
+cycles_t debug_data[DEBUG_DATA_PACKET_SIZE];
+
 void tx(void)
 {
 	int x,y;
@@ -102,44 +106,66 @@ void tx(void)
 	 * TODO relax CPU here
 	 */
 restart:
-	while( ((t2 = get_cycles()) & PAYLOAD_PULSE_CYCLE_MASK) != PAYLOAD_PULSE_CYCLE_LENGTH);
-	
-	fprintf(stderr, "%Lx %Lx\n",PAYLOAD_PULSE_CYCLE_LENGTH, get_cycles());
-
 	phase = 0;
 	conv = 4;
 	x=0;
 
+	while( ((t2 = get_cycles()) & PAYLOAD_PULSE_CYCLE_MASK) != PAYLOAD_PULSE_CYCLE_LENGTH);
+	
+	fprintf(stderr, "%Lx %Lx\n",PAYLOAD_PULSE_CYCLE_LENGTH, get_cycles());
+
 	while(1){
 		t1 = get_cycles();
 		
-		calibrated_ldelay(PAYLOAD_PULSE_CYCLE_LENGTH - 2*phase - (t1-t2));
+		calibrated_ldelay(PAYLOAD_PULSE_CYCLE_LENGTH - phase - (t1-t2));
 
 		/* Then in theory we are monotonic right HERE */
 		modulate_data();
 
 		/* 
 		 * This is phase compensation;
-		 * TODO won't work if delay is faster than PAYLOAD_PULSE_CYCLE_LENGTH
 		 */
-		phase = ((PAYLOAD_PULSE_CYCLE_LENGTH/2) - 
-			abs( (t2 & 0x3ffffff)
-			% PAYLOAD_PULSE_CYCLE_LENGTH - PAYLOAD_PULSE_CYCLE_LENGTH/2)) >> 3;
+		if( !((t2 & PAYLOAD_PULSE_CYCLE_CARRY_OVER) == 0xf00000) ){
+			phase = ((PAYLOAD_PULSE_CYCLE_LENGTH/2) - 
+				abs( (t2 & 0x3ffffff)
+				% PAYLOAD_PULSE_CYCLE_LENGTH - PAYLOAD_PULSE_CYCLE_LENGTH/2)) >> 3;
+			phase = phase + (phase&0xfff)*2;
+			fprintf(stderr, "%Lx\n",phase);
+		}
+		else
+			phase = -1 * ((PAYLOAD_PULSE_CYCLE_LENGTH/2) - 
+				abs( (PAYLOAD_PULSE_CYCLE_LENGTH - (t2 & 0x3ffffff)) 
+				% PAYLOAD_PULSE_CYCLE_LENGTH - PAYLOAD_PULSE_CYCLE_LENGTH/2)) >> 3;
 
-		if(!(x%0x10)){
-			//fprintf(stderr, "%Lx %Lx\n", t2, phase);
+		/* DEBUG only */
+		debug_data[x%DEBUG_DATA_PACKET_SIZE] = t2;//phase;
 
+//		if(!(x%DEBUG_DATA_PACKET_SIZE)){
+//			for(y=0;y <DEBUG_DATA_PACKET_SIZE;y++){
+//				fprintf(stderr, "%Lx\n",debug_data[y]);
+//			}
+/*
 			fprintf(stderr, "%Lx %Lx %Lx %Ld %d %d %d %d %d %d %d %d %d %d %d %d\n", t2, phase, conv, hit,
 				data[0], data[1], data[2],
-				data[10], data[11], data[12],
-				data[20], data[21], data[22],
-				data[30], data[31], data[32]);
+				data[3], data[4], data[5],
+				data[6], data[7], data[8],
+				data[9], data[10], data[11],
+				data[12], data[13], data[14]);
+//				data[10], data[11], data[12],
+//				data[20], data[21], data[22],
+//				data[30], data[31], data[32]);
+*/
+//		}
 
-			if( (t2 & PAYLOAD_PULSE_CYCLE_MASK) != PAYLOAD_PULSE_CYCLE_LENGTH){
-				fprintf(stderr, "Synchronization lost!\n");
-				goto restart;
-			}
+		if(!(x%0x10)){
+			fprintf(stderr, "%Lx %Lx\n", t2, phase);
+
+//			if( (t2 & PAYLOAD_PULSE_CYCLE_MASK) != PAYLOAD_PULSE_CYCLE_LENGTH){
+//				fprintf(stderr, "Synchronization lost!\n");
+//				goto restart;
+//			}
 		}
+
 
 		x++;
 		t2 = get_cycles();

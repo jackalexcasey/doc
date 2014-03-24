@@ -47,9 +47,11 @@
 #define JITTER_PULSE_CYCLE_LENGTH (MONOTONIC_PULSE_CYCLE_LENGTH * JITTER_NSEC_PERIOD) / NSEC_PERIOD
 //#define PAYLOAD_PULSE_CYCLE_LENGTH ((MONOTONIC_PULSE_CYCLE_LENGTH * PAYLOAD_NSEC_PERIOD) / NSEC_PERIOD)
 
-/* this is the HSYNC */
+/* Here we use a rounded value to ease the convergence */
+//#define PAYLOAD_PULSE_CYCLE_LENGTH (cycles_t)100000
+//#define PAYLOAD_PULSE_CYCLE_LENGTH (cycles_t)0x20000
+
 #define PAYLOAD_PULSE_CYCLE_LENGTH (cycles_t)0x2000000
-#define PAYLOAD_PULSE_CYCLE_MASK 0xf000000
 
 struct timespec carrier_ts = {
 	.tv_sec = SEC_PERIOD,
@@ -91,57 +93,108 @@ void modulate_data(void)
 
 void tx(void)
 {
-	int x,y;
-	cycles_t t1, t2, phase, conv;
+	int x=0, init=0;
+	cycles_t t0, t2, delta=0, conv=0;
 
 	/*
-	 * First we synchronize the execution context on a common denominator
-	 * which is in this case is the PAYLOAD_PULSE_CYCLE_LENGTH period
+	 * t0 mark the start of the cycle. The goal is to keep the system
+	 * perfectly monotonic with respect to t0.
 	 *
-	 * NOTE we assume TSC measurement is the ~same across different CPUs
-	 * TODO relax CPU here
+	 * The challenge is that the amount of noise we are subjected to depends
+	 * directly on the amount of time spend for DATA transmission
+	 *
+	 * To achieve this goal we need some compensation. 
+	 *  t1 -> t2 == [DATA start, DATA END] + NOISE during [DATA start, DATA END]
+	 *  			+ NOISE [t1 to DATA start] + NOISE [ DATA end to t2 ]
+	 *  t2 -> t1 == Loop RTT overhead
+	 *
+	 *  This technique reveal to be not working that well
+	 *
+	 * OR 
+	 *
+	 * We compensate from the origin 't0' directly !!!
+	 *   =>> t1 = get_cycles(); _not_ needed
+	 * This compensation is achieve by computing the delta value
+	 *
+	 * From that point on we know we are monotonic with respect to T0.
+	 *
+	 * Now we need to address the phase shift from the two execution
+	 * context i.e. we want to get RX and TX in phases. 
+	 *
+	 * The easiest method is shift back the phase to a common known 
+	 * denominator i.e. 0 (assuming same TSC offset from both CPU )
+	 *
+	 * With this technique we can have the broadcast band aligned so that
+	 * data is effectively transferred 
+	 *
+	 * Without this technique (init = 1 initially ) data cannot be 
+	 * transferred OR only very little
+	 *
 	 */
-restart:
-	while( ((t2 = get_cycles()) & PAYLOAD_PULSE_CYCLE_MASK) != PAYLOAD_PULSE_CYCLE_LENGTH);
+	fprintf(stderr, "%Lu %Lu\n",PAYLOAD_PULSE_CYCLE_LENGTH, get_cycles());
 	
-	fprintf(stderr, "%Lx %Lx\n",PAYLOAD_PULSE_CYCLE_LENGTH, get_cycles());
+	/* Mark the beginning of time */
+	t0 = get_cycles();
 
-	phase = 0;
-	conv = 4;
-	x=0;
+	/* Pre-charge t2 to avoid a 'if' within the loop */
+	t2 = t0;
 
 	while(1){
-		t1 = get_cycles();
-		
-		calibrated_ldelay(PAYLOAD_PULSE_CYCLE_LENGTH - 2*phase - (t1-t2));
+	
+		/* Here we compensate for the jitter */
+		calibrated_ldelay(PAYLOAD_PULSE_CYCLE_LENGTH - delta - conv);
 
 		/* Then in theory we are monotonic right HERE */
 		modulate_data();
 
 		/* 
-		 * This is phase compensation;
-		 * TODO won't work if delay is faster than PAYLOAD_PULSE_CYCLE_LENGTH
+		 * This is how we obtain the retro-feedback compensation value
+		 * NOTE that we try to avoid division as much as possible 
 		 */
-		phase = ((PAYLOAD_PULSE_CYCLE_LENGTH/2) - 
-			abs( (t2 & 0x3ffffff)
-			% PAYLOAD_PULSE_CYCLE_LENGTH - PAYLOAD_PULSE_CYCLE_LENGTH/2)) >> 3;
+		delta = ((t2 - t0) - (2* x * PAYLOAD_PULSE_CYCLE_LENGTH))>>3;
+
 
 		if(!(x%0x10)){
-			//fprintf(stderr, "%Lx %Lx\n", t2, phase);
+			/* Bring down the offset to 0x50 ; This is frequency tuning */
+			conv = conv + ((delta - 0x100 )/4);
+//			fprintf(stderr, "%Lx %Lx\n", delta, conv);
 
-			fprintf(stderr, "%Lx %Lx %Lx %Ld %d %d %d %d %d %d %d %d %d %d %d %d\n", t2, phase, conv, hit,
-				data[0], data[1], data[2],
-				data[10], data[11], data[12],
-				data[20], data[21], data[22],
-				data[30], data[31], data[32]);
-
-			if( (t2 & PAYLOAD_PULSE_CYCLE_MASK) != PAYLOAD_PULSE_CYCLE_LENGTH){
-				fprintf(stderr, "Synchronization lost!\n");
-				goto restart;
+#if 1
+			/* 
+			 * This is how we do phase shift;
+			 * First we shift back at coarse level. We've seen that once this
+			 * is locked down it typically doesn't move
+			 * 338260aeb648
+			 * 338286aeb670
+			 * 0x2000000
+			 * 0x20000
+			 * //TODO need to improve to cope for negative offset
+			 */
+			if(!init){
+				if((t2 & 0xf000000) != 0x0)
+					t0 = t0 - 0x1000000;
+				else if((t2 & 0xf00000) != 0x0)
+					t0 = t0 - 0x100000;
+				else if((t2 & 0xf0000) != 0x0)
+					t0 = t0 - 0x10000;
+				else if((t2 & 0xf000) != 0x0)
+					t0 = t0 - 0x1000;
+				else
+					init = 1;
 			}
+			if(init){
+				fprintf(stderr, "%Lx %Ld %Ld %d %d %d %d %d %d %d %d %d %d %d %d\n", t2, delta, hit,
+					data[0], data[1], data[2],
+					data[10], data[11], data[12],
+					data[20], data[21], data[22],
+					data[30], data[31], data[32]);
+			}
+			else
+				fprintf(stderr, "%Lx\n", t2);
+#endif
 		}
-
 		x++;
+
 		t2 = get_cycles();
 	}
 }
@@ -158,24 +211,9 @@ void tx_init(void)
 
 
 
-#if 0
-This is the effect of printing with respect to phase compensation
-116_84910_84912_63713_42497_26584_15999_9392_5427_3109_1781_1022_610_379_256_193_147_144_138_148_136_117_111_99_96_84_87_85_83_102_108_112_119_136_132_133_153_162_156_142_116_109_95_91_83_101_98_113_107_103_112_115_111_121_125_139_137_137_139_127_135_145_125_108_98_110_109_94_102_111_119_108_123_133_127_111_119_136_139_130_128_131_125_127_125_121_137_147_138_123_115_120_118_121_127_120_116_112_126_132_141_146_127_114_124_109_101_88_108_100_102_106_108_102_105_124_134_126_111_115_122_131_127_138_119_118_106_93_85_102_111_130_138_133_137_118_99_108_105_115_111_124_135_152_146_129_118_130_146_127_106_99_112_118_128_129_135_132_148_153_149_127_127_129_137_123_114_120_125_118_101_110_130_118_114_120_111_109_109_116_127_135_123_109_94_79_86_107_128_115_120_123_110_107_121_130_145_148_145_151_158_156_149_138_118_116_125_141_154_136_137_119_108_112_112_111_122_122_137_124_112_110_106_114_119_136_121_130_135_140_147_138_144_129_137_123_134_118_99_110_112_110_126_143_155_155_147_146_130_113_129_147_136_142_148_137_
 
 
-		data[x%0x100] = phase;
 
-		if(!(x%0x100)){
-			if( (t2 & PAYLOAD_PULSE_CYCLE_MASK) != PAYLOAD_PULSE_CYCLE_LENGTH){
-				fprintf(stderr, "Synchronization lost!\n");
-				goto restart;
-			}
-			for(y=0;y <0x100;y++){
-				fprintf(stderr, "%d_",data[y]);
-			}
-
-
-#endif
 
 
 
