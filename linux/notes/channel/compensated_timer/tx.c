@@ -49,7 +49,12 @@
 
 /* this is the HSYNC */
 #define PAYLOAD_PULSE_CYCLE_LENGTH (cycles_t)0x2000000
+#define PAYLOAD_PULSE_CYCLE_CARRY_OVER 0x1f00000
 #define PAYLOAD_PULSE_CYCLE_MASK 0xf000000
+
+#define VSYNC_PULSE_CYCLE_LENGTH (cycles_t)0x40000000
+#define VSYNC_PULSE_CYCLE_MASK 0xff000000
+
 
 struct timespec carrier_ts = {
 	.tv_sec = SEC_PERIOD,
@@ -102,7 +107,7 @@ void tx(void)
 	 * TODO relax CPU here
 	 */
 restart:
-	while( ((t2 = get_cycles()) & PAYLOAD_PULSE_CYCLE_MASK) != PAYLOAD_PULSE_CYCLE_LENGTH);
+	while( ((t2 = get_cycles()) & VSYNC_PULSE_CYCLE_MASK) != (VSYNC_PULSE_CYCLE_LENGTH|PAYLOAD_PULSE_CYCLE_LENGTH));
 	
 	fprintf(stderr, "%Lx %Lx\n",PAYLOAD_PULSE_CYCLE_LENGTH, get_cycles());
 
@@ -113,22 +118,28 @@ restart:
 	while(1){
 		t1 = get_cycles();
 		
-		calibrated_ldelay(PAYLOAD_PULSE_CYCLE_LENGTH - 2*phase - (t1-t2));
+		calibrated_ldelay(PAYLOAD_PULSE_CYCLE_LENGTH - 2*phase - (t1-t2) -0x200);
 
 		/* Then in theory we are monotonic right HERE */
 		modulate_data();
 
 		/* 
 		 * This is phase compensation;
-		 * TODO won't work if delay is faster than PAYLOAD_PULSE_CYCLE_LENGTH
 		 */
-		phase = ((PAYLOAD_PULSE_CYCLE_LENGTH/2) - 
-			abs( (t2 & 0x3ffffff)
-			% PAYLOAD_PULSE_CYCLE_LENGTH - PAYLOAD_PULSE_CYCLE_LENGTH/2)) >> 3;
+		if(t2 & PAYLOAD_PULSE_CYCLE_CARRY_OVER){
+			phase = -1 * ((PAYLOAD_PULSE_CYCLE_LENGTH/2) - 
+				abs( (PAYLOAD_PULSE_CYCLE_LENGTH - (t2 & 0x3ffffff)) 
+				% PAYLOAD_PULSE_CYCLE_LENGTH - PAYLOAD_PULSE_CYCLE_LENGTH/2)) >> 3;
+		}
+		else{
+			phase = ((PAYLOAD_PULSE_CYCLE_LENGTH/2) - 
+				abs( (t2 & 0x3ffffff)
+				% PAYLOAD_PULSE_CYCLE_LENGTH - PAYLOAD_PULSE_CYCLE_LENGTH/2)) >> 3;
+		}
+//		fprintf(stderr, "%Lx %Lx\n", t2, phase);
 
 		if(!(x%0x10)){
-			//fprintf(stderr, "%Lx %Lx\n", t2, phase);
-
+//			fprintf(stderr, "%Lx %Lx\n", t2, phase);
 			fprintf(stderr, "%Lx %Lx %Lx %Ld %d %d %d %d %d %d %d %d %d %d %d %d\n", t2, phase, conv, hit,
 				data[0], data[1], data[2],
 				data[10], data[11], data[12],
