@@ -47,13 +47,13 @@
 #define JITTER_PULSE_CYCLE_LENGTH (MONOTONIC_PULSE_CYCLE_LENGTH * JITTER_NSEC_PERIOD) / NSEC_PERIOD
 //#define PAYLOAD_PULSE_CYCLE_LENGTH ((MONOTONIC_PULSE_CYCLE_LENGTH * PAYLOAD_NSEC_PERIOD) / NSEC_PERIOD)
 
-/* this is the HSYNC */
-#define PAYLOAD_PULSE_CYCLE_LENGTH (cycles_t)0x2000000
-#define PAYLOAD_PULSE_CYCLE_CARRY_OVER 0x1f00000
-#define PAYLOAD_PULSE_CYCLE_MASK 0xf000000
+#define PAYLOAD_PULSE_CYCLE_LENGTH (cycles_t)	0x4000000
+#define PAYLOAD_PULSE_CYCLE_DATA_MASK			0x7ffffff
+#define PAYLOAD_PULSE_CYCLE_CARRY_OVER 			0x3f00000
+#define PAYLOAD_PULSE_CYCLE_MASK 				0xf000000
 
-#define VSYNC_PULSE_CYCLE_LENGTH (cycles_t)0x40000000
-#define VSYNC_PULSE_CYCLE_MASK 0xff000000
+#define VSYNC_PULSE_CYCLE_LENGTH (cycles_t)		0x80000000
+#define VSYNC_PULSE_CYCLE_MASK 					0xff000000
 
 
 struct timespec carrier_ts = {
@@ -107,7 +107,8 @@ void tx(void)
 	 * TODO relax CPU here
 	 */
 restart:
-	while( ((t2 = get_cycles()) & VSYNC_PULSE_CYCLE_MASK) != (VSYNC_PULSE_CYCLE_LENGTH|PAYLOAD_PULSE_CYCLE_LENGTH));
+	while( ((t2 = get_cycles()) & VSYNC_PULSE_CYCLE_MASK) != 
+		(VSYNC_PULSE_CYCLE_LENGTH | PAYLOAD_PULSE_CYCLE_LENGTH));
 	
 	fprintf(stderr, "%Lx %Lx\n",PAYLOAD_PULSE_CYCLE_LENGTH, get_cycles());
 
@@ -118,7 +119,7 @@ restart:
 	while(1){
 		t1 = get_cycles();
 		
-		calibrated_ldelay(PAYLOAD_PULSE_CYCLE_LENGTH - 2*phase - (t1-t2) -0x200);
+		calibrated_ldelay(PAYLOAD_PULSE_CYCLE_LENGTH - 2*phase - (t1-t2) - DATA_PACKET_SIZE*2);
 
 		/* Then in theory we are monotonic right HERE */
 		modulate_data();
@@ -128,12 +129,12 @@ restart:
 		 */
 		if(t2 & PAYLOAD_PULSE_CYCLE_CARRY_OVER){
 			phase = -1 * ((PAYLOAD_PULSE_CYCLE_LENGTH/2) - 
-				abs( (PAYLOAD_PULSE_CYCLE_LENGTH - (t2 & 0x3ffffff)) 
+				abs( (PAYLOAD_PULSE_CYCLE_LENGTH - (t2 & PAYLOAD_PULSE_CYCLE_DATA_MASK)) 
 				% PAYLOAD_PULSE_CYCLE_LENGTH - PAYLOAD_PULSE_CYCLE_LENGTH/2)) >> 3;
 		}
 		else{
 			phase = ((PAYLOAD_PULSE_CYCLE_LENGTH/2) - 
-				abs( (t2 & 0x3ffffff)
+				abs( (t2 & PAYLOAD_PULSE_CYCLE_DATA_MASK)
 				% PAYLOAD_PULSE_CYCLE_LENGTH - PAYLOAD_PULSE_CYCLE_LENGTH/2)) >> 3;
 		}
 //		fprintf(stderr, "%Lx %Lx\n", t2, phase);
