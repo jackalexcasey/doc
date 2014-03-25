@@ -34,22 +34,29 @@
 
 #ifndef __CHARACTERIZATION__
 
-/*
- * This is the duty cycle of the PAYLOAD in bus cycle
- */
-#define PAYLOAD_PULSE_CYCLE_LENGTH (cycles_t)	0x8000000
-#define PAYLOAD_PULSE_CYCLE_DATA_MASK			0x7ffffff
-#define PAYLOAD_PULSE_CYCLE_CARRY_OVER 			0x7f00000
-#define PAYLOAD_PULSE_CYCLE_MASK 				0xf000000
-
-/*
- * This is the duty cycle of the PAYLOAD in nsec
- * (0x4000000 * 1/CPU_FREQ) * 2
- */
 #define CPU_FREQ								2393715000
-#define PAYLOAD_PULSE_NSEC (cycles_t) 			28035444 * 2 *2
+
+/* 
+ * This is our immunity to noise. What is the largest jitter?
+ * The cost of immunity is CPU cycle consumption
+ */
 #define JITTER_NSEC_PERIOD (cycles_t)			200000
 
+/* 
+ * This is the duty cycle of the PAYLOAD in nsec
+ * PAYLOAD_PULSE_NSEC = ((1/FRAME_FREQ) * NSEC_PER_SEC)
+ *
+ * 35.669133687
+ * #define NSEC_PER_SEC    1000000000
+ */
+#define FRAME_FREQ								60
+#define PAYLOAD_PULSE_NSEC (cycles_t) 			(28035444) 
+
+/* 
+ * This is the duty cycle of the PAYLOAD in bus cycle 
+ * (CPU_FREQ * (1/FRAME_FREQ))/2
+ */
+#define PAYLOAD_PULSE_CYCLE_LENGTH (cycles_t)	(0x4000000/2)
 
 #define VSYNC_PULSE_CYCLE_LENGTH (cycles_t)		0x80000000
 #define VSYNC_PULSE_CYCLE_MASK 					0xff000000
@@ -165,7 +172,7 @@ restart:
 			goto restart;
 		}
 		calibrated_ldelay(delay);
-//		fprintf(stderr,"%Lu %Lu\n",delta, get_cycles()-t1);
+	//	fprintf(stderr,"%Lu %Lu\n",delay, get_cycles()-t1);
 
 		/* Then in theory we are monotonic right HERE */
 		modulate_data();
