@@ -10,6 +10,11 @@
 
 #define TIMER_RELTIME 0
 
+/* Define the operation mode i.e. timer based OR LPJ */
+#define __TIMER__
+
+//#define __CHARACTERIZATION__
+
 uint64_t rdtsc(void);
 uint64_t rdtsc_mfence(void);
 uint64_t rdtsc_lfence(void);

@@ -32,21 +32,7 @@
 #include "logging.h"
 #include "atomic_64.h"
 
-#define CPU_FREQ				2393715000
-
-#define FREQ 60
-#define PERIOD_CPU_CYCLE	CPU_FREQ/FREQ
-#define MONOTONIC_PULSE_CYCLE_LENGTH	PERIOD_CPU_CYCLE/2
-
-#define SEC_PERIOD	(1/FREQ) %1
-#define NSEC_PERIOD (NSEC_PER_SEC/FREQ ) /* 1/FREQ * NSEC_PER_SEC */
-
-
-
-/* 
- * We always start from the period in bus cycle then translate to
- * Nsec after
- */
+#ifndef __CHARACTERIZATION__
 
 /*
  * This is the duty cycle of the PAYLOAD in bus cycle
@@ -60,14 +46,13 @@
  * This is the duty cycle of the PAYLOAD in nsec
  * (0x4000000 * 1/CPU_FREQ) * 2
  */
+#define CPU_FREQ								2393715000
 #define PAYLOAD_PULSE_NSEC (cycles_t) 			28035444 * 2 *2
 #define JITTER_NSEC_PERIOD (cycles_t)			200000
 
 
 #define VSYNC_PULSE_CYCLE_LENGTH (cycles_t)		0x80000000
 #define VSYNC_PULSE_CYCLE_MASK 					0xff000000
-
-#define __TIMER__
 
 struct timespec carrier_ts = {
 	.tv_sec = 0,
@@ -76,39 +61,68 @@ struct timespec carrier_ts = {
 };
 
 extern int transmitter;
+unsigned long hit = 0;
 extern volatile int *spinlock;
 
-/*
- * This function modulate the data over the wire.
- *
- * payload_cycle_length determine the amount of cycle this function is allowed
- * to execute. This value is typically variable because of compensation in the 
- * high level loop.
- *
- * data is transmitted in packet. Packet size is DATA_PACKET_SIZE
- *
- */
-#define DATA_PACKET_SIZE 100
+#if 0
+#define TSC_CYCLE_PER_DATA 		39
+#define DATA_PACKET_SIZE 		5000
+#define TSC_MAX_DATA_CYCLE		DATA_PACKET_SIZE * TSC_CYCLE_PER_DATA
 int data[DATA_PACKET_SIZE];
-unsigned long hit = 0;
+
+/*
+ * This is the bucket based implementation
+ */
 void modulate_data(void)
 {
 	int x;
-//	cycles_t t1;
+	int bucket=0;
+	cycles_t t1;
 
-//	t1 = get_cycles();
+	t1 = get_cycles();
+	while(bucket < DATA_PACKET_SIZE){
+		bucket = (get_cycles()-t1)/TSC_CYCLE_PER_DATA;
+		if(transmitter){
+			*spinlock = data[bucket];
+		}
+		else
+			data[x] = *spinlock;
+		hit = hit + data[bucket];
+	}
+	*spinlock = 0;
+}
+
+#else
+
+#define TSC_CYCLE_PER_DATA 		29
+#define DATA_PACKET_SIZE 		2000
+#define TSC_MAX_DATA_CYCLE		DATA_PACKET_SIZE * TSC_CYCLE_PER_DATA
+int data[DATA_PACKET_SIZE];
+
+/*
+ * This is the top up based implementation
+ */
+void modulate_data(void)
+{
+	int x;
+	cycles_t t1;
+
+	t1 = get_cycles();
 	for(x=0;x<DATA_PACKET_SIZE;x++){
 		if(transmitter){
 			*spinlock = data[x];
 		}
 		else
 			data[x] = *spinlock;
-
 		hit = hit + data[x];
+		if((get_cycles()-t1)>TSC_MAX_DATA_CYCLE)
+			break;
 	}
 	*spinlock = 0;
 //	fprintf(stderr,"%Ld\n",get_cycles() - t1);
 }
+
+#endif
 
 void tx(void)
 {
@@ -137,9 +151,16 @@ restart:
 			DIE("clock_nanosleep");
 		delta = (get_cycles() - t1);
 #endif
+		/*
+		 * 'delta' correspond to the amount of cycle taken away by nanosleep()
+		 * In other word, this execution context is not burning CPU cycle 
+		 * during 'delta' bus cycle
+		 *
+		 * In the non __TIMER__ case, 'delta' == 0 hence CPU never goes RELAX
+		 */
 
 		calibrated_ldelay(PAYLOAD_PULSE_CYCLE_LENGTH - delta/2 - 2*phase - (t1-t2) - DATA_PACKET_SIZE*2);
-		fprintf(stderr,"%Ld\n",get_cycles() - t1);
+	//	fprintf(stderr,"%Ld\n",get_cycles() - t1);
 
 		/* Then in theory we are monotonic right HERE */
 		modulate_data();
@@ -160,7 +181,7 @@ restart:
 
 		if(!(x%0x10)){
 //			fprintf(stderr, "%Lx %Lx\n", t2, phase);
-			fprintf(stderr, "%Lx %Lx %Ld %d %d %d %d %d %d %d %d %d %d %d %d\n", t2, phase, hit,
+			fprintf(stderr, "%Lx %Ld %Ld %d %d %d %d %d %d %d %d %d %d %d %d\n", t2, phase, hit,
 				data[0], data[1], data[2],
 				data[10], data[11], data[12],
 				data[20], data[21], data[22],
@@ -186,6 +207,30 @@ void tx_init(void)
 	}
 	*spinlock = 0;
 }
+
+#endif /*__CHARACTERIZATION__*/
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
