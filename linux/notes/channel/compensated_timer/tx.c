@@ -45,18 +45,17 @@
 /* 
  * This is the duty cycle of the PAYLOAD in nsec
  * PAYLOAD_PULSE_NSEC = ((1/FRAME_FREQ) * NSEC_PER_SEC)
- *
- * 35.669133687
- * #define NSEC_PER_SEC    1000000000
  */
-#define FRAME_FREQ								60
-#define PAYLOAD_PULSE_NSEC (cycles_t) 			(28035444) 
+#define FRAME_FREQ (cycles_t)					9
+//#define PAYLOAD_PULSE_NSEC (cycles_t) 			(NSEC_PER_SEC/FRAME_FREQ) 
+#define PAYLOAD_PULSE_NSEC (cycles_t) 			(28035444*2*2) 
 
 /* 
  * This is the duty cycle of the PAYLOAD in bus cycle 
  * (CPU_FREQ * (1/FRAME_FREQ))/2
  */
-#define PAYLOAD_PULSE_CYCLE_LENGTH (cycles_t)	(0x4000000/2)
+//#define PAYLOAD_PULSE_CYCLE_LENGTH (cycles_t)	((CPU_FREQ/FRAME_FREQ)/2)
+#define PAYLOAD_PULSE_CYCLE_LENGTH (cycles_t)	0x8000000
 
 #define VSYNC_PULSE_CYCLE_LENGTH (cycles_t)		0x80000000
 #define VSYNC_PULSE_CYCLE_MASK 					0xff000000
@@ -134,12 +133,16 @@ void tx(void)
 {
 	int x;
 	cycles_t t1, t2, phase, delta = 0, delay;
+	
+	fprintf(stderr, "%Ld %Ld\n",PAYLOAD_PULSE_CYCLE_LENGTH, PAYLOAD_PULSE_NSEC);
 
 restart:
 	/*
 	 * First we align the execution context on the same 
 	 * time base
 	 * TODO relax CPU here
+	 *
+	 * TODO PROPER SYNC
 	 */
 	while( ((t2 = get_cycles()) & VSYNC_PULSE_CYCLE_MASK) != 
 		(VSYNC_PULSE_CYCLE_LENGTH | PAYLOAD_PULSE_CYCLE_LENGTH));
@@ -172,7 +175,7 @@ restart:
 			goto restart;
 		}
 		calibrated_ldelay(delay);
-	//	fprintf(stderr,"%Lu %Lu\n",delay, get_cycles()-t1);
+//		fprintf(stderr,"%Lu %Lu\n",delay, get_cycles()-t1);
 
 		/* Then in theory we are monotonic right HERE */
 		modulate_data();
