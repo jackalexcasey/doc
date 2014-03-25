@@ -41,13 +41,16 @@
 #define SEC_PERIOD	(1/FREQ) %1
 #define NSEC_PERIOD (NSEC_PER_SEC/FREQ ) /* 1/FREQ * NSEC_PER_SEC */
 
-#define JITTER_NSEC_PERIOD    200000
-#define PAYLOAD_NSEC_PERIOD    100000
+#define JITTER_NSEC_PERIOD (cycles_t) 200000
+#define DATA_NSEC_PERIOD (cycles_t) 100000
 
-#define JITTER_PULSE_CYCLE_LENGTH (MONOTONIC_PULSE_CYCLE_LENGTH * JITTER_NSEC_PERIOD) / NSEC_PERIOD
-//#define PAYLOAD_PULSE_CYCLE_LENGTH ((MONOTONIC_PULSE_CYCLE_LENGTH * PAYLOAD_NSEC_PERIOD) / NSEC_PERIOD)
-
+/* Need to work the time base from the cycle first */
 #define PAYLOAD_PULSE_CYCLE_LENGTH (cycles_t)	0x4000000
+/*
+ * 0x4000000 cycle is 67108864 cycle and 28035444 nsec
+ * ==> 2.39 cycle per nsec
+ */
+#define PAYLOAD_PULSE_NSEC (cycles_t) 			28035444*2
 #define PAYLOAD_PULSE_CYCLE_DATA_MASK			0x7ffffff
 #define PAYLOAD_PULSE_CYCLE_CARRY_OVER 			0x3f00000
 #define PAYLOAD_PULSE_CYCLE_MASK 				0xf000000
@@ -55,11 +58,12 @@
 #define VSYNC_PULSE_CYCLE_LENGTH (cycles_t)		0x80000000
 #define VSYNC_PULSE_CYCLE_MASK 					0xff000000
 
+//#define __TIMER__
 
 struct timespec carrier_ts = {
-	.tv_sec = SEC_PERIOD,
+	.tv_sec = 0,
 	/* Here we provision for the timer jitter and the payload */
-	.tv_nsec = NSEC_PERIOD - JITTER_NSEC_PERIOD - PAYLOAD_NSEC_PERIOD,
+	.tv_nsec = PAYLOAD_PULSE_NSEC - JITTER_NSEC_PERIOD,
 };
 
 extern int transmitter;
@@ -97,29 +101,33 @@ void modulate_data(void)
 void tx(void)
 {
 	int x,y;
-	cycles_t t1, t2, phase, conv;
+	cycles_t t1, t2, phase, delta = 0;
 
+restart:
 	/*
-	 * First we synchronize the execution context on a common denominator
-	 * which is in this case is the PAYLOAD_PULSE_CYCLE_LENGTH period
-	 *
-	 * NOTE we assume TSC measurement is the ~same across different CPUs
+	 * First we align the execution context on the same 
+	 * time base
 	 * TODO relax CPU here
 	 */
-restart:
 	while( ((t2 = get_cycles()) & VSYNC_PULSE_CYCLE_MASK) != 
 		(VSYNC_PULSE_CYCLE_LENGTH | PAYLOAD_PULSE_CYCLE_LENGTH));
 	
 	fprintf(stderr, "%Lx %Lx\n",PAYLOAD_PULSE_CYCLE_LENGTH, get_cycles());
 
 	phase = 0;
-	conv = 4;
 	x=0;
 
 	while(1){
 		t1 = get_cycles();
-		
-		calibrated_ldelay(PAYLOAD_PULSE_CYCLE_LENGTH - 2*phase - (t1-t2) - DATA_PACKET_SIZE*2);
+
+#ifdef __TIMER__
+		if(clock_nanosleep(CLOCK_MONOTONIC, TIMER_RELTIME, &carrier_ts, NULL))
+			DIE("clock_nanosleep");
+		delta = (get_cycles() - t1);
+#endif
+
+		calibrated_ldelay(PAYLOAD_PULSE_CYCLE_LENGTH - delta/2 - 2*phase - (t1-t2) - DATA_PACKET_SIZE*2);
+//		fprintf(stderr,"%Ld\n",get_cycles() - t1);
 
 		/* Then in theory we are monotonic right HERE */
 		modulate_data();
@@ -137,11 +145,10 @@ restart:
 				abs( (t2 & PAYLOAD_PULSE_CYCLE_DATA_MASK)
 				% PAYLOAD_PULSE_CYCLE_LENGTH - PAYLOAD_PULSE_CYCLE_LENGTH/2)) >> 3;
 		}
-//		fprintf(stderr, "%Lx %Lx\n", t2, phase);
 
 		if(!(x%0x10)){
 //			fprintf(stderr, "%Lx %Lx\n", t2, phase);
-			fprintf(stderr, "%Lx %Lx %Lx %Ld %d %d %d %d %d %d %d %d %d %d %d %d\n", t2, phase, conv, hit,
+			fprintf(stderr, "%Lx %Lx %Ld %d %d %d %d %d %d %d %d %d %d %d %d\n", t2, phase, hit,
 				data[0], data[1], data[2],
 				data[10], data[11], data[12],
 				data[20], data[21], data[22],
@@ -186,6 +193,17 @@ This is the effect of printing with respect to phase compensation
 				fprintf(stderr, "%d_",data[y]);
 			}
 
+		/* 
+		 * Equivalent to:
+		 * calibrated_ldelay(PAYLOAD_PULSE_CYCLE_LENGTH - JITTER);
+		 */
+		if(clock_nanosleep(CLOCK_MONOTONIC, TIMER_RELTIME, &carrier_ts, NULL))
+			DIE("clock_nanosleep");
+		delta = (t1 - t2)/2;
+		//fprintf(stderr, "%Lu\n", delta);
+		delta += (get_cycles() - t1)/2;
+		//fprintf(stderr, "%Lu\n", delta);
+		calibrated_ldelay((MONOTONIC_PULSE_CYCLE_LENGTH - PAYLOAD_PULSE_CYCLE_LENGTH) - delta);
 
 #endif
 
