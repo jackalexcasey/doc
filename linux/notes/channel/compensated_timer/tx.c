@@ -41,24 +41,33 @@
 #define SEC_PERIOD	(1/FREQ) %1
 #define NSEC_PERIOD (NSEC_PER_SEC/FREQ ) /* 1/FREQ * NSEC_PER_SEC */
 
-#define JITTER_NSEC_PERIOD (cycles_t) 200000
-#define DATA_NSEC_PERIOD (cycles_t) 100000
 
-/* Need to work the time base from the cycle first */
-#define PAYLOAD_PULSE_CYCLE_LENGTH (cycles_t)	0x4000000
-/*
- * 0x4000000 cycle is 67108864 cycle and 28035444 nsec
- * ==> 2.39 cycle per nsec
+
+/* 
+ * We always start from the period in bus cycle then translate to
+ * Nsec after
  */
-#define PAYLOAD_PULSE_NSEC (cycles_t) 			28035444*2
+
+/*
+ * This is the duty cycle of the PAYLOAD in bus cycle
+ */
+#define PAYLOAD_PULSE_CYCLE_LENGTH (cycles_t)	0x4000000
 #define PAYLOAD_PULSE_CYCLE_DATA_MASK			0x7ffffff
 #define PAYLOAD_PULSE_CYCLE_CARRY_OVER 			0x3f00000
 #define PAYLOAD_PULSE_CYCLE_MASK 				0xf000000
 
+/*
+ * This is the duty cycle of the PAYLOAD in nsec
+ * (0x4000000 * 1/CPU_FREQ) * 2
+ */
+#define PAYLOAD_PULSE_NSEC (cycles_t) 			28035444 * 2
+#define JITTER_NSEC_PERIOD (cycles_t)			200000
+
+
 #define VSYNC_PULSE_CYCLE_LENGTH (cycles_t)		0x80000000
 #define VSYNC_PULSE_CYCLE_MASK 					0xff000000
 
-//#define __TIMER__
+#define __TIMER__
 
 struct timespec carrier_ts = {
 	.tv_sec = 0,
@@ -86,16 +95,16 @@ void modulate_data(void)
 {
 	int x;
 
-		for(x=0;x<DATA_PACKET_SIZE;x++){
-			if(transmitter){
-				*spinlock = data[x];
-			}
-			else
-				data[x] = *spinlock;
-
-			hit = hit + data[x];
+	for(x=0;x<DATA_PACKET_SIZE;x++){
+		if(transmitter){
+			*spinlock = data[x];
 		}
-			*spinlock = 0;
+		else
+			data[x] = *spinlock;
+
+		hit = hit + data[x];
+	}
+	*spinlock = 0;
 }
 
 void tx(void)
