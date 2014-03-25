@@ -1,0 +1,167 @@
+diff --git a/linux/notes/channel/compensated_timer/bogomips.c b/linux/notes/channel/compensated_timer/bogomips.c
+index 955127f..0d60780 100644
+--- a/linux/notes/channel/compensated_timer/bogomips.c
++++ b/linux/notes/channel/compensated_timer/bogomips.c
+@@ -33,8 +33,9 @@
+ #include "atomic_64.h"
+ 
+ //#define __CALIBRATION__
+-#define __CALIBRATED_TIMER__
++//#define __CALIBRATED_TIMER__
+ //#define __CALIBRATED_JIFFIE__
++#define __SYNCRO_POINT__
+ 
+ char *program	= "";
+ const char optstring[] = "c:";
+@@ -173,6 +174,68 @@ void compensated_timer(void)
+ }
+ #endif /* __CALIBRATED_TIMER__ */
+ 
++#ifdef __SYNCRO_POINT__
++#define CPU_FREQ				2393715000
++
++#define FREQ 60
++#define PERIOD_CPU_CYCLE	CPU_FREQ/FREQ
++#define MONOTONIC_PULSE_CYCLE	100000000
++//PERIOD_CPU_CYCLE/2
++
++void synchro_point(void)
++{
++	//cycles_t dawn;
++	//dawn = get_cycles(); // OR we exchange the TSC on the CMD line across two threads
++	int ret, x;
++	cycles_t before,delta;
++	cycles_t t1, t2;
++
++	t1 = 0;
++	t2 = 0;
++
++	x=0;
++	while(1){
++		x++;
++
++		// Everything that I do will affect everything else hence how to
++		// do I maintain synchro???
++		//
++		// THIS is the nominal value; 39895500 ===>16.666771107e−3a
++		//
++		// This things compensate the one AFTER ...
++		//  199993876
++		//   199994228
++		//   .. 200022752
++		//    199967440
++		//
++
++
++		if(!(x%10)){
++			__ldelay(1000);
++			fprintf(stderr, ".");
++		}
++
++		if(!(x%5)){
++			__ldelay(10000);
++			fprintf(stderr, ".");
++		}
++
++		delta = get_cycles() - t1;
++		fprintf(stderr," %Lu\n", delta);
++
++
++
++		t1 = get_cycles();
++//		if(!t2)
++			t2 = t1;
++		calibrated_ldelay(MONOTONIC_PULSE_CYCLE - ((t1-t2)/2), 0);
++		t2 = get_cycles();
++
++
++
++	}
++}
++#endif /*__SYNCRO_POINT__ */
+ 
+ void * worker_thread(void *arg)
+ {
+@@ -189,7 +252,9 @@ void * worker_thread(void *arg)
+ #ifdef __CALIBRATED_JIFFIE__
+ 	calibrate_lpj();
+ #endif
+-
++#ifdef __SYNCRO_POINT__
++	synchro_point();
++#endif
+ 	return NULL;
+ }
+ 
+diff --git a/linux/notes/channel/compensated_timer/clock.c b/linux/notes/channel/compensated_timer/clock.c
+index 63e56f4..67f2fa8 100644
+--- a/linux/notes/channel/compensated_timer/clock.c
++++ b/linux/notes/channel/compensated_timer/clock.c
+@@ -103,7 +103,7 @@ void __ldelay(unsigned long loops)
+  *
+  */
+ #define LPJ_MAX_RESOLUTION 100
+-void calibrated_ldelay(unsigned long loops)
++cycles_t calibrated_ldelay(unsigned long loops, cycles_t prev)
+ {
+ 	int x;
+ 	unsigned long chunk;
+@@ -112,6 +112,7 @@ void calibrated_ldelay(unsigned long loops)
+ 	chunk = loops / LPJ_MAX_RESOLUTION;
+ //	fprintf(stderr, "%Lu %Lu\n",loops, chunk);
+ 
++
+ 	/* 
+ 	 * Running the loop itself has a noticeable impact when the chunk size
+ 	 * tends toward 0. For that reason we compensate for the loop itself.
+@@ -124,17 +125,25 @@ void calibrated_ldelay(unsigned long loops)
+ 	error = 0;
+ 	for(x=0; x<chunk; x++){
+ 		t1 = get_cycles();
+-		if(!t2)
++		if(!t2){
+ 			t2 = t1;
++			/*
++			 * When prev is specified it means that we spend some time outside
++			 * the delay loop and we want to account for it in the delay
++			 */
++			if(prev)
++				error += t1 - prev;
++		}
+ 		error += t1 - t2; /* Measure t2 -> t1 == Loop RTT overhead */
+ 		__ldelay(LPJ_MAX_RESOLUTION);
+ 		t2 = get_cycles();
+ 		error += t2 - t1; /* Measure t1 -> t2 == LPJ delay loop */
+ 		if(error >= loops*2){ 
+ //			fprintf(stderr, "%Lu %d %Lu\n",error, x);
+-			return;
++			return t2;
+ 		}
+ 	}
++	DIE("WHAT???");
+ }
+ 
+ /*
+@@ -165,7 +174,8 @@ void calibrated_timer(unsigned long loops, struct timespec *ts)
+ 		fprintf(stderr,"#");
+ 		return;
+ 	}
+-	calibrated_ldelay(loops - delta);
++	calibrated_ldelay(loops - delta, 0);
++
+ }
+ 
+ 
+diff --git a/linux/notes/channel/compensated_timer/clock.h b/linux/notes/channel/compensated_timer/clock.h
+index 715f942..da242f1 100644
+--- a/linux/notes/channel/compensated_timer/clock.h
++++ b/linux/notes/channel/compensated_timer/clock.h
+@@ -24,7 +24,7 @@ typedef uint64_t u64;
+ hp_timing_t get_clockfreq (void);
+ inline cycles_t get_cycles(void);
+ void __ldelay(unsigned long loops);
+-void calibrated_ldelay(unsigned long loops);
++cycles_t calibrated_ldelay(unsigned long loops, cycles_t prev);
+ void calibrated_timer(unsigned long loops, struct timespec *ts);
+ 
+ #endif

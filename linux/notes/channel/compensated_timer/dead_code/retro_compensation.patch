@@ -1,0 +1,54 @@
+commit 2da2e281754919deb100a6bdaea373dd115014b0
+Author: Etienne Martineau <etmartin@cisco.com>
+Date:   Tue Mar 18 15:56:54 2014 -0400
+
+    Adding some retro compensation example
+
+diff --git a/linux/notes/channel/compensated_timer/bogomips.c b/linux/notes/channel/compensated_timer/bogomips.c
+index 955127f..b0943d4 100644
+--- a/linux/notes/channel/compensated_timer/bogomips.c
++++ b/linux/notes/channel/compensated_timer/bogomips.c
+@@ -160,15 +160,39 @@ struct timespec carrier_ts = {
+ 	.tv_nsec = NSEC_PERIOD - TIMER_JITTER_NSEC_PERIOD,
+ };
+ 
++/*
++ * WARNING
++ * Time can be spend outside the loop
++ *  39895568 25400
++ *   39895592 25612
++ *    39895532 25404
++ *     39895628 25516
++ *      39895656 25508
++ *       39895568 25380
++ *
++ *
++ *        39895580 7528
++ *         39895700 7456
++ *          39895592 7544
++ *           39895528 7976
++ *            39895444 7540
++ *             39895580 7340
++ *              39895716 7564
++ *               39895644 7520
++ */
+ void compensated_timer(void)
+ {
+-	cycles_t before,delta;
++	cycles_t before,delta=0,t2;
+ 
+ 	while(1){
+ 		before = get_cycles();
+-		calibrated_timer(MONOTONIC_PULSE_CYCLE, &carrier_ts);
+-		delta = get_cycles() - before;
+-		fprintf(stderr," %Lu\n", delta);
++		if(!delta)
++			delta = before;
++		t2 = before -delta;
++		calibrated_timer(MONOTONIC_PULSE_CYCLE-t2, &carrier_ts);
++		delta = get_cycles();
++//		__ldelay(9000);
++		fprintf(stderr," %Lu %Lu %Lu\n", delta-before, t2, (delta-before) + t2);
+ 	}
+ }
+ #endif /* __CALIBRATED_TIMER__ */

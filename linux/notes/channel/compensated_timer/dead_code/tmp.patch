@@ -1,0 +1,137 @@
+diff --git a/linux/notes/channel/compensated_timer/clock.c b/linux/notes/channel/compensated_timer/clock.c
+index 2239627..6b42c96 100644
+--- a/linux/notes/channel/compensated_timer/clock.c
++++ b/linux/notes/channel/compensated_timer/clock.c
+@@ -143,8 +143,8 @@ void calibrated_ldelay(unsigned long loops)
+ 		if(!t2)
+ 			t2 = t1;
+ 		error += t1 - t2; /* Measure t2 -> t1 == Loop RTT overhead */
+-//		__ldelay(LPJ_MAX_RESOLUTION);
+-		__lstream(LPJ_MAX_RESOLUTION);
++		__ldelay(LPJ_MAX_RESOLUTION);
++//		__lstream(LPJ_MAX_RESOLUTION);
+ 		t2 = get_cycles();
+ 		error += t2 - t1; /* Measure t1 -> t2 == LPJ delay loop */
+ 		if(error >= loops*2){ 
+diff --git a/linux/notes/channel/compensated_timer/tx.c b/linux/notes/channel/compensated_timer/tx.c
+index 5d4566c..f177c9e 100644
+--- a/linux/notes/channel/compensated_timer/tx.c
++++ b/linux/notes/channel/compensated_timer/tx.c
+@@ -47,22 +47,15 @@
+ #define JITTER_PULSE_CYCLE_LENGTH (MONOTONIC_PULSE_CYCLE_LENGTH * JITTER_NSEC_PERIOD) / NSEC_PERIOD
+ #define PAYLOAD_PULSE_CYCLE_LENGTH (MONOTONIC_PULSE_CYCLE_LENGTH * PAYLOAD_NSEC_PERIOD) / NSEC_PERIOD
+ 
+-//#define PAYLOAD_PULSE_CYCLE_LENGTH MONOTONIC_PULSE_CYCLE_LENGTH
+-
+ struct timespec carrier_ts = {
+ 	.tv_sec = SEC_PERIOD,
+ 	/* Here we provision for the timer jitter and the payload */
+ 	.tv_nsec = NSEC_PERIOD - JITTER_NSEC_PERIOD - PAYLOAD_NSEC_PERIOD,
+ };
+ 
+-#define LOOP_RESOLUTION 100
+-
+ extern int transmitter;
+ extern volatile int *spinlock;
+ 
+-
+-
+-
+ /*
+  * This function modulate the data over the wire.
+  *
+@@ -75,7 +68,35 @@ extern volatile int *spinlock;
+  */
+ #define DATA_PACKET_SIZE 100
+ int data[DATA_PACKET_SIZE];
++int insync;
+ 
++void dump_data(void)
++{
++	int x;
++	for(x=0;x<DATA_PACKET_SIZE;x++){
++		fprintf(stderr," %d",data[x]);
++	}
++	fprintf(stderr," \n");
++}
++
++void mmodulate_data(void)
++{
++	int x;
++		for(x=0;x<DATA_PACKET_SIZE;x++){
++			if(transmitter)
++				*spinlock = data[x];
++			else{
++				if(insync){
++					data[x] = *spinlock;
++					if(data[x])
++						insync = 0;
++				}
++			}
++		}
++		if(transmitter)
++			*spinlock = 0;
++}
++#if 0
+ void modulate_data(cycles_t payload_cycle_length)
+ {
+ 	int x,z;
+@@ -115,6 +136,7 @@ void modulate_data(cycles_t payload_cycle_length)
+ 			break;
+ 	}
+ }
++#endif
+ 
+ void tx(void)
+ {
+@@ -136,6 +158,11 @@ void tx(void)
+ 	 */
+ 	fprintf(stderr, "%Lu\n",PAYLOAD_PULSE_CYCLE_LENGTH);
+ 
++	if(transmitter)
++		insync = 0;
++	else
++		insync = 900;
++
+ 	/* Mark the beginning of time */
+ 	t0 = get_cycles();
+ 
+@@ -146,10 +173,11 @@ void tx(void)
+ 		t1 = get_cycles();
+ 
+ #if 0 
+-		// DATA start
+ 		calibrated_ldelay(PAYLOAD_PULSE_CYCLE_LENGTH-delta);
+ #else
+-		modulate_data(PAYLOAD_PULSE_CYCLE_LENGTH-delta);
++		calibrated_ldelay(PAYLOAD_PULSE_CYCLE_LENGTH-delta-insync);
++//		modulate_data(PAYLOAD_PULSE_CYCLE_LENGTH-delta);
++		mmodulate_data();
+ #endif
+ 		/* 
+ 		 * try to avoid division as much as possible 
+@@ -158,19 +186,21 @@ void tx(void)
+ 		 */
+ 		delta = ((t2 - t0) - (2* x * PAYLOAD_PULSE_CYCLE_LENGTH))>>3;
+ 
+-		/* Sampling for debug */
++		/* DEBUG */
+ 		if(!(x%1000)){
++			fprintf(stderr, "%d %Ld \n", x,delta);
++			dump_data();
++		/*
+ 			fprintf(stderr, "%d %Ld %d %d %d %d %d %d %d %d %d %d %d %d\n", x, delta,
+ 				data[0], data[1], data[2],
+ 				data[10], data[11], data[12],
+ 				data[20], data[21], data[22],
+ 				data[30], data[31], data[32]);
++		*/
+ 		//	fprintf(stderr, "%Ld\n", t2);
+ 		}
+ 		x++;
+ 
+-		// DATA end
+-
+ 		t2 = get_cycles();
+ 	}
+ }

@@ -1,0 +1,91 @@
+diff --git a/linux/notes/channel/compensated_timer/bogomips.c b/linux/notes/channel/compensated_timer/bogomips.c
+index 955127f..cdec2f9 100644
+--- a/linux/notes/channel/compensated_timer/bogomips.c
++++ b/linux/notes/channel/compensated_timer/bogomips.c
+@@ -154,19 +154,15 @@ void calibrate_lpj(void)
+ #define SEC_PERIOD	(1/FREQ) %1
+ #define NSEC_PERIOD (NSEC_PER_SEC/FREQ ) /* 1/FREQ * NSEC_PER_SEC */
+ 
+-struct timespec carrier_ts = {
+-	.tv_sec = SEC_PERIOD,
+-	/* Here we provision for the timer jitter */
+-	.tv_nsec = NSEC_PERIOD - TIMER_JITTER_NSEC_PERIOD,
+-};
+-
+ void compensated_timer(void)
+ {
+-	cycles_t before,delta;
++	cycles_t before, delta;
++
++	calibrated_timer_delay_init(MONOTONIC_PULSE_CYCLE, SEC_PERIOD, NSEC_PERIOD);
+ 
+ 	while(1){
+ 		before = get_cycles();
+-		calibrated_timer(MONOTONIC_PULSE_CYCLE, &carrier_ts);
++		calibrated_timer();
+ 		delta = get_cycles() - before;
+ 		fprintf(stderr," %Lu\n", delta);
+ 	}
+diff --git a/linux/notes/channel/compensated_timer/clock.c b/linux/notes/channel/compensated_timer/clock.c
+index 63e56f4..e2f6ae4 100644
+--- a/linux/notes/channel/compensated_timer/clock.c
++++ b/linux/notes/channel/compensated_timer/clock.c
+@@ -137,6 +137,19 @@ void calibrated_ldelay(unsigned long loops)
+ 	}
+ }
+ 
++static struct timespec cal_timer_delay_ts;
++static loops = 0;
++/*
++ * Mark the dawn of time
++ */
++void calibrated_timer_delay_init(unsigned long lp, time_t tv_sec, long tv_nsec)
++{
++	loops = lp;
++	cal_timer_delay_ts.tv_sec = tv_sec;
++	/* Here we provision for the timer jitter */
++	cal_timer_delay_ts.tv_nsec = tv_nsec - TIMER_JITTER_NSEC_PERIOD;
++}
++
+ /*
+  * The goal of calibrated timer is to have 'perfect' monotonic pulse.
+  * Timer on their own cannot achieve that goal since they are subject to
+@@ -148,8 +161,15 @@ void calibrated_ldelay(unsigned long loops)
+  * a higher TIMER_JITTER_NSEC_PERIOD is a higher CPU usage bcos the timer is 
+  * shorter ( provision for longer delay ) and in average the algo needs
+  * to compensate with LPJ manually
++ *
++ *
++// We want a timer framework thast will always track a certain freq
++// even if it misses event
++// WE want also some infra to trim the timer
++// And there is probably a need to start and stop such a timer...
++//   SINCE the time must be tracked from some starting point
+  */
+-void calibrated_timer(unsigned long loops, struct timespec *ts)
++void calibrated_timer(void)
+ {
+ 	int ret;
+ 	cycles_t t1, delta;
+@@ -157,7 +177,7 @@ void calibrated_timer(unsigned long loops, struct timespec *ts)
+ //	fprintf(stderr, "%Lu %Lu\n",ts->tv_sec, ts->tv_nsec);
+ 
+ 	t1 = get_cycles();
+-	ret = clock_nanosleep(CLOCK_MONOTONIC, TIMER_RELTIME, ts, NULL);
++	ret = clock_nanosleep(CLOCK_MONOTONIC, TIMER_RELTIME, &cal_timer_delay_ts, NULL);
+ 	if(ret)
+ 		DIE("clock_nanosleep");
+ 	delta  = (get_cycles() - t1)/2;
+diff --git a/linux/notes/channel/compensated_timer/clock.h b/linux/notes/channel/compensated_timer/clock.h
+index 715f942..b79c71d 100644
+--- a/linux/notes/channel/compensated_timer/clock.h
++++ b/linux/notes/channel/compensated_timer/clock.h
+@@ -25,6 +25,7 @@ hp_timing_t get_clockfreq (void);
+ inline cycles_t get_cycles(void);
+ void __ldelay(unsigned long loops);
+ void calibrated_ldelay(unsigned long loops);
+-void calibrated_timer(unsigned long loops, struct timespec *ts);
++void calibrated_timer(void);
++void calibrated_timer_delay_init(unsigned long lp, time_t tv_sec, long tv_nsec);
+ 
+ #endif
