@@ -156,6 +156,8 @@ restart:
 		 * during 'delta' bus cycle
 		 *
 		 * In the non __TIMER__ case, 'delta' == 0 hence CPU never goes RELAX
+		 *
+		 * In the __TIMER__ case the delay should be within the JITTER_NSEC_PERIOD
 		 */
 		delay = PAYLOAD_PULSE_CYCLE_LENGTH - delta/2 - 2*phase - (t1-t2);
 		if(delay < 0){
@@ -163,6 +165,7 @@ restart:
 			goto restart;
 		}
 		calibrated_ldelay(delay);
+//		fprintf(stderr,"%Lu %Lu\n",delta, get_cycles()-t1);
 
 		/* Then in theory we are monotonic right HERE */
 		modulate_data();
@@ -170,36 +173,16 @@ restart:
 		/* 
 		 * This is phase compensation;
 		 */
-#if 0
-		if(t2 & PAYLOAD_PULSE_CYCLE_CARRY_OVER){
-			phase = -1 * ((PAYLOAD_PULSE_CYCLE_LENGTH/2) - 
-				abs( (PAYLOAD_PULSE_CYCLE_LENGTH - (t2 & PAYLOAD_PULSE_CYCLE_DATA_MASK)) 
-				% PAYLOAD_PULSE_CYCLE_LENGTH - PAYLOAD_PULSE_CYCLE_LENGTH/2)) >> 3;
-		}
-		else{
-			phase = ((PAYLOAD_PULSE_CYCLE_LENGTH/2) - 
-				abs( (t2 & PAYLOAD_PULSE_CYCLE_DATA_MASK)
-				% PAYLOAD_PULSE_CYCLE_LENGTH - PAYLOAD_PULSE_CYCLE_LENGTH/2)) >> 3;
-		}
-#else
 		phase = ((PAYLOAD_PULSE_CYCLE_LENGTH/2) - 
-			abs( (t2 & PAYLOAD_PULSE_CYCLE_DATA_MASK)
-			% PAYLOAD_PULSE_CYCLE_LENGTH - PAYLOAD_PULSE_CYCLE_LENGTH/2)) >> 3;
-#endif
+			abs( t2 % PAYLOAD_PULSE_CYCLE_LENGTH - PAYLOAD_PULSE_CYCLE_LENGTH/2)) >> 3;
 
 		if(!(x%0x10)){
 //			fprintf(stderr, "%Lx %Lx\n", t2, phase);
-#if 1
 			fprintf(stderr, "%Lx %Ld %d %d %d %d %d %d %d %d %d %d %d %d\n", t2, phase, 
 				data[0], data[100], data[200],
 				data[300], data[400], data[500],
 				data[600], data[700], data[800],
 				data[900], data[1000], data[1100]);
-#endif
-			if( (t2 & PAYLOAD_PULSE_CYCLE_MASK) != PAYLOAD_PULSE_CYCLE_LENGTH){
-				fprintf(stderr, "Synchronization lost!\n");
-				goto restart;
-			}
 		}
 
 		x++;
