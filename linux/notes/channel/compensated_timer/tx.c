@@ -127,7 +127,7 @@ void modulate_data(void)
 void tx(void)
 {
 	int x,y;
-	cycles_t t1, t2, phase, delta = 0;
+	cycles_t t1, t2, phase, delta = 0, delay;
 
 restart:
 	/*
@@ -158,9 +158,12 @@ restart:
 		 *
 		 * In the non __TIMER__ case, 'delta' == 0 hence CPU never goes RELAX
 		 */
-
-		calibrated_ldelay(PAYLOAD_PULSE_CYCLE_LENGTH - delta/2 - 2*phase - (t1-t2) - DATA_PACKET_SIZE*2);
-	//	fprintf(stderr,"%Ld\n",get_cycles() - t1);
+		delay = PAYLOAD_PULSE_CYCLE_LENGTH - delta/2 - 2*phase - (t1-t2);
+		if(delay < 0){
+			fprintf(stderr, "Synchronization lost!\n");
+			goto restart;
+		}
+		calibrated_ldelay(delay);
 
 		/* Then in theory we are monotonic right HERE */
 		modulate_data();
@@ -168,16 +171,9 @@ restart:
 		/* 
 		 * This is phase compensation;
 		 */
-		if(t2 & PAYLOAD_PULSE_CYCLE_CARRY_OVER){
-			phase = -1 * ((PAYLOAD_PULSE_CYCLE_LENGTH/2) - 
-				abs( (PAYLOAD_PULSE_CYCLE_LENGTH - (t2 & PAYLOAD_PULSE_CYCLE_DATA_MASK)) 
-				% PAYLOAD_PULSE_CYCLE_LENGTH - PAYLOAD_PULSE_CYCLE_LENGTH/2)) >> 3;
-		}
-		else{
-			phase = ((PAYLOAD_PULSE_CYCLE_LENGTH/2) - 
-				abs( (t2 & PAYLOAD_PULSE_CYCLE_DATA_MASK)
-				% PAYLOAD_PULSE_CYCLE_LENGTH - PAYLOAD_PULSE_CYCLE_LENGTH/2)) >> 3;
-		}
+		phase = ((PAYLOAD_PULSE_CYCLE_LENGTH/2) - 
+			abs( (t2 & PAYLOAD_PULSE_CYCLE_DATA_MASK)
+			% PAYLOAD_PULSE_CYCLE_LENGTH - PAYLOAD_PULSE_CYCLE_LENGTH/2)) >> 3;
 
 		if(!(x%0x10)){
 //			fprintf(stderr, "%Lx %Lx\n", t2, phase);
