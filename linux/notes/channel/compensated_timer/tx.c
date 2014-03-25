@@ -64,7 +64,7 @@ extern int transmitter;
 unsigned long hit = 0;
 extern volatile int *spinlock;
 
-#if 0
+#ifdef __BUCKET_BASED_DATA__
 #define TSC_CYCLE_PER_DATA 		39
 #define DATA_PACKET_SIZE 		5000
 #define TSC_MAX_DATA_CYCLE		DATA_PACKET_SIZE * TSC_CYCLE_PER_DATA
@@ -72,6 +72,7 @@ int data[DATA_PACKET_SIZE];
 
 /*
  * This is the bucket based implementation
+ * TODO return PACKET drop
  */
 void modulate_data(void)
 {
@@ -80,19 +81,21 @@ void modulate_data(void)
 	cycles_t t1;
 
 	t1 = get_cycles();
-	while(bucket < DATA_PACKET_SIZE){
+	while(1){
 		bucket = (get_cycles()-t1)/TSC_CYCLE_PER_DATA;
+		if(bucket >= DATA_PACKET_SIZE)
+			break;
 		if(transmitter){
 			*spinlock = data[bucket];
 		}
 		else
-			data[x] = *spinlock;
+			data[bucket] = *spinlock;
 		hit = hit + data[bucket];
 	}
 	*spinlock = 0;
 }
 
-#else
+#else /*__BUCKET_BASED_DATA__*/
 
 #define TSC_CYCLE_PER_DATA 		29
 #define DATA_PACKET_SIZE 		2000
@@ -121,12 +124,11 @@ void modulate_data(void)
 	*spinlock = 0;
 //	fprintf(stderr,"%Ld\n",get_cycles() - t1);
 }
-
-#endif
+#endif /*__BUCKET_BASED_DATA__*/
 
 void tx(void)
 {
-	int x,y;
+	int x;
 	cycles_t t1, t2, phase, delta = 0, delay;
 
 restart:
@@ -177,12 +179,13 @@ restart:
 
 		if(!(x%0x10)){
 //			fprintf(stderr, "%Lx %Lx\n", t2, phase);
+#if 1
 			fprintf(stderr, "%Lx %Ld %Ld %d %d %d %d %d %d %d %d %d %d %d %d\n", t2, phase, hit,
-				data[0], data[1], data[2],
-				data[10], data[11], data[12],
-				data[20], data[21], data[22],
-				data[30], data[31], data[32]);
-
+				data[0], data[100], data[200],
+				data[300], data[400], data[500],
+				data[600], data[700], data[800],
+				data[900], data[1000], data[1100]);
+#endif
 			if( (t2 & PAYLOAD_PULSE_CYCLE_MASK) != PAYLOAD_PULSE_CYCLE_LENGTH){
 				fprintf(stderr, "Synchronization lost!\n");
 				goto restart;

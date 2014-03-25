@@ -75,12 +75,12 @@ void modulate_data(int size)
 			*spinlock = data[bucket];
 		}
 		else
-			data[x] = *spinlock;
+			data[bucket] = *spinlock;
 		hit = hit + data[bucket];
 	}
 	*spinlock = 0;
 }
-#if 0
+#if 1 
 /*
  * This is the bucket based implementation
  */
@@ -159,11 +159,11 @@ void characterization(void)
 
 void tx(void)
 {
+	characterization();
 }
 
 void tx_init(void)
 {
-	characterization();
 }
 
 #endif /*__CHARACTERIZATION__*/
