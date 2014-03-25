@@ -51,16 +51,16 @@
 /*
  * This is the duty cycle of the PAYLOAD in bus cycle
  */
-#define PAYLOAD_PULSE_CYCLE_LENGTH (cycles_t)	0x4000000
+#define PAYLOAD_PULSE_CYCLE_LENGTH (cycles_t)	0x8000000
 #define PAYLOAD_PULSE_CYCLE_DATA_MASK			0x7ffffff
-#define PAYLOAD_PULSE_CYCLE_CARRY_OVER 			0x3f00000
+#define PAYLOAD_PULSE_CYCLE_CARRY_OVER 			0x7f00000
 #define PAYLOAD_PULSE_CYCLE_MASK 				0xf000000
 
 /*
  * This is the duty cycle of the PAYLOAD in nsec
  * (0x4000000 * 1/CPU_FREQ) * 2
  */
-#define PAYLOAD_PULSE_NSEC (cycles_t) 			28035444 * 2
+#define PAYLOAD_PULSE_NSEC (cycles_t) 			28035444 * 2 *2
 #define JITTER_NSEC_PERIOD (cycles_t)			200000
 
 
@@ -94,7 +94,9 @@ unsigned long hit = 0;
 void modulate_data(void)
 {
 	int x;
+//	cycles_t t1;
 
+//	t1 = get_cycles();
 	for(x=0;x<DATA_PACKET_SIZE;x++){
 		if(transmitter){
 			*spinlock = data[x];
@@ -105,6 +107,7 @@ void modulate_data(void)
 		hit = hit + data[x];
 	}
 	*spinlock = 0;
+//	fprintf(stderr,"%Ld\n",get_cycles() - t1);
 }
 
 void tx(void)
@@ -136,7 +139,7 @@ restart:
 #endif
 
 		calibrated_ldelay(PAYLOAD_PULSE_CYCLE_LENGTH - delta/2 - 2*phase - (t1-t2) - DATA_PACKET_SIZE*2);
-//		fprintf(stderr,"%Ld\n",get_cycles() - t1);
+		fprintf(stderr,"%Ld\n",get_cycles() - t1);
 
 		/* Then in theory we are monotonic right HERE */
 		modulate_data();
