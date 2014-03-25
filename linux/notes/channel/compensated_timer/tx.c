@@ -173,9 +173,22 @@ restart:
 		/* 
 		 * This is phase compensation;
 		 */
+#if 0
+		if(t2 & PAYLOAD_PULSE_CYCLE_CARRY_OVER){
+			phase = -1 * ((PAYLOAD_PULSE_CYCLE_LENGTH/2) - 
+				abs( (PAYLOAD_PULSE_CYCLE_LENGTH - (t2 & PAYLOAD_PULSE_CYCLE_DATA_MASK)) 
+				% PAYLOAD_PULSE_CYCLE_LENGTH - PAYLOAD_PULSE_CYCLE_LENGTH/2)) >> 3;
+		}
+		else{
+			phase = ((PAYLOAD_PULSE_CYCLE_LENGTH/2) - 
+				abs( (t2 & PAYLOAD_PULSE_CYCLE_DATA_MASK)
+				% PAYLOAD_PULSE_CYCLE_LENGTH - PAYLOAD_PULSE_CYCLE_LENGTH/2)) >> 3;
+		}
+#else
 		phase = ((PAYLOAD_PULSE_CYCLE_LENGTH/2) - 
 			abs( (t2 & PAYLOAD_PULSE_CYCLE_DATA_MASK)
 			% PAYLOAD_PULSE_CYCLE_LENGTH - PAYLOAD_PULSE_CYCLE_LENGTH/2)) >> 3;
+#endif
 
 		if(!(x%0x10)){
 //			fprintf(stderr, "%Lx %Lx\n", t2, phase);
