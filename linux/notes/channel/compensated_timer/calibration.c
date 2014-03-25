@@ -80,7 +80,7 @@ void modulate_data(int size)
 	}
 	*spinlock = 0;
 }
-#if 1 
+#if __BUCKET_BASED_DATA__
 /*
  * This is the bucket based implementation
  */
@@ -102,7 +102,9 @@ void calibration_modulate_data(int size)
 	}
 	*spinlock = 0;
 }
-#else
+
+#else /*__BUCKET_BASED_DATA__*/
+
 /* this is the top up based implementation */
 void calibration_modulate_data(int size)
 {
@@ -123,7 +125,9 @@ void calibration_modulate_data(int size)
 	}
 	*spinlock = 0;
 }
-#endif
+
+#endif /*__BUCKET_BASED_DATA__*/
+
 void characterization(void)
 {
 	int x,y,match;
