@@ -61,12 +61,11 @@ struct timespec carrier_ts = {
 };
 
 extern int transmitter;
-unsigned long hit = 0;
 extern volatile int *spinlock;
 
 #ifdef __BUCKET_BASED_DATA__
 #define TSC_CYCLE_PER_DATA 		39
-#define DATA_PACKET_SIZE 		5000
+#define DATA_PACKET_SIZE 		1000
 #define TSC_MAX_DATA_CYCLE		DATA_PACKET_SIZE * TSC_CYCLE_PER_DATA
 int data[DATA_PACKET_SIZE];
 
@@ -90,7 +89,6 @@ void modulate_data(void)
 		}
 		else
 			data[bucket] = *spinlock;
-		hit = hit + data[bucket];
 	}
 	*spinlock = 0;
 }
@@ -117,7 +115,6 @@ void modulate_data(void)
 		}
 		else
 			data[x] = *spinlock;
-		hit = hit + data[x];
 		if((get_cycles()-t1)>TSC_MAX_DATA_CYCLE)
 			break;
 	}
@@ -193,7 +190,7 @@ restart:
 		if(!(x%0x10)){
 //			fprintf(stderr, "%Lx %Lx\n", t2, phase);
 #if 1
-			fprintf(stderr, "%Lx %Ld %Ld %d %d %d %d %d %d %d %d %d %d %d %d\n", t2, phase, hit,
+			fprintf(stderr, "%Lx %Ld %d %d %d %d %d %d %d %d %d %d %d %d\n", t2, phase, 
 				data[0], data[100], data[200],
 				data[300], data[400], data[500],
 				data[600], data[700], data[800],
