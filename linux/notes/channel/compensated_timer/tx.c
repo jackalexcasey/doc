@@ -137,7 +137,7 @@ restart:
 	 * TODO relax CPU here
 	 *
 	 * TODO PROPER SYNC
-	 *
+	 
 	 * 14 is 2Xthe x% for printf!!!!!!!
 	 */
 	
@@ -170,7 +170,7 @@ restart:
 		 */
 		delta = (get_cycles() - t1)/2;
 		if(delta > PAYLOAD_PULSE_CYCLE_LENGTH){
-			fprintf(stderr, "LPJ Synchronization lost! %Lu %Lu\n",PAYLOAD_PULSE_CYCLE_LENGTH, delta);
+			fprintf(stderr, "CLOCK Synchronization lost! %Lu %Lu\n",PAYLOAD_PULSE_CYCLE_LENGTH, delta);
 			goto restart;
 		}
 #endif
@@ -179,9 +179,14 @@ restart:
 		 * After this step '(get_cycles() - t1)/2' should be _very_ close to 
 		 * 	PAYLOAD_PULSE_CYCLE_LENGTH
 		 */
-		lpj = (PAYLOAD_PULSE_CYCLE_LENGTH - delta - phase*2);
+		lpj = (PAYLOAD_PULSE_CYCLE_LENGTH - delta - phase*2 -(t1-t2));
+		if(lpj < 0){
+			fprintf(stderr, "LPJ Synchronization lost! %Lu %Lu\n",PAYLOAD_PULSE_CYCLE_LENGTH, delta);
+			goto restart;
+		}
+
 		calibrated_ldelay(lpj);
-		t2 = get_cycles();
+
 
 //		fprintf(stderr,"%Lu %Lu %Lu %Lu\n",delta, lpj, (get_cycles() - t1), t2%PAYLOAD_PULSE_CYCLE_LENGTH);
 
@@ -200,26 +205,29 @@ restart:
 		 * For that reason we added the phase compensation part of the 
 		 * LPJ compensation argument
 		 */
-	//	fprintf(stderr,"%Lu\n",t2 % PAYLOAD_PULSE_CYCLE_LENGTH);
+//		fprintf(stderr,"%Lu %Lu\n",t2 % PAYLOAD_PULSE_CYCLE_LENGTH, phase);
 
-		/* Then in theory we are monotonic right HERE */
 		modulate_data();
 
 		/* 
 		 * This is phase compensation;
 		 */
-		phase = ((PAYLOAD_PULSE_CYCLE_LENGTH/2) - 
-			abs( t2 % PAYLOAD_PULSE_CYCLE_LENGTH - PAYLOAD_PULSE_CYCLE_LENGTH/2)) >> 3;
+		phase = (((PAYLOAD_PULSE_CYCLE_LENGTH/2) - 
+			abs( t2 % PAYLOAD_PULSE_CYCLE_LENGTH - PAYLOAD_PULSE_CYCLE_LENGTH/2)) >> 3) +
+			((t2 % PAYLOAD_PULSE_CYCLE_LENGTH)/10);
 
 		if(x && !(x%10)){
+//			fprintf(stderr,"%Lu\n",t2 % PAYLOAD_PULSE_CYCLE_LENGTH);
+
 //			fprintf(stderr, "%Lx %Lx\n", t2, phase);
-			fprintf(stderr, "%Ld %Ld %d %d %d %d %d %d %d %d %d %d %d %d\n", t2, phase, 
+			fprintf(stderr, "%Ld %Ld %Ld %d %d %d %d %d %d %d %d %d %d %d %d\n", t2, 
+				phase, t2 % PAYLOAD_PULSE_CYCLE_LENGTH, 
 				data[0], data[100], data[200],
 				data[300], data[400], data[500],
 				data[600], data[700], data[800],
 				data[900], data[1000], data[1100]);
 		}
-
+		t2 = get_cycles();
 		x++;
 	}
 }
