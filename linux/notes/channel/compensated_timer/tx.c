@@ -159,6 +159,8 @@ restart:
 		 * 
 		 * JITTER_NSEC_PERIOD define our immunity to noise. The cost of immunity is
 		 * CPU cycle consumption
+		 *
+		 * !Part of the jitter compensation we could also incorporate other ALGO...
 		 */
 		delta = (get_cycles() - t1)/2;
 		if(delta > PAYLOAD_PULSE_CYCLE_LENGTH){
