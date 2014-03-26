@@ -47,18 +47,15 @@
  * PAYLOAD_PULSE_NSEC = ((1/FRAME_FREQ) * NSEC_PER_SEC)
  */
 #define FRAME_FREQ (cycles_t)					9
-//#define PAYLOAD_PULSE_NSEC (cycles_t) 			(NSEC_PER_SEC/FRAME_FREQ) 
-#define PAYLOAD_PULSE_NSEC (cycles_t) 			(28035444*2*2) 
+#define PAYLOAD_PULSE_NSEC (cycles_t) 			(NSEC_PER_SEC/FRAME_FREQ) 
+//#define PAYLOAD_PULSE_NSEC (cycles_t) 			(28035444*2*2) 
 
 /* 
  * This is the duty cycle of the PAYLOAD in bus cycle 
  * (CPU_FREQ * (1/FRAME_FREQ))/2
  */
-//#define PAYLOAD_PULSE_CYCLE_LENGTH (cycles_t)	((CPU_FREQ/FRAME_FREQ)/2)
-#define PAYLOAD_PULSE_CYCLE_LENGTH (cycles_t)	0x8000000
-
-#define VSYNC_PULSE_CYCLE_LENGTH (cycles_t)		0x80000000
-#define VSYNC_PULSE_CYCLE_MASK 					0xff000000
+#define PAYLOAD_PULSE_CYCLE_LENGTH (cycles_t)	((CPU_FREQ/FRAME_FREQ)/2)
+//#define PAYLOAD_PULSE_CYCLE_LENGTH (cycles_t)	0x8000000
 
 struct timespec carrier_ts = {
 	.tv_sec = 0,
