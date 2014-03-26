@@ -51,7 +51,7 @@
  * (CPU_FREQ * (1/FRAME_FREQ))/2
  */
 //#define PAYLOAD_PULSE_CYCLE_LENGTH (cycles_t)	((CPU_FREQ/FRAME_FREQ)/2)
-#define PAYLOAD_PULSE_CYCLE_LENGTH (cycles_t)	20000000
+#define PAYLOAD_PULSE_CYCLE_LENGTH (cycles_t)	(20000000)/2
 
 struct timespec carrier_ts = {
 	.tv_sec = 0,
@@ -126,7 +126,7 @@ void modulate_data(void)
 void tx(void)
 {
 	int x;
-	cycles_t t1, t2, phase, delta = 0, delay;
+	cycles_t t1, t2, phase, delta = 0, lpj;
 	
 	fprintf(stderr, "%Ld %Ld\n",PAYLOAD_PULSE_CYCLE_LENGTH, PAYLOAD_PULSE_NSEC);
 
@@ -141,8 +141,7 @@ restart:
 	 * 14 is 2Xthe x% for printf!!!!!!!
 	 */
 	
-	while(  ((t2 = get_cycles()) &~0xff) % ((PAYLOAD_PULSE_CYCLE_LENGTH*10) &~0xff) );
-	fprintf(stderr, "%Ld %Ld\n",PAYLOAD_PULSE_CYCLE_LENGTH, get_cycles());
+	while(  ((t2 = get_cycles()) &~0xff) % ((PAYLOAD_PULSE_CYCLE_LENGTH*20) &~0xff) );
 
 	phase = 0;
 	x=0;
@@ -180,25 +179,30 @@ restart:
 		 * After this step '(get_cycles() - t1)/2' should be _very_ close to 
 		 * 	PAYLOAD_PULSE_CYCLE_LENGTH
 		 */
-		calibrated_ldelay((PAYLOAD_PULSE_CYCLE_LENGTH - delta));
-//		fprintf(stderr,"%Lu\n",(get_cycles() - t1)/2);
+		lpj = (PAYLOAD_PULSE_CYCLE_LENGTH - delta - phase*2);
+		calibrated_ldelay(lpj);
+		t2 = get_cycles();
+
+//		fprintf(stderr,"%Lu %Lu %Lu %Lu\n",delta, lpj, (get_cycles() - t1), t2%PAYLOAD_PULSE_CYCLE_LENGTH);
 
 		/*
 		 * Here we are monotonic but we can be out of phase.
 		 *
-		 * The phase shift can be observed by looking at get_cycles with 
-		 * respect to the beginning of the cycle i.e. t1
+		 * The phase shift can be observed by looking at t2 so our goal is to
+		 * compensate for the phase shift with respect to t2
 		 *
 		 * In general phase shift will accumulate over time ( we integrate 
 		 * the noise ) but it is generally constant after each iteration.
 		 *
 		 * The amount of shift is directly proportionnal to the time we spend 
 		 * here i.e. outside the control of LPJ compensation loop.
+		 *
+		 * For that reason we added the phase compensation part of the 
+		 * LPJ compensation argument
 		 */
-//		fprintf(stderr,"%Lu\n",t1 % PAYLOAD_PULSE_CYCLE_LENGTH);
+	//	fprintf(stderr,"%Lu\n",t2 % PAYLOAD_PULSE_CYCLE_LENGTH);
 
 		/* Then in theory we are monotonic right HERE */
-		//TODO PASS T1 and get the phase from it then index using that instead
 		modulate_data();
 
 		/* 
@@ -207,9 +211,9 @@ restart:
 		phase = ((PAYLOAD_PULSE_CYCLE_LENGTH/2) - 
 			abs( t2 % PAYLOAD_PULSE_CYCLE_LENGTH - PAYLOAD_PULSE_CYCLE_LENGTH/2)) >> 3;
 
-		if(!(x%7)){
+		if(x && !(x%10)){
 //			fprintf(stderr, "%Lx %Lx\n", t2, phase);
-			fprintf(stderr, "%Lx %Ld %d %d %d %d %d %d %d %d %d %d %d %d\n", t2, phase, 
+			fprintf(stderr, "%Ld %Ld %d %d %d %d %d %d %d %d %d %d %d %d\n", t2, phase, 
 				data[0], data[100], data[200],
 				data[300], data[400], data[500],
 				data[600], data[700], data[800],
@@ -217,7 +221,6 @@ restart:
 		}
 
 		x++;
-		t2 = get_cycles();
 	}
 }
 
