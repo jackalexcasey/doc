@@ -182,6 +182,9 @@ restart:
 		calibrated_ldelay(lpj);
 //		fprintf(stderr,"%Lu\n",(get_cycles() - t1));
 
+		t2 = get_cycles();
+//		fprintf(stderr,"%Lu\n",t2 % PAYLOAD_PULSE_CYCLE_LENGTH);
+
 		/*
 		 * At t2 we are monotonic but we can be out of phase.
 		 *
@@ -195,37 +198,16 @@ restart:
 		 * The amount of shift is directly proportionnal to the time we spend 
 		 * here i.e. outside the control of LPJ compensation loop.
 		 *
-		 * The phase compensation has been added to the LPJ compensation 
-		 * directly.
-		 *
-		 * NOTE that ideally we would want to have an phase offset ==0 so that
+		 * The goal is to have a phase phase offset == 0 so that
 		 * data modulation could be directly indexed from that value.
 		 */
-		t2 = get_cycles();
-//		fprintf(stderr,"%Lu\n",t2 % PAYLOAD_PULSE_CYCLE_LENGTH);
 
 		modulate_data();
 
-
-
-		/* 
-		 * This is phase compensation; The problem with the convergence is the 
-		 * modulo bcos of the non-linear across the period
-		 * MOD is linear within the period only
-		 * It would be better to converge in the middle of the period 
-		 *
-		 * THE PROBLEM Is MOD
-		 */
 		phase = ((PAYLOAD_PULSE_CYCLE_LENGTH/2) - 
 			abs( t2 % PAYLOAD_PULSE_CYCLE_LENGTH - PAYLOAD_PULSE_CYCLE_LENGTH/2) );
 
-//		phase = phase - 100000;
-		//fprintf(stderr,"%Lu %Lu %Lu %Lu\n",t2 % PAYLOAD_PULSE_CYCLE_LENGTH, phase, PAYLOAD_PULSE_CYCLE_LENGTH, t2);
-
-		if(x && !(x%20)){
-		//	fprintf(stderr,"%Lu\n",t2 % PAYLOAD_PULSE_CYCLE_LENGTH);
-
-//			fprintf(stderr, "%Lx %Lx\n", t2, phase);
+		if(x && !(x%10)){
 			fprintf(stderr, "%Ld %Ld %Ld %d %d %d %d %d %d %d %d %d %d %d %d\n", t2, 
 				phase, t2 % PAYLOAD_PULSE_CYCLE_LENGTH, 
 				data[0], data[100], data[200],
