@@ -36,6 +36,7 @@
 
 #define CPU_FREQ								2393715000
 
+
 #define JITTER_NSEC_PERIOD (cycles_t)			200000
 #define JITTER_CYCLE_LENGTH (cycles_t)			478743
 /* 
@@ -80,7 +81,9 @@ void modulate_data(void)
 
 	t1 = get_cycles();
 	while(1){
-	//TODO fix ME should be % instead....
+	//TODO fix ME should be % instead.... DIRECTLY from the 
+	//ORIGINAL offset
+	//i.e. If the monotonix pulse is offset 0 then WE MOD from here
 		bucket = (get_cycles()-t1)/TSC_CYCLE_PER_DATA;
 		if(bucket >= DATA_PACKET_SIZE)
 			break;
@@ -126,9 +129,7 @@ void modulate_data(void)
 void tx(void)
 {
 	int x;
-	cycles_t t1, t2, phase, delta = 0, delay;
-	
-	fprintf(stderr, "%Ld %Ld\n",PAYLOAD_PULSE_CYCLE_LENGTH, PAYLOAD_PULSE_NSEC);
+	cycles_t t0, t1, t2, phase = 0, delta = 0, payload_pulse_cycle_length = PAYLOAD_PULSE_CYCLE_LENGTH;
 
 restart:
 	/*
@@ -140,17 +141,23 @@ restart:
 	 *
 	 * 14 is 2Xthe x% for printf!!!!!!!
 	 */
+			carrier_ts.tv_nsec =		(PAYLOAD_PULSE_NSEC - JITTER_NSEC_PERIOD) - JITTER_NSEC_PERIOD;
+			payload_pulse_cycle_length =(PAYLOAD_PULSE_CYCLE_LENGTH - JITTER_CYCLE_LENGTH) - JITTER_CYCLE_LENGTH;
 	
-	while(  ((t2 = get_cycles()) &~0xff) % ((PAYLOAD_PULSE_CYCLE_LENGTH*10) &~0xff) );
-	fprintf(stderr, "%Ld %Ld\n",PAYLOAD_PULSE_CYCLE_LENGTH, get_cycles());
+	while(  ((t2 = get_cycles()) &~0xff) % ((payload_pulse_cycle_length*10) &~0xff) );
+	t0 = t2;
+	fprintf(stderr, "%Ld %Ld %Ld\n",payload_pulse_cycle_length, carrier_ts.tv_nsec, t2);
+	fprintf(stderr,"%Lu \n",t2%PAYLOAD_PULSE_CYCLE_LENGTH);
 
 	phase = 0;
 	x=0;
+
 
 	while(1){
 		t1 = get_cycles();
 
 #ifdef __TIMER__
+
 		if(clock_nanosleep(CLOCK_MONOTONIC, TIMER_RELTIME, &carrier_ts, NULL))
 			DIE("clock_nanosleep");
 		
@@ -170,8 +177,8 @@ restart:
 		 * CPU cycle consumption
 		 */
 		delta = (get_cycles() - t1)/2;
-		if(delta > PAYLOAD_PULSE_CYCLE_LENGTH){
-			fprintf(stderr, "LPJ Synchronization lost! %Lu %Lu\n",PAYLOAD_PULSE_CYCLE_LENGTH, delta);
+		if(delta > payload_pulse_cycle_length){
+			fprintf(stderr, "LPJ Synchronization lost! %Lu %Lu\n",payload_pulse_cycle_length, delta);
 			goto restart;
 		}
 #endif
@@ -180,14 +187,14 @@ restart:
 		 * After this step '(get_cycles() - t1)/2' should be _very_ close to 
 		 * 	PAYLOAD_PULSE_CYCLE_LENGTH
 		 */
-		calibrated_ldelay((PAYLOAD_PULSE_CYCLE_LENGTH - delta));
+		calibrated_ldelay((payload_pulse_cycle_length - delta));
 //		fprintf(stderr,"%Lu\n",(get_cycles() - t1)/2);
 
 		/*
 		 * Here we are monotonic but we can be out of phase.
 		 *
 		 * The phase shift can be observed by looking at get_cycles with 
-		 * respect to the beginning of the cycle i.e. t1
+		 * respect to the absolute start time i.e. t0
 		 *
 		 * In general phase shift will accumulate over time ( we integrate 
 		 * the noise ) but it is generally constant after each iteration.
@@ -195,19 +202,41 @@ restart:
 		 * The amount of shift is directly proportionnal to the time we spend 
 		 * here i.e. outside the control of LPJ compensation loop.
 		 */
-//		fprintf(stderr,"%Lu\n",t1 % PAYLOAD_PULSE_CYCLE_LENGTH);
+
+		fprintf(stderr,"%Lu\n",(get_cycles()-t0)%payload_pulse_cycle_length);
+//		carrier_ts.tv_nsec = carrier_ts.tv_nsec +(cycles_t)1;// - JITTER_NSEC_PERIOD/100;
+//		payload_pulse_cycle_length = payload_pulse_cycle_length +(cycles_t)10;// - JITTER_CYCLE_LENGTH/100;
+
+		/*
+		 * Here I apply a static phase correction
+		 * of 14002 cycle // 5849nsec
+		 */
+		if(0 && !(x%10)){
+			fprintf(stderr, ".");
+			carrier_ts.tv_nsec =		(PAYLOAD_PULSE_NSEC - JITTER_NSEC_PERIOD) - JITTER_NSEC_PERIOD;
+			payload_pulse_cycle_length =(PAYLOAD_PULSE_CYCLE_LENGTH - JITTER_CYCLE_LENGTH) - JITTER_CYCLE_LENGTH;
+		}
+
+//JITTER_CYCLE_LENGTH
+		//delay = PAYLOAD_PULSE_CYCLE_LENGTH - delta - (t1-t2);// - 2*phase - (t1-t2);
+
+		//fprintf(stderr,"%Lu \n",t1%PAYLOAD_PULSE_CYCLE_LENGTH);
 
 		/* Then in theory we are monotonic right HERE */
 		//TODO PASS T1 and get the phase from it then index using that instead
-		modulate_data();
+		//modulate_data();
 
 		/* 
 		 * This is phase compensation;
 		 */
-		phase = ((PAYLOAD_PULSE_CYCLE_LENGTH/2) - 
-			abs( t2 % PAYLOAD_PULSE_CYCLE_LENGTH - PAYLOAD_PULSE_CYCLE_LENGTH/2)) >> 3;
+//		phase = ((PAYLOAD_PULSE_CYCLE_LENGTH/2) - 
+//			abs( t2 % PAYLOAD_PULSE_CYCLE_LENGTH - PAYLOAD_PULSE_CYCLE_LENGTH/2)) >> 3;
 
-		if(!(x%7)){
+
+		
+//		fprintf(stderr,"%Lu %Lu\n",t1, phase);
+
+		if(0){//x10){
 //			fprintf(stderr, "%Lx %Lx\n", t2, phase);
 			fprintf(stderr, "%Lx %Ld %d %d %d %d %d %d %d %d %d %d %d %d\n", t2, phase, 
 				data[0], data[100], data[200],
