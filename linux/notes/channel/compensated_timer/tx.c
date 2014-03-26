@@ -46,16 +46,14 @@
  * This is the duty cycle of the PAYLOAD in nsec
  * PAYLOAD_PULSE_NSEC = ((1/FRAME_FREQ) * NSEC_PER_SEC)
  */
-#define FRAME_FREQ (cycles_t)					9
+#define FRAME_FREQ (cycles_t)					60
 #define PAYLOAD_PULSE_NSEC (cycles_t) 			(NSEC_PER_SEC/FRAME_FREQ) 
-//#define PAYLOAD_PULSE_NSEC (cycles_t) 			(28035444*2*2) 
 
 /* 
  * This is the duty cycle of the PAYLOAD in bus cycle 
  * (CPU_FREQ * (1/FRAME_FREQ))/2
  */
 #define PAYLOAD_PULSE_CYCLE_LENGTH (cycles_t)	((CPU_FREQ/FRAME_FREQ)/2)
-//#define PAYLOAD_PULSE_CYCLE_LENGTH (cycles_t)	0x8000000
 
 struct timespec carrier_ts = {
 	.tv_sec = 0,
@@ -84,6 +82,7 @@ void modulate_data(void)
 
 	t1 = get_cycles();
 	while(1){
+	//TODO fix ME should be % instead....
 		bucket = (get_cycles()-t1)/TSC_CYCLE_PER_DATA;
 		if(bucket >= DATA_PACKET_SIZE)
 			break;
@@ -140,11 +139,11 @@ restart:
 	 * TODO relax CPU here
 	 *
 	 * TODO PROPER SYNC
+	 *
+	 * 14 is 2Xthe x% for printf!!!!!!!
 	 */
-//	while( ((t2 = get_cycles()) & VSYNC_PULSE_CYCLE_MASK) != 
-//		(VSYNC_PULSE_CYCLE_LENGTH | PAYLOAD_PULSE_CYCLE_LENGTH));
 	
-	while(  (((t2 = get_cycles()) % (PAYLOAD_PULSE_CYCLE_LENGTH*16)) &~0xfffff));
+	while(  (((t2 = get_cycles()) % (PAYLOAD_PULSE_CYCLE_LENGTH*14)) &~0xfffff));
 	
 	fprintf(stderr, "%Lx %Lx\n",PAYLOAD_PULSE_CYCLE_LENGTH, get_cycles());
 
@@ -174,7 +173,7 @@ restart:
 			goto restart;
 		}
 		calibrated_ldelay(delay);
-//		fprintf(stderr,"%Lu %Lu\n",delay, get_cycles()-t1);
+		//fprintf(stderr,"%Lu %Lu\n",delay, get_cycles()-t1);
 
 		/* Then in theory we are monotonic right HERE */
 		//TODO PASS T1 and get the phase from it then index using that instead
@@ -186,7 +185,7 @@ restart:
 		phase = ((PAYLOAD_PULSE_CYCLE_LENGTH/2) - 
 			abs( t2 % PAYLOAD_PULSE_CYCLE_LENGTH - PAYLOAD_PULSE_CYCLE_LENGTH/2)) >> 3;
 
-		if(!(x%0x10)){
+		if(!(x%7)){
 //			fprintf(stderr, "%Lx %Lx\n", t2, phase);
 			fprintf(stderr, "%Lx %Ld %d %d %d %d %d %d %d %d %d %d %d %d\n", t2, phase, 
 				data[0], data[100], data[200],
