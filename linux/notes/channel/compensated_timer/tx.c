@@ -144,8 +144,10 @@ restart:
 	 *
 	 * TODO PROPER SYNC
 	 */
-	while( ((t2 = get_cycles()) & VSYNC_PULSE_CYCLE_MASK) != 
-		(VSYNC_PULSE_CYCLE_LENGTH | PAYLOAD_PULSE_CYCLE_LENGTH));
+//	while( ((t2 = get_cycles()) & VSYNC_PULSE_CYCLE_MASK) != 
+//		(VSYNC_PULSE_CYCLE_LENGTH | PAYLOAD_PULSE_CYCLE_LENGTH));
+	
+	while(  (((t2 = get_cycles()) % (PAYLOAD_PULSE_CYCLE_LENGTH*16)) &~0xfffff));
 	
 	fprintf(stderr, "%Lx %Lx\n",PAYLOAD_PULSE_CYCLE_LENGTH, get_cycles());
 
@@ -178,6 +180,7 @@ restart:
 //		fprintf(stderr,"%Lu %Lu\n",delay, get_cycles()-t1);
 
 		/* Then in theory we are monotonic right HERE */
+		//TODO PASS T1 and get the phase from it then index using that instead
 		modulate_data();
 
 		/* 

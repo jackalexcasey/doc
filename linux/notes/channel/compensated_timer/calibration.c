@@ -80,7 +80,7 @@ void modulate_data(int size)
 	}
 	*spinlock = 0;
 }
-#if __BUCKET_BASED_DATA__
+#ifdef __BUCKET_BASED_DATA__
 /*
  * This is the bucket based implementation
  */
@@ -161,9 +161,27 @@ void characterization(void)
 	}
 }
 
+#define PH 100
+void check_phase(void)
+{
+	int x;
+	cycles_t t1, t2, phase;
+	
+	fprintf(stderr, "%Ld\n",PH);
+
+	for(t2=0; t2<100; t2++){
+		phase = ((PH/2) - 
+			abs( t2 % PH - PH/2)) >> 3;
+	
+		fprintf(stderr, "%Ld %Ld\n",t2,phase);
+	}
+}
+
 void tx(void)
 {
-	characterization();
+	check_phase();
+
+	//characterization();
 }
 
 void tx_init(void)
