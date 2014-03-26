@@ -173,18 +173,17 @@ restart:
 		 * After this step '(get_cycles() - t1)/2' should be _very_ close to 
 		 * 	PAYLOAD_PULSE_CYCLE_LENGTH
 		 */
-		lpj = (PAYLOAD_PULSE_CYCLE_LENGTH - delta - phase*2 -(t1-t2)/2 );
+		lpj = (PAYLOAD_PULSE_CYCLE_LENGTH - delta - phase -((t1-t2)/2) );
 		if(lpj < 0){
 			fprintf(stderr, "LPJ Synchronization lost! %Lu %Lu\n",PAYLOAD_PULSE_CYCLE_LENGTH, delta);
 			goto restart;
 		}
 
 		calibrated_ldelay(lpj);
-
 //		fprintf(stderr,"%Lu\n",(get_cycles() - t1));
 
 		/*
-		 * Here we are monotonic but we can be out of phase.
+		 * At t2 we are monotonic but we can be out of phase.
 		 *
 		 * The phase shift can be observed by looking at t2 so our goal is to
 		 * compensate for the phase shift with respect to t2
@@ -202,11 +201,12 @@ restart:
 		 * NOTE that ideally we would want to have an phase offset ==0 so that
 		 * data modulation could be directly indexed from that value.
 		 */
-//		fprintf(stderr,"%Lu %Lu %Lu\n",t2 % PAYLOAD_PULSE_CYCLE_LENGTH, phase, delta);
+		t2 = get_cycles();
+//		fprintf(stderr,"%Lu\n",t2 % PAYLOAD_PULSE_CYCLE_LENGTH);
 
 		modulate_data();
 
-		t2 = get_cycles();
+
 
 		/* 
 		 * This is phase compensation; The problem with the convergence is the 
@@ -216,8 +216,8 @@ restart:
 		 *
 		 * THE PROBLEM Is MOD
 		 */
-		phase = (((PAYLOAD_PULSE_CYCLE_LENGTH/2) - 
-			abs( t2 % PAYLOAD_PULSE_CYCLE_LENGTH - PAYLOAD_PULSE_CYCLE_LENGTH/2)) >> 3);
+		phase = ((PAYLOAD_PULSE_CYCLE_LENGTH/2) - 
+			abs( t2 % PAYLOAD_PULSE_CYCLE_LENGTH - PAYLOAD_PULSE_CYCLE_LENGTH/2) );
 
 //		phase = phase - 100000;
 		//fprintf(stderr,"%Lu %Lu %Lu %Lu\n",t2 % PAYLOAD_PULSE_CYCLE_LENGTH, phase, PAYLOAD_PULSE_CYCLE_LENGTH, t2);
