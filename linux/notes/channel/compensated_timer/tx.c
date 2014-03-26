@@ -128,20 +128,12 @@ void tx(void)
 	int x;
 	cycles_t t1, t2, phase, delta = 0, lpj;
 	
-	fprintf(stderr, "%Ld %Ld\n",PAYLOAD_PULSE_CYCLE_LENGTH, PAYLOAD_PULSE_NSEC);
-
 restart:
 	/*
-	 * First we align the execution context on the same 
-	 * time base
 	 * TODO relax CPU here
-	 *
-	 * TODO PROPER SYNC
-	 
-	 * 14 is 2Xthe x% for printf!!!!!!!
 	 */
-	
 	while(  ((t2 = get_cycles()) &~0xff) % ((PAYLOAD_PULSE_CYCLE_LENGTH*20) &~0xff) );
+	fprintf(stderr, "%Ld %Ld %Ld\n",PAYLOAD_PULSE_CYCLE_LENGTH, PAYLOAD_PULSE_NSEC, t2);
 
 	phase = 0;
 	x=0;
@@ -179,7 +171,7 @@ restart:
 		 * After this step '(get_cycles() - t1)/2' should be _very_ close to 
 		 * 	PAYLOAD_PULSE_CYCLE_LENGTH
 		 */
-		lpj = (PAYLOAD_PULSE_CYCLE_LENGTH - delta - phase*2 -(t1-t2));
+		lpj = (PAYLOAD_PULSE_CYCLE_LENGTH - delta - phase*2 -(t1-t2)/2 );
 		if(lpj < 0){
 			fprintf(stderr, "LPJ Synchronization lost! %Lu %Lu\n",PAYLOAD_PULSE_CYCLE_LENGTH, delta);
 			goto restart;
@@ -187,8 +179,7 @@ restart:
 
 		calibrated_ldelay(lpj);
 
-
-//		fprintf(stderr,"%Lu %Lu %Lu %Lu\n",delta, lpj, (get_cycles() - t1), t2%PAYLOAD_PULSE_CYCLE_LENGTH);
+//		fprintf(stderr,"%Lu\n",(get_cycles() - t1));
 
 		/*
 		 * Here we are monotonic but we can be out of phase.
@@ -197,27 +188,40 @@ restart:
 		 * compensate for the phase shift with respect to t2
 		 *
 		 * In general phase shift will accumulate over time ( we integrate 
-		 * the noise ) but it is generally constant after each iteration.
+		 * the noise ) but it is generally constant for each iteration i.e.
+		 * we are dealing with white noise
 		 *
 		 * The amount of shift is directly proportionnal to the time we spend 
 		 * here i.e. outside the control of LPJ compensation loop.
 		 *
-		 * For that reason we added the phase compensation part of the 
-		 * LPJ compensation argument
+		 * The phase compensation has been added to the LPJ compensation 
+		 * directly.
+		 *
+		 * NOTE that ideally we would want to have an phase offset ==0 so that
+		 * data modulation could be directly indexed from that value.
 		 */
-//		fprintf(stderr,"%Lu %Lu\n",t2 % PAYLOAD_PULSE_CYCLE_LENGTH, phase);
+//		fprintf(stderr,"%Lu %Lu %Lu\n",t2 % PAYLOAD_PULSE_CYCLE_LENGTH, phase, delta);
 
 		modulate_data();
 
+		t2 = get_cycles();
+
 		/* 
-		 * This is phase compensation;
+		 * This is phase compensation; The problem with the convergence is the 
+		 * modulo bcos of the non-linear across the period
+		 * MOD is linear within the period only
+		 * It would be better to converge in the middle of the period 
+		 *
+		 * THE PROBLEM Is MOD
 		 */
 		phase = (((PAYLOAD_PULSE_CYCLE_LENGTH/2) - 
-			abs( t2 % PAYLOAD_PULSE_CYCLE_LENGTH - PAYLOAD_PULSE_CYCLE_LENGTH/2)) >> 3) +
-			((t2 % PAYLOAD_PULSE_CYCLE_LENGTH)/10);
+			abs( t2 % PAYLOAD_PULSE_CYCLE_LENGTH - PAYLOAD_PULSE_CYCLE_LENGTH/2)) >> 3);
 
-		if(x && !(x%10)){
-//			fprintf(stderr,"%Lu\n",t2 % PAYLOAD_PULSE_CYCLE_LENGTH);
+//		phase = phase - 100000;
+		//fprintf(stderr,"%Lu %Lu %Lu %Lu\n",t2 % PAYLOAD_PULSE_CYCLE_LENGTH, phase, PAYLOAD_PULSE_CYCLE_LENGTH, t2);
+
+		if(x && !(x%20)){
+		//	fprintf(stderr,"%Lu\n",t2 % PAYLOAD_PULSE_CYCLE_LENGTH);
 
 //			fprintf(stderr, "%Lx %Lx\n", t2, phase);
 			fprintf(stderr, "%Ld %Ld %Ld %d %d %d %d %d %d %d %d %d %d %d %d\n", t2, 
@@ -227,7 +231,6 @@ restart:
 				data[600], data[700], data[800],
 				data[900], data[1000], data[1100]);
 		}
-		t2 = get_cycles();
 		x++;
 	}
 }
