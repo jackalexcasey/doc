@@ -63,7 +63,7 @@ extern volatile int *spinlock;
 
 #ifdef __BUCKET_BASED_DATA__
 #define TSC_CYCLE_PER_DATA 		39
-#define DATA_PACKET_SIZE 		1000
+#define DATA_PACKET_SIZE 		4000
 #define TSC_MAX_DATA_CYCLE		DATA_PACKET_SIZE * TSC_CYCLE_PER_DATA
 int data[DATA_PACKET_SIZE];
 
@@ -157,7 +157,6 @@ restart:
 		 * JITTER_NSEC_PERIOD define our immunity to noise. The cost of immunity is
 		 * CPU cycle consumption
 		 *
-		 * !Part of the jitter compensation we could also incorporate other ALGO...
 		 */
 		delta = (get_cycles() - t1)/2;
 		if(delta > PAYLOAD_PULSE_CYCLE_LENGTH){
@@ -171,8 +170,15 @@ restart:
 		 * 	PAYLOAD_PULSE_CYCLE_LENGTH
 		 */
 		lpj = (PAYLOAD_PULSE_CYCLE_LENGTH - delta - phase -((t1-t2)/2) );
-		if(lpj < 0)
+
+		/*
+		 * With proper initial phase alignment this overshoot in phase compensation
+		 * should not occurs
+		 */
+		if(lpj < 0){
+			fprintf(stderr, ".");
 			lpj = 0;
+		}
 
 		calibrated_ldelay(lpj);
 //		fprintf(stderr,"%Lu\n",(get_cycles() - t1));
@@ -191,7 +197,9 @@ restart:
 		 * we are dealing with white noise
 		 *
 		 * The amount of shift is directly proportionnal to the time we spend 
-		 * here i.e. outside the control of LPJ compensation loop.
+		 * here i.e. outside the control of LPJ compensation loop. For that 
+		 * reason the DATA_PACKET_SIZE as a direct impact on the room left
+		 * for the timer jitter JITTER_NSEC_PERIOD
 		 *
 		 * The goal is to have a phase phase offset == 0 so that
 		 * data modulation could be directly indexed from that value.
