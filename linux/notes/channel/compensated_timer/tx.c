@@ -37,21 +37,20 @@
 #define CPU_FREQ								2393715000
 
 #define JITTER_NSEC_PERIOD (cycles_t)			200000
-#define JITTER_CYCLE_LENGTH (cycles_t)			478743
 /* 
  * This is the duty cycle of the PAYLOAD in nsec
  * PAYLOAD_PULSE_NSEC = ((1/FRAME_FREQ) * NSEC_PER_SEC)
  */
 #define FRAME_FREQ (cycles_t)					60
 //#define PAYLOAD_PULSE_NSEC (cycles_t) 			(NSEC_PER_SEC/FRAME_FREQ) 
-#define PAYLOAD_PULSE_NSEC (cycles_t) 			8355213
+#define PAYLOAD_PULSE_NSEC (cycles_t) 			(8355213/2)
 
 /* 
  * This is the duty cycle of the PAYLOAD in bus cycle 
  * (CPU_FREQ * (1/FRAME_FREQ))/2
  */
 //#define PAYLOAD_PULSE_CYCLE_LENGTH (cycles_t)	((CPU_FREQ/FRAME_FREQ)/2)
-#define PAYLOAD_PULSE_CYCLE_LENGTH (cycles_t)	(20000000)/2
+#define PAYLOAD_PULSE_CYCLE_LENGTH (cycles_t)	(20000000/2)/2
 
 struct timespec carrier_ts = {
 	.tv_sec = 0,
@@ -172,10 +171,8 @@ restart:
 		 * 	PAYLOAD_PULSE_CYCLE_LENGTH
 		 */
 		lpj = (PAYLOAD_PULSE_CYCLE_LENGTH - delta - phase -((t1-t2)/2) );
-		if(lpj < 0){
-			fprintf(stderr, "LPJ Synchronization lost! %Lu %Lu\n",PAYLOAD_PULSE_CYCLE_LENGTH, delta);
-			goto restart;
-		}
+		if(lpj < 0)
+			lpj = 0;
 
 		calibrated_ldelay(lpj);
 //		fprintf(stderr,"%Lu\n",(get_cycles() - t1));
@@ -189,8 +186,8 @@ restart:
 		 * The phase shift can be observed by looking at t2 so our goal is to
 		 * compensate for the phase shift with respect to t2
 		 *
-		 * In general phase shift will accumulate over time ( we integrate 
-		 * the noise ) but it is generally constant for each iteration i.e.
+		 * In general phase shift will accumulate over time ( i.e we integrate 
+		 * the noise ) but it is generally constant for each iteration since
 		 * we are dealing with white noise
 		 *
 		 * The amount of shift is directly proportionnal to the time we spend 
@@ -207,7 +204,7 @@ restart:
 
 		if(x && !(x%10)){
 			fprintf(stderr, "%Ld %Ld %Ld %d %d %d %d %d %d %d %d %d %d %d %d\n", t2, 
-				phase, t2 % PAYLOAD_PULSE_CYCLE_LENGTH, 
+				t2 % PAYLOAD_PULSE_CYCLE_LENGTH, lpj,
 				data[0], data[100], data[200],
 				data[300], data[400], data[500],
 				data[600], data[700], data[800],
