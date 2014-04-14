@@ -35,22 +35,28 @@
 #ifndef __CHARACTERIZATION__
 
 #define CPU_FREQ								2393715000
+#define FRAME_FREQ (cycles_t)					60
 
-#define JITTER_NSEC_PERIOD (cycles_t)			200000
+/* 
+ * This is the duty cycle of the PAYLOAD in bus cycle 
+ * CPU_FREQ * (1/FRAME_FREQ)
+ * _AND_ must be rounded off to high digit
+ * EX: 60 HZ ==> 39895250 cycle
+ *  ==> 40000000 rounded
+ * ==> 40000000 * 1/CPU_FREQ == 16710427 ~=16msec
+ */
+#define PAYLOAD_PULSE_CYCLE_LENGTH (cycles_t)	(40000000/2)
+
 /* 
  * This is the duty cycle of the PAYLOAD in nsec
  * PAYLOAD_PULSE_NSEC = ((1/FRAME_FREQ) * NSEC_PER_SEC)
  */
-#define FRAME_FREQ (cycles_t)					60
-//#define PAYLOAD_PULSE_NSEC (cycles_t) 			(NSEC_PER_SEC/FRAME_FREQ) 
-#define PAYLOAD_PULSE_NSEC (cycles_t) 			(8355213/2)
+#define PAYLOAD_PULSE_NSEC (cycles_t) 			16710427
 
-/* 
- * This is the duty cycle of the PAYLOAD in bus cycle 
- * (CPU_FREQ * (1/FRAME_FREQ))/2
+/*
+ * This is the amount of noise we expect on the timer
  */
-//#define PAYLOAD_PULSE_CYCLE_LENGTH (cycles_t)	((CPU_FREQ/FRAME_FREQ)/2)
-#define PAYLOAD_PULSE_CYCLE_LENGTH (cycles_t)	((20000000/2)/2)
+#define JITTER_NSEC_PERIOD (cycles_t)			200000
 
 struct timespec carrier_ts = {
 	.tv_sec = 0,
@@ -210,7 +216,7 @@ restart:
 		phase = ((PAYLOAD_PULSE_CYCLE_LENGTH/2) - 
 			abs( (t2 % PAYLOAD_PULSE_CYCLE_LENGTH)/2 - PAYLOAD_PULSE_CYCLE_LENGTH/2) );
 
-		if(x && !(x%10)){
+		if(x && !(x%60)){
 			fprintf(stderr, "%Ld %Ld %Ld %d %d %d %d %d %d %d %d %d %d %d %d\n", t2, 
 				t2 % PAYLOAD_PULSE_CYCLE_LENGTH, lpj,
 				data[0], data[100], data[200],
