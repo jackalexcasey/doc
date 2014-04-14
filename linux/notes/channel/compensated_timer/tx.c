@@ -50,7 +50,7 @@
  * (CPU_FREQ * (1/FRAME_FREQ))/2
  */
 //#define PAYLOAD_PULSE_CYCLE_LENGTH (cycles_t)	((CPU_FREQ/FRAME_FREQ)/2)
-#define PAYLOAD_PULSE_CYCLE_LENGTH (cycles_t)	(20000000/2)/2
+#define PAYLOAD_PULSE_CYCLE_LENGTH (cycles_t)	((20000000/2)/2)
 
 struct timespec carrier_ts = {
 	.tv_sec = 0,
@@ -208,7 +208,7 @@ restart:
 		modulate_data(t2);
 
 		phase = ((PAYLOAD_PULSE_CYCLE_LENGTH/2) - 
-			abs( t2 % PAYLOAD_PULSE_CYCLE_LENGTH - PAYLOAD_PULSE_CYCLE_LENGTH/2) );
+			abs( (t2 % PAYLOAD_PULSE_CYCLE_LENGTH)/2 - PAYLOAD_PULSE_CYCLE_LENGTH/2) );
 
 		if(x && !(x%10)){
 			fprintf(stderr, "%Ld %Ld %Ld %d %d %d %d %d %d %d %d %d %d %d %d\n", t2, 
