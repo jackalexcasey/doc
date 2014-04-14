@@ -77,7 +77,7 @@ int data[DATA_PACKET_SIZE];
  * This is the bucket based implementation
  * TODO return PACKET drop
  */
-void modulate_data(cycles_t init)
+void modulate_data(cycles_t init, int *buf)
 {
 	int x;
 	int bucket=0;
@@ -87,10 +87,10 @@ void modulate_data(cycles_t init)
 		if(bucket >= DATA_PACKET_SIZE)
 			break;
 		if(transmitter){
-			*spinlock = data[bucket];
+			*spinlock = buf[bucket];
 		}
 		else
-			data[bucket] = *spinlock;
+			buf[bucket] = *spinlock;
 
 	}
 	*spinlock = 0;
@@ -211,7 +211,7 @@ restart:
 		 * data modulation could be directly indexed from that value.
 		 */
 
-		modulate_data(t2);
+		modulate_data(t2, data);
 
 		phase = ((PAYLOAD_PULSE_CYCLE_LENGTH/2) - 
 			abs( (t2 % PAYLOAD_PULSE_CYCLE_LENGTH)/2 - PAYLOAD_PULSE_CYCLE_LENGTH/2) );
