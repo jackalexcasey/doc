@@ -1,0 +1,99 @@
+diff --git a/linux/notes/channel/compensated_timer/tx.c b/linux/notes/channel/compensated_timer/tx.c
+index c3d8249..97bd7fb 100644
+--- a/linux/notes/channel/compensated_timer/tx.c
++++ b/linux/notes/channel/compensated_timer/tx.c
+@@ -71,16 +71,17 @@ extern volatile int *spinlock;
+ #define TSC_CYCLE_PER_DATA 		39
+ #define DATA_PACKET_SIZE 		4000
+ #define TSC_MAX_DATA_CYCLE		DATA_PACKET_SIZE * TSC_CYCLE_PER_DATA
+-int data[DATA_PACKET_SIZE];
++void *data = NULL;
+ 
+ /*
+  * This is the bucket based implementation
+  * TODO return PACKET drop
+  */
+-void modulate_data(cycles_t init, int *buf)
++void modulate_data(cycles_t init, void *dat)
+ {
+ 	int x;
+ 	int bucket=0;
++	unsigned char *buf = data;
+ 
+ 	while(1){
+ 		bucket = (get_cycles()-init)/TSC_CYCLE_PER_DATA;
+@@ -91,7 +92,6 @@ void modulate_data(cycles_t init, int *buf)
+ 		}
+ 		else
+ 			buf[bucket] = *spinlock;
+-
+ 	}
+ 	*spinlock = 0;
+ }
+@@ -128,8 +128,9 @@ void modulate_data(void)
+ 
+ void tx(void)
+ {
+-	int x;
++	int x, y;
+ 	cycles_t t1, t2, phase, delta = 0, lpj;
++	unsigned char *buf = data;
+ 	
+ restart:
+ 	/*
+@@ -217,27 +218,48 @@ restart:
+ 			abs( (t2 % PAYLOAD_PULSE_CYCLE_LENGTH)/2 - PAYLOAD_PULSE_CYCLE_LENGTH/2) );
+ 
+ 		if(x && !(x%60)){
++	//		if(!transmitter){
++			if(buf[100] ==240){
++				fprintf(stderr,"\n#define Untitled_width 80\n"
++					"#define Untitled_height 400\n"
++					"unsigned char u_bits[] = {");
++				for(y=0;y<DATA_PACKET_SIZE;y++){
++					if(!(y%12))
++						fprintf(stderr, "\n");
++					fprintf(stderr, "0x%2.2x, ",buf[y]);
++				}
++				fprintf(stderr, "};\n");
++			}
++
+ 			fprintf(stderr, "%Ld %Ld %Ld %d %d %d %d %d %d %d %d %d %d %d %d\n", t2, 
+ 				t2 % PAYLOAD_PULSE_CYCLE_LENGTH, lpj,
+-				data[0], data[100], data[200],
+-				data[300], data[400], data[500],
+-				data[600], data[700], data[800],
+-				data[900], data[1000], data[1100]);
++				buf[0], buf[100], buf[200],
++				buf[300], buf[400], buf[500],
++				buf[600], buf[700], buf[800],
++				buf[900], buf[1000], buf[1100]);
+ 		}
+ 		x++;
+ 	}
+ }
++extern unsigned char u_bits[];
+ 
+ void tx_init(void)
+ {	
+ 	int c;
+ 
+-	for(c=0; c<DATA_PACKET_SIZE; c++){
+-		data[c] = c;
+-	}
++//	for(c=0; c<DATA_PACKET_SIZE; c++){
++//		data[c] = c;
++//	}
++	data = u_bits;
+ 	*spinlock = 0;
+ }
+ 
++void rx_init(void)
++{	
++	data = u_bits;
++	memset(data,0,DATA_PACKET_SIZE);
++}
++
+ #endif /*__CHARACTERIZATION__*/
+ 
+ 
