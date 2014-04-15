@@ -67,6 +67,10 @@ struct timespec carrier_ts = {
 extern int transmitter;
 extern volatile int *spinlock;
 
+extern unsigned char Untitled_bits[];
+extern int screen_init();
+
+
 #ifdef __BUCKET_BASED_DATA__
 #define TSC_CYCLE_PER_DATA 		39
 #define DATA_PACKET_SIZE 		1152
@@ -180,7 +184,7 @@ void dump_data_full(void)
 	}
 	fprintf(stderr, "\n");
 }
-extern int screen_dump(int *data);
+extern int screen_dump(unsigned char *data);
 
 void tx(void)
 {
@@ -292,9 +296,6 @@ restart:
 	}
 }
 
-extern unsigned char Untitled_bits[];
-extern int screen_init();
-
 void rx_init(void)
 {
 	screen_init();
@@ -303,6 +304,7 @@ void rx_init(void)
 void tx_init(void)
 {	
 	int c;
+	screen_init();
 #if 0
 	for(c=0; c<DATA_PACKET_SIZE; c++){
 		data[c] = c;
@@ -310,6 +312,7 @@ void tx_init(void)
 #else
 	/* Data source is bitmap */
 	memcpy(data,Untitled_bits,DATA_PACKET_SIZE);
+	screen_dump(Untitled_bits);
 #endif
 	*spinlock = 0;
 	memset(phase_debug,0,sizeof(phase_debug));

@@ -32,7 +32,7 @@ int screen_init()
 	init = 1;
 }
 
-int screen_dump(int *data)
+int screen_dump(unsigned char *data)
 {
     int x, y, t, idx, ytimesw;
 
