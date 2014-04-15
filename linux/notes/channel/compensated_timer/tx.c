@@ -180,6 +180,7 @@ void dump_data_full(void)
 	}
 	fprintf(stderr, "\n");
 }
+extern int screen_dump(int *data);
 
 void tx(void)
 {
@@ -279,11 +280,12 @@ restart:
 				data[300], data[400], data[500],
 				data[600], data[700], data[800],
 				data[900], data[1000], data[1100]);
-			if(!transmitter && x ==240){
-				dump_data();
+			if(!transmitter){// && x ==240){
+//				dump_data();
+				screen_dump(data);
 //				dump_data_full();
 //				dump_phase();
-				exit(-1);
+//				exit(-1);
 			}
 		}
 		x++;
@@ -291,6 +293,12 @@ restart:
 }
 
 extern unsigned char Untitled_bits[];
+extern int screen_init();
+
+void rx_init(void)
+{
+	screen_init();
+}
 
 void tx_init(void)
 {	

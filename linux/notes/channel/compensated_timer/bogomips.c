@@ -68,6 +68,7 @@ void help(void)
  * case this function takes care to set the affinity of the HT siblings...
  */
 extern void tx_init(void);
+extern void rx_init(void);
 void open_channel(void)
 {
 	int fd;
@@ -88,6 +89,8 @@ void open_channel(void)
 	spinlock = ptr; /* spinlock is the first object in the mmap */
 	if(transmitter)
 		tx_init();
+	else
+		rx_init();
 	return;
 }
 
