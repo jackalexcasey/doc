@@ -69,15 +69,15 @@ extern volatile int *spinlock;
 
 #ifdef __BUCKET_BASED_DATA__
 #define TSC_CYCLE_PER_DATA 		39
-#define DATA_PACKET_SIZE 		4000
+#define DATA_PACKET_SIZE 		1152
 #define TSC_MAX_DATA_CYCLE		DATA_PACKET_SIZE * TSC_CYCLE_PER_DATA
-int data[DATA_PACKET_SIZE];
+unsigned char data[DATA_PACKET_SIZE];
 
 /*
  * This is the bucket based implementation
  * TODO return PACKET drop
  */
-void modulate_data(cycles_t init, int *buf)
+void modulate_data(cycles_t init, unsigned char *buf)
 {
 	int x;
 	int bucket=0;
@@ -87,7 +87,7 @@ void modulate_data(cycles_t init, int *buf)
  * ripple
  * EX: 50 52 42 53 58 55 56 58 62 59 60 64
  */
-#if 0 
+#if 0
 	while(1){
 		bucket = (get_cycles()-init)/TSC_CYCLE_PER_DATA;
 		if(bucket >= DATA_PACKET_SIZE)
@@ -164,9 +164,21 @@ void dump_data(void)
 	for(y=0;y<DATA_PACKET_SIZE;y++){
 		if(!(y%12))
 			fprintf(stderr, "\n");
-		fprintf(stderr, "%d ",data[y]);
+		fprintf(stderr, "0x%2.2x, ",data[y]);
 	}
 	fprintf(stderr, "};\n");
+}
+
+void dump_data_full(void)
+{
+	int y;
+	fprintf(stderr,"\n");
+	for(y=0;y<DATA_PACKET_SIZE;y++){
+		if(!(y%6))
+			fprintf(stderr, "\n");
+		fprintf(stderr, "%2d//%2d ",data[y], (unsigned char )y);
+	}
+	fprintf(stderr, "\n");
 }
 
 void tx(void)
@@ -269,6 +281,7 @@ restart:
 				data[900], data[1000], data[1100]);
 			if(!transmitter && x ==240){
 				dump_data();
+//				dump_data_full();
 //				dump_phase();
 				exit(-1);
 			}
@@ -277,13 +290,19 @@ restart:
 	}
 }
 
+extern unsigned char Untitled_bits[];
+
 void tx_init(void)
 {	
 	int c;
-
+#if 0
 	for(c=0; c<DATA_PACKET_SIZE; c++){
 		data[c] = c;
 	}
+#else
+	/* Data source is bitmap */
+	memcpy(data,Untitled_bits,DATA_PACKET_SIZE);
+#endif
 	*spinlock = 0;
 	memset(phase_debug,0,sizeof(phase_debug));
 }
