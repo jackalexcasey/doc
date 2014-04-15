@@ -82,6 +82,12 @@ void modulate_data(cycles_t init, int *buf)
 	int x;
 	int bucket=0;
 
+/*
+ * With the bucked based implementation we see a lot of backward
+ * ripple
+ * EX: 50 52 42 53 58 55 56 58 62 59 60 64
+ */
+#if 0 
 	while(1){
 		bucket = (get_cycles()-init)/TSC_CYCLE_PER_DATA;
 		if(bucket >= DATA_PACKET_SIZE)
@@ -91,8 +97,20 @@ void modulate_data(cycles_t init, int *buf)
 		}
 		else
 			buf[bucket] = *spinlock;
-
 	}
+#else
+/*
+ * with the linear bucket there is no such problem
+ */
+	for(bucket = (get_cycles()-init)/TSC_CYCLE_PER_DATA; bucket<DATA_PACKET_SIZE; bucket++){
+		if(transmitter){
+			*spinlock = buf[bucket];
+		}
+		else
+			buf[bucket] = *spinlock;
+	}
+#endif
+
 	*spinlock = 0;
 }
 
@@ -125,6 +143,31 @@ void modulate_data(void)
 //	fprintf(stderr,"%Ld\n",get_cycles() - t1);
 }
 #endif /*__BUCKET_BASED_DATA__*/
+
+int phase_debug[1024*1024];
+void dump_phase(void)
+{
+	int y;
+	for(y=0;y<DATA_PACKET_SIZE;y++){
+		if(!(y%12))
+			fprintf(stderr, "\n");
+		fprintf(stderr, "%d ",phase_debug[y]);
+	}
+}
+
+void dump_data(void)
+{
+	int y;
+	fprintf(stderr,"\n#define Untitled_width 80\n"
+		"#define Untitled_height 400\n"
+		"unsigned char u_bits[] = {");
+	for(y=0;y<DATA_PACKET_SIZE;y++){
+		if(!(y%12))
+			fprintf(stderr, "\n");
+		fprintf(stderr, "%d ",data[y]);
+	}
+	fprintf(stderr, "};\n");
+}
 
 void tx(void)
 {
@@ -215,6 +258,7 @@ restart:
 
 		phase = ((PAYLOAD_PULSE_CYCLE_LENGTH/2) - 
 			abs( (t2 % PAYLOAD_PULSE_CYCLE_LENGTH)/2 - PAYLOAD_PULSE_CYCLE_LENGTH/2) );
+//		phase_debug[x] = phase;
 
 		if(x && !(x%60)){
 			fprintf(stderr, "%Ld %Ld %Ld %d %d %d %d %d %d %d %d %d %d %d %d\n", t2, 
@@ -223,6 +267,11 @@ restart:
 				data[300], data[400], data[500],
 				data[600], data[700], data[800],
 				data[900], data[1000], data[1100]);
+			if(!transmitter && x ==240){
+				dump_data();
+//				dump_phase();
+				exit(-1);
+			}
 		}
 		x++;
 	}
@@ -236,6 +285,7 @@ void tx_init(void)
 		data[c] = c;
 	}
 	*spinlock = 0;
+	memset(phase_debug,0,sizeof(phase_debug));
 }
 
 #endif /*__CHARACTERIZATION__*/
