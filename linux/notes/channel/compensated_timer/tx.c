@@ -45,19 +45,21 @@
  *  ==> 40000000 rounded
  * ==> 40000000 * 1/CPU_FREQ == 16710427 ~=16msec
  */
-#define PAYLOAD_PULSE_CYCLE_LENGTH (cycles_t)	(40000000/2)
+#define PAYLOAD_PULSE_CYCLE_LENGTH (cycles_t)	(40000000*4/2)
 
 /* 
  * This is the duty cycle of the PAYLOAD in nsec
  * PAYLOAD_PULSE_NSEC = ((1/FRAME_FREQ) * NSEC_PER_SEC)
  */
-#define PAYLOAD_PULSE_NSEC (cycles_t) 			16710427
+#define PAYLOAD_PULSE_NSEC (cycles_t) 			16710427 *4
 
 /*
  * This is the amount of noise we expect on the timer
  */
 //#define JITTER_NSEC_PERIOD (cycles_t)			200000
-#define JITTER_NSEC_PERIOD (cycles_t)			12000000
+#define JITTER_NSEC_PERIOD (cycles_t)			12000000 *4
+//Here the amount of data affect that value SO we may want to specify the
+//amount of CPU % then derive everything else from it...
 
 struct timespec carrier_ts = {
 	.tv_sec = 0,
@@ -82,8 +84,8 @@ extern int screen_init(int w, int h);
  */
 //#define TSC_CYCLE_PER_DATA 		39
 #define TSC_CYCLE_PER_DATA 		500
-#define PIXEL_WIDTH				200
-#define PIXEL_HEIGHT			200
+#define PIXEL_WIDTH				640
+#define PIXEL_HEIGHT			480
 #define DATA_PACKET_SIZE 		(PIXEL_WIDTH*PIXEL_HEIGHT)/8
 #define TSC_MAX_DATA_CYCLE		DATA_PACKET_SIZE * TSC_CYCLE_PER_DATA
 unsigned char data[DATA_PACKET_SIZE];
