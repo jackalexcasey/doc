@@ -56,7 +56,8 @@
 /*
  * This is the amount of noise we expect on the timer
  */
-#define JITTER_NSEC_PERIOD (cycles_t)			200000
+//#define JITTER_NSEC_PERIOD (cycles_t)			200000
+#define JITTER_NSEC_PERIOD (cycles_t)			8000000
 
 struct timespec carrier_ts = {
 	.tv_sec = 0,
@@ -68,12 +69,15 @@ extern int transmitter;
 extern volatile int *spinlock;
 
 extern unsigned char Untitled_bits[];
-extern int screen_init();
+extern int screen_dump(unsigned char *data);
+extern int screen_init(int w, int h);
 
 
 #ifdef __BUCKET_BASED_DATA__
 #define TSC_CYCLE_PER_DATA 		39
-#define DATA_PACKET_SIZE 		1152
+#define PIXEL_WIDTH				96
+#define PIXEL_HEIGHT			96
+#define DATA_PACKET_SIZE 		(PIXEL_WIDTH*PIXEL_HEIGHT)/8
 #define TSC_MAX_DATA_CYCLE		DATA_PACKET_SIZE * TSC_CYCLE_PER_DATA
 unsigned char data[DATA_PACKET_SIZE];
 
@@ -91,7 +95,7 @@ void modulate_data(cycles_t init, unsigned char *buf)
  * ripple
  * EX: 50 52 42 53 58 55 56 58 62 59 60 64
  */
-#if 0
+#if 1
 	while(1){
 		bucket = (get_cycles()-init)/TSC_CYCLE_PER_DATA;
 		if(bucket >= DATA_PACKET_SIZE)
@@ -184,7 +188,6 @@ void dump_data_full(void)
 	}
 	fprintf(stderr, "\n");
 }
-extern int screen_dump(unsigned char *data);
 
 void tx(void)
 {
@@ -276,6 +279,7 @@ restart:
 		phase = ((PAYLOAD_PULSE_CYCLE_LENGTH/2) - 
 			abs( (t2 % PAYLOAD_PULSE_CYCLE_LENGTH)/2 - PAYLOAD_PULSE_CYCLE_LENGTH/2) );
 //		phase_debug[x] = phase;
+		screen_dump(data);
 
 		if(x && !(x%60)){
 			fprintf(stderr, "%Ld %Ld %Ld %d %d %d %d %d %d %d %d %d %d %d %d\n", t2, 
@@ -286,7 +290,7 @@ restart:
 				data[900], data[1000], data[1100]);
 			if(!transmitter){// && x ==240){
 //				dump_data();
-				screen_dump(data);
+//				screen_dump(data);
 //				dump_data_full();
 //				dump_phase();
 //				exit(-1);
@@ -298,13 +302,13 @@ restart:
 
 void rx_init(void)
 {
-	screen_init();
+	screen_init(PIXEL_WIDTH, PIXEL_HEIGHT);
 }
 
 void tx_init(void)
 {	
 	int c;
-	screen_init();
+	screen_init(PIXEL_WIDTH, PIXEL_HEIGHT);
 #if 0
 	for(c=0; c<DATA_PACKET_SIZE; c++){
 		data[c] = c;

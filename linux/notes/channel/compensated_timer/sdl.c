@@ -18,7 +18,7 @@ SDL_Event event;
 /* This will be used as our "handle" to the screen surface */
 SDL_Surface *scr;
 
-int screen_init()
+int screen_init(int w, int h)
 {
 	static int init=0;
 
@@ -27,7 +27,7 @@ int screen_init()
     SDL_Init(SDL_INIT_VIDEO);
 
     /* Get a 640x480, 24-bit software screen surface */
-    scr = SDL_SetVideoMode(96, 96, 32, SDL_SWSURFACE);
+    scr = SDL_SetVideoMode(w, h, 32, SDL_SWSURFACE);
     assert(scr);
 	init = 1;
 }
@@ -36,12 +36,16 @@ int screen_dump(unsigned char *data)
 {
     int x, y, t, idx, ytimesw;
 
-	screen_init();
-
     /* Ensures we have exclusive access to the pixels */
     SDL_LockSurface(scr);
+	/* Clear the raster */
+	for(y = 0; y < scr->h; y++){
+		for(x = 0; x < scr->w; x++){
+			ytimesw = y*scr->pitch/4;
+			setpixel(scr, x, ytimesw, 0,0,0);
+		}
+	}
 
-#if 1
 	for(y = 0; y < scr->h; y++)
 		for(x = 0; x < scr->w; x=x+8){
 			idx = (x+(y*(scr->w)))/8;
@@ -75,21 +79,6 @@ int screen_dump(unsigned char *data)
 */
 
 	}
-#else
-    for(y = 0; y < scr->h; y++)
-    	for(x = 0; x < scr->w; x++)
-    	{
-    		/* This is what generates the pattern based on the xy co-ord */
-    		t = ((x*x + y*y) & 511) - 256;
-    		if (t < 0)
-    			t = -(t + 1);
-
-    		/* Now we write to the surface */
-    		pel(scr, x, y, 0) = 255 - t; //red
-    		pel(scr, x, y, 1) = t; //green
-    		pel(scr, x, y, 2) = t; //blue
-    	}
-#endif
     SDL_UnlockSurface(scr);
 
     /* Copies the `scr' surface to the _actual_ screen */
