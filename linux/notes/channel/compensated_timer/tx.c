@@ -57,7 +57,7 @@
  * This is the amount of noise we expect on the timer
  */
 //#define JITTER_NSEC_PERIOD (cycles_t)			200000
-#define JITTER_NSEC_PERIOD (cycles_t)			8000000
+#define JITTER_NSEC_PERIOD (cycles_t)			12000000
 
 struct timespec carrier_ts = {
 	.tv_sec = 0,
@@ -74,9 +74,16 @@ extern int screen_init(int w, int h);
 
 
 #ifdef __BUCKET_BASED_DATA__
-#define TSC_CYCLE_PER_DATA 		39
-#define PIXEL_WIDTH				96
-#define PIXEL_HEIGHT			96
+
+/* 
+ * By increasing the TSC_CYCLE_PER_DATA we increase the immunity to noise
+ * BUT we have to crank the JITTER_NSEC_PERIOD to cope with a longer 
+ * transmission time
+ */
+//#define TSC_CYCLE_PER_DATA 		39
+#define TSC_CYCLE_PER_DATA 		500
+#define PIXEL_WIDTH				200
+#define PIXEL_HEIGHT			200
 #define DATA_PACKET_SIZE 		(PIXEL_WIDTH*PIXEL_HEIGHT)/8
 #define TSC_MAX_DATA_CYCLE		DATA_PACKET_SIZE * TSC_CYCLE_PER_DATA
 unsigned char data[DATA_PACKET_SIZE];
@@ -94,6 +101,9 @@ void modulate_data(cycles_t init, unsigned char *buf)
  * With the bucked based implementation we see a lot of backward
  * ripple
  * EX: 50 52 42 53 58 55 56 58 62 59 60 64
+ *
+ * With the horizontal line this is almost perfect
+ * With the verttical like there is a lot of jitter but the basic shape is here
  */
 #if 1
 	while(1){
@@ -109,6 +119,9 @@ void modulate_data(cycles_t init, unsigned char *buf)
 #else
 /*
  * with the linear bucket there is no such problem
+ * With the vertical line like there is just too much jitter
+ *   no basic shape
+ * With the horizontal shape its OK but there is a big offset
  */
 	for(bucket = (get_cycles()-init)/TSC_CYCLE_PER_DATA; bucket<DATA_PACKET_SIZE; bucket++){
 		if(transmitter){
@@ -198,7 +211,7 @@ restart:
 	/*
 	 * TODO relax CPU here
 	 */
-	while(  ((t2 = get_cycles()) &~0xff) % ((PAYLOAD_PULSE_CYCLE_LENGTH*20) &~0xff) );
+	while(  ((t2 = get_cycles()) &~0xff) % ((PAYLOAD_PULSE_CYCLE_LENGTH*60) &~0xff) );
 	fprintf(stderr, "%Ld %Ld %Ld\n",PAYLOAD_PULSE_CYCLE_LENGTH, PAYLOAD_PULSE_NSEC, t2);
 
 	phase = 0;
@@ -230,6 +243,12 @@ restart:
 		delta = (get_cycles() - t1)/2;
 		if(delta > PAYLOAD_PULSE_CYCLE_LENGTH){
 			fprintf(stderr, "CLOCK Synchronization lost! %Lu %Lu\n",PAYLOAD_PULSE_CYCLE_LENGTH, delta);
+			goto restart;
+		}
+		// TODO here we catch the clock sync but there is other places as well
+		// WE probably need a t3
+		if((t1 - t2) > 10*PAYLOAD_PULSE_CYCLE_LENGTH){
+			fprintf(stderr, "AACLOCK Synchronization lost! %Lu %Lu\n",PAYLOAD_PULSE_CYCLE_LENGTH, delta);
 			goto restart;
 		}
 #endif
