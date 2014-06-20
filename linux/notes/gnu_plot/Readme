@@ -1,3 +1,5 @@
 ./makeplot ping_user_guest.dat User_Guest Latency[uSec] 100 10000 Frequency 1 10000
 ./makeplot ping_kernel_guest.dat Kernel_Guest Latency[uSec] 100 10000 Frequency 1 10000
 ./makeplot ping_user_host.dat User_Host Latency[uSec] 100 10000 Frequency 1 10000
+
+cyclictest -n -p 99 -l 1000000 -h 1000000 -q > H &
