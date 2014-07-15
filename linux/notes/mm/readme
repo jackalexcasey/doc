@@ -1,0 +1,47 @@
+Physical addr [ 0 - a ]
+Physical addr >> PAGE SHIFT bits == Page frame number ( PFN )
+
+PAGE_SHIFT determines the page size */
+	#define PAGE_SHIFT  12 ( 4096 )
+
+PFN is an index in the mem_map[PFN]
+	struct page *mem_map;
+	
+	* Each physical page in the system has a struct page associated with
+	* it to keep track of whatever it is we are using the page for at the
+	* moment. 
+
+Kernel memory (kaddr) is linearly mapped starting at PAGE_OFFSET ( PTE mapped ? )
+	There is a 1:1 translation between kernel virtual to kernel physical which is PAGE_OFFSET
+
+Page table are per-process; Kernel mapping is the same for all process 
+	CR3 is locaded with struct mm_struct { ...  pgd_t * pgd;
+	pgd, pmd, pte are located in kernel memory: pgd alloc(), pmd alloc() and pte alloc()
+	In arch/x86/mm/pgtable.c
+
+	pgd_t pmd_t pte_t are HW/MMU dependant EX:
+	#define _PAGE_BIT_PRESENT   0   /* is present */
+	#define _PAGE_BIT_RW        1   /* writeable */
+	#define _PAGE_BIT_USER      2   /* userspace addressable */
+	#define _PAGE_BIT_PSE       7   /* 4 MB (or 2MB) page */
+	...
+
+User memory (uaddr) is mapped using PTE and there is _no_ linear translation between user virtual to user physical
+	==> pgd_offset('virtual address' + 'struct mm_struct') returns pgd_t * pgd that points to this address
+	==> pmd_offset(pgd_t *) return the pmd_t *
+	==> pte_offset(pmd_t *) return the pte_t *
+	unsigned long pfn = pte_pfn(pte);
+
+	follow_page() does exactly this
+
+	The macro mk_pte() takes a struct page and protection bits and combines them together to form the pte_t 
+
+==> physical addr ~= PFN ~= PTE ~= struct page
+
+RMAP
+In 2.4, the only way to find all PTEs which map a shared page, such as a memory mapped shared library, 
+is to linearaly search all page tables belonging to all processes.
+
+
+that needs to be inserted into the page table
+
