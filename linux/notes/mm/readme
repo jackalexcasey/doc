@@ -11,7 +11,7 @@ PFN is an index in the mem_map[PFN]
 	* it to keep track of whatever it is we are using the page for at the
 	* moment. 
 
-Kernel memory (kaddr) is linearly mapped starting at PAGE_OFFSET ( PTE mapped ? )
+Kernel memory (kaddr) is linearly mapped starting at PAGE_OFFSET ( PTE mapped ? ) ( &init_mm )
 	There is a 1:1 translation between kernel virtual to kernel physical which is PAGE_OFFSET
 
 Page table are per-process; Kernel mapping is the same for all process 
@@ -35,6 +35,7 @@ User memory (uaddr) is mapped using PTE and there is _no_ linear translation bet
 	follow_page() does exactly this
 
 	The macro mk_pte() takes a struct page and protection bits and combines them together to form the pte_t 
+	See : lib/ioremap.c
 
 ==> physical addr ~= PFN ~= PTE ~= struct page
 
@@ -43,5 +44,18 @@ In 2.4, the only way to find all PTEs which map a shared page, such as a memory 
 is to linearaly search all page tables belonging to all processes.
 
 
-that needs to be inserted into the page table
+mmap:
+~~~~~
+unsigned long do_mmap_pgoff
+	addr = get_unmapped_area(file, addr, len, pgoff, flags);
+		 error = file->f_op->mmap(file, vma); 
+
+static const struct file_operations mem_fops = {
+	.llseek     = memory_lseek,
+	.read       = read_mem,
+	.write      = write_mem,
+	.mmap       = mmap_mem,
+
+/* Remap-pfn-range will mark the range VM_IO */
+	remap_pfn_range(vma,
 
