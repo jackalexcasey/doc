@@ -1,0 +1,3 @@
+VM test:
+./perfect_monotonic -c0 -t -a -m0xfe000000
+./perfect_monotonic -c0 -a -m0xfe000000
