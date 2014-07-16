@@ -53,6 +53,9 @@
 
 /*
  * This is the amount of noise we expect on the timer
+ * _and_ the amount of time spend doing the workload
+ * At the end this will define a CPU duty cycle in CPU load
+ *
  * Cannot be greater than PAYLOAD_PULSE_NSEC
  */
 //#define JITTER_NSEC_PERIOD (cycles_t)			800000
