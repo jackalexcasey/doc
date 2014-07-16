@@ -1,0 +1,16 @@
+Basic Installation:
+~~~~~~~~~~~~~~~~~~
+modprobe kvm-intel
+
+#Create disk image
+qemu-img create -f qcow2 master.qcow2 16G
+
+#Boot off the install ISO
+kvm  -hda master.qcow2 -m 512  -boot d  -cdrom ./disk.iso 
+
+#From original install disk:
+qemu-img create -b master.qcow2 -f qcow2 slave.qcow2
+
+#Boot from the COW disk (leave the install disk alone)
+kvm  -hda  slave.qcow2 -m 512
+
