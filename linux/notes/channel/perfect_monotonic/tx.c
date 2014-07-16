@@ -43,13 +43,13 @@
  *  ==> 40000000 rounded
  * ==> 40000000 * 1/CPU_FREQ == 16710427 ~=16msec
  */
-#define PAYLOAD_PULSE_CYCLE_LENGTH (cycles_t)	(40000000/2)
+#define PAYLOAD_PULSE_CYCLE_LENGTH (cycles_t)	(40000000*4/2)
 
 /* 
  * This is the duty cycle of the PAYLOAD in nsec
  * PAYLOAD_PULSE_NSEC = ((1/FRAME_FREQ) * NSEC_PER_SEC)
  */
-#define PAYLOAD_PULSE_NSEC (cycles_t) 			16710427
+#define PAYLOAD_PULSE_NSEC (cycles_t) 			16710427*4
 
 /*
  * This is the amount of noise we expect on the timer
@@ -59,7 +59,7 @@
  * Cannot be greater than PAYLOAD_PULSE_NSEC
  */
 //#define JITTER_NSEC_PERIOD (cycles_t)			800000
-#define JITTER_NSEC_PERIOD (cycles_t)			12000000
+#define JITTER_NSEC_PERIOD (cycles_t)			12000000*4
 
 struct timespec carrier_ts = {
 	.tv_sec = 0,
@@ -107,6 +107,73 @@ void calibrated_ldelay(unsigned long loops)
 		t2 = get_cycles();
 		error += t2 - t1; /* Measure t1 -> t2 == LPJ delay loop */
 	}while(error < loops*2);
+}
+
+extern int transmitter;
+extern volatile int *spinlock;
+
+extern unsigned char Untitled_bits[];
+extern int screen_dump(unsigned char *data);
+extern int screen_init(int w, int h);
+
+/* 
+ * By increasing the TSC_CYCLE_PER_DATA we increase the immunity to noise
+ * BUT we have to crank the JITTER_NSEC_PERIOD to cope with a longer 
+ * transmission time
+ */
+//#define TSC_CYCLE_PER_DATA 		39
+#define TSC_CYCLE_PER_DATA 		500
+#define PIXEL_WIDTH				640
+#define PIXEL_HEIGHT			480
+#define DATA_PACKET_SIZE 		(PIXEL_WIDTH*PIXEL_HEIGHT)/8
+#define TSC_MAX_DATA_CYCLE		DATA_PACKET_SIZE * TSC_CYCLE_PER_DATA
+unsigned char data[DATA_PACKET_SIZE];
+
+/*
+ * This is the bucket based implementation
+ * TODO return PACKET drop
+ */
+void modulate_data(cycles_t init, unsigned char *buf)
+{
+	int x;
+	int bucket=0;
+
+/*
+ * With the bucked based implementation we see a lot of backward
+ * ripple
+ * EX: 50 52 42 53 58 55 56 58 62 59 60 64
+ *
+ * With the horizontal line this is almost perfect
+ * With the verttical like there is a lot of jitter but the basic shape is here
+ */
+#if 1
+	while(1){
+		bucket = (get_cycles()-init)/TSC_CYCLE_PER_DATA;
+		if(bucket >= DATA_PACKET_SIZE)
+			break;
+		if(transmitter){
+			*spinlock = buf[bucket];
+		}
+		else
+			buf[bucket] = *spinlock;
+	}
+#else
+/*
+ * with the linear bucket there is no such problem
+ * With the vertical line like there is just too much jitter
+ *   no basic shape
+ * With the horizontal shape its OK but there is a big offset
+ */
+	for(bucket = (get_cycles()-init)/TSC_CYCLE_PER_DATA; bucket<DATA_PACKET_SIZE; bucket++){
+		if(transmitter){
+			*spinlock = buf[bucket];
+		}
+		else
+			buf[bucket] = *spinlock;
+	}
+#endif
+
+	*spinlock = 0;
 }
 
 void tx(void)
@@ -209,7 +276,8 @@ restart:
 		 * data modulation could be directly indexed from that value.
 		 */
 
-		//modulate_data(t2, data);
+		modulate_data(t2, data);
+		screen_dump(data);
 
 		phase = ((PAYLOAD_PULSE_CYCLE_LENGTH/2) - 
 			abs( (t2 % PAYLOAD_PULSE_CYCLE_LENGTH)/2 - PAYLOAD_PULSE_CYCLE_LENGTH/2) );
@@ -221,3 +289,27 @@ restart:
 		x++;
 	}
 }
+
+
+void rx_init(void)
+{
+	screen_init(PIXEL_WIDTH, PIXEL_HEIGHT);
+}
+
+void tx_init(void)
+{	
+	int c;
+	screen_init(PIXEL_WIDTH, PIXEL_HEIGHT);
+#if 0
+	for(c=0; c<DATA_PACKET_SIZE; c++){
+		data[c] = c;
+	}
+#else
+	/* Data source is bitmap */
+	memcpy(data,Untitled_bits,DATA_PACKET_SIZE);
+	screen_dump(Untitled_bits);
+#endif
+	*spinlock = 0;
+}
+
+

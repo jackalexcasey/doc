@@ -1,6 +1,6 @@
-CFLAGS = -Wall -c 
+CFLAGS = -Wall -c -I /usr/include/SDL
 #-O2
-LDFLAGS = -lrt -lpthread 
+LDFLAGS = -lrt -lpthread -lSDL
 INSTALL = 
 
 CFLAGS += $(EXTRA_CFLAGS)
