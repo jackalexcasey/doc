@@ -41,8 +41,9 @@
 #define __TX__
 
 char *program	= "";
-const char optstring[] = "c:t";
+const char optstring[] = "m:c:ta";
 int transmitter = 0;
+int ascii = 0;
 volatile int *spinlock = NULL;
 
 struct option options[] = {
@@ -53,7 +54,7 @@ struct option options[] = {
 
 void usage(void)
 {
-	printf("usage: [-c cpu sets] [-t transmitter mode] \n");
+	printf("usage: [-c cpu sets] [-t transmitter mode] [-m mmap addr] [-a ascii]\n");
 }
 
 void help(void)
@@ -69,23 +70,34 @@ void help(void)
  */
 extern void tx_init(void);
 extern void rx_init(void);
-void open_channel(void)
+void open_channel(unsigned long long pci_mem_addr)
 {
 	int fd;
 	void *ptr;
 
-	if ((fd = shm_open("channel", O_CREAT|O_RDWR,
-					S_IRWXU|S_IRWXG|S_IRWXO)) > 0) {
-		if (ftruncate(fd, 1024) != 0)
-			DIE("could not truncate shared file\n");
+	if(!pci_mem_addr){
+		if ((fd = shm_open("channel", O_CREAT|O_RDWR,
+						S_IRWXU|S_IRWXG|S_IRWXO)) > 0) {
+			if (ftruncate(fd, 1024) != 0)
+				DIE("could not truncate shared file\n");
+		}
+		else
+			DIE("Open channel");
+		
+		ptr = mmap(NULL,1024,PROT_READ|PROT_WRITE,MAP_SHARED,fd,0);
+		if(ptr == MAP_FAILED)
+			DIE("mmap");
 	}
-	else
-		DIE("Open channel");
-	
-	ptr = mmap(NULL,1024,PROT_READ|PROT_WRITE,MAP_SHARED,fd,0);
-	if(ptr == MAP_FAILED)
-		DIE("mmap");
+	else{
+		fprintf(stderr,"Using provide address cookie 0x%llx\n",pci_mem_addr);
+		fd = open ( "/dev/mem", O_RDWR);
+		ptr  = mmap(NULL, 1024, PROT_READ|PROT_WRITE, MAP_SHARED, fd, (off_t)pci_mem_addr);
+		if (!ptr) {
+			printf("Cannot map 0x%llx with size of %x\n",  pci_mem_addr, 1024);
+			exit(0);
+		}
 
+	}
 	spinlock = ptr; /* spinlock is the first object in the mmap */
 	if(transmitter)
 		tx_init();
@@ -487,6 +499,7 @@ main(int argc, char *argv[])
 	extern int	opterr;
 	extern int	optind;
 	extern char	*optarg;
+	unsigned long long pci_mem_addr = 0;
 	
 	if ((program = strrchr(argv[0], '/')) != NULL)
 		++program;
@@ -506,12 +519,18 @@ main(int argc, char *argv[])
 
 	while ((c = getopt_long(argc, argv, optstring, options, NULL)) != EOF) {
 		switch (c) {
+			case 'a':
+				ascii = 1;
+				break;
 			case 't':
 				transmitter = 1;
 				break;
 			case 'c':
 				if (parse_cpu_set(optarg, &cpus) != 0)
 					++errs;
+				break;
+			case 'm':
+				pci_mem_addr = strtoul(optarg, NULL, 16);
 				break;
 			default:
 				ERROR(0, "unknown option '%c'", c);
@@ -520,7 +539,7 @@ main(int argc, char *argv[])
 		}
 	}
 
-	open_channel();
+	open_channel(pci_mem_addr);
 
 	if (errs) {
 		usage();
