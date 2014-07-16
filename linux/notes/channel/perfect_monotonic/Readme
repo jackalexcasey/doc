@@ -1,3 +1,5 @@
 VM test:
 ./perfect_monotonic -c0 -t -a -m0xfe000000
 ./perfect_monotonic -c0 -a -m0xfe000000
+
+/usr/local/bin/qemu-system-x86_64 -M q35 -device virtio-blk-pci,drive=disk1,bootindex=1 -drive file=/image,if=none,cache=off,id=disk1 -kernel /boot/vmlinuz-3.10.19 -initrd /boot/initrd.img-3.10.19 -nographic -append "console=ttyS0 115200,8n1 root=/dev/vda single bigphysarea=10M assign-busses" -enable-kvm -device hwid,debug=1  -m 2500  -readconfig /usr/share/qemu-153/q35-chipset.cfg -device ivshmem,shm=t

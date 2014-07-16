@@ -31,6 +31,7 @@
 #include "clock.h"
 #include "logging.h"
 #include "atomic_64.h"
+extern int ascii;
 
 #define CPU_FREQ								2393715000
 #define FRAME_FREQ (cycles_t)					60
@@ -122,7 +123,7 @@ extern int screen_init(int w, int h);
  * transmission time
  */
 //#define TSC_CYCLE_PER_DATA 		39
-#define TSC_CYCLE_PER_DATA 		500
+#define TSC_CYCLE_PER_DATA 		50
 #define PIXEL_WIDTH				640
 #define PIXEL_HEIGHT			480
 #define DATA_PACKET_SIZE 		(PIXEL_WIDTH*PIXEL_HEIGHT)/8
@@ -277,15 +278,28 @@ restart:
 		 */
 
 		modulate_data(t2, data);
-		screen_dump(data);
 
 		phase = ((PAYLOAD_PULSE_CYCLE_LENGTH/2) - 
 			abs( (t2 % PAYLOAD_PULSE_CYCLE_LENGTH)/2 - PAYLOAD_PULSE_CYCLE_LENGTH/2) );
 
-		if(x && !(x%60)){
-			fprintf(stderr, "%Ld %Ld %Ld %Ld\n", t2, 
-				t2 % PAYLOAD_PULSE_CYCLE_LENGTH, lpj, phase);
+		if(ascii){
+			if(x && !(x%60)){
+				fprintf(stderr, "%Ld %Ld %Ld %d %d %d %d %d %d %d %d %d %d %d %d\n", t2, 
+					t2 % PAYLOAD_PULSE_CYCLE_LENGTH, lpj,
+					data[0], data[100], data[200],
+					data[300], data[400], data[500],
+					data[600], data[700], data[800],
+					data[900], data[1000], data[1100]);
+			}
 		}
+		else{
+			screen_dump(data);
+			if(x && !(x%60)){
+				fprintf(stderr, "%Ld %Ld %Ld %Ld\n", t2, 
+					t2 % PAYLOAD_PULSE_CYCLE_LENGTH, lpj, phase);
+			}
+		}
+
 		x++;
 	}
 }
@@ -293,22 +307,25 @@ restart:
 
 void rx_init(void)
 {
-	screen_init(PIXEL_WIDTH, PIXEL_HEIGHT);
+	if(!ascii)
+		screen_init(PIXEL_WIDTH, PIXEL_HEIGHT);
 }
 
 void tx_init(void)
 {	
 	int c;
-	screen_init(PIXEL_WIDTH, PIXEL_HEIGHT);
-#if 0
-	for(c=0; c<DATA_PACKET_SIZE; c++){
-		data[c] = c;
+
+	if(ascii){
+		for(c=0; c<DATA_PACKET_SIZE; c++){
+			data[c] = c;
+		}
 	}
-#else
-	/* Data source is bitmap */
-	memcpy(data,Untitled_bits,DATA_PACKET_SIZE);
-	screen_dump(Untitled_bits);
-#endif
+	else{
+		screen_init(PIXEL_WIDTH, PIXEL_HEIGHT);
+		/* Data source is bitmap */
+		memcpy(data,Untitled_bits,DATA_PACKET_SIZE);
+		screen_dump(Untitled_bits);
+	}
 	*spinlock = 0;
 }
 

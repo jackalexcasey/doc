@@ -2,8 +2,6 @@
 #include <assert.h>
 #include <math.h>
 
-extern int ascii;
-
 void setpixel(SDL_Surface *screen, int x, int y, Uint8 r, Uint8 g, Uint8 b)
 {
 	Uint32 *pixmem32;
@@ -20,18 +18,9 @@ SDL_Event event;
 /* This will be used as our "handle" to the screen surface */
 SDL_Surface *scr;
 
-int W;
-int H;
-
 int screen_init(int w, int h)
 {
 	static int init=0;
-
-	if(ascii){
-		W = w;
-		H = h;
-		return;
-	}
 
 	if(init)
 		return;
@@ -46,30 +35,6 @@ int screen_init(int w, int h)
 int screen_dump(unsigned char *data)
 {
     int x, y, t, idx, ytimesw;
-
-	if(ascii){
-		for(y = 0; y < H; y++)
-			for(x = 0; x < W; x=x+8){
-				idx = (x+(y*(W)))/8;
-				if(x==0 && (!(y%100)) ){
-
-				fprintf(stderr,"%d %d %d %d %d %d %d %d %d %d %d\n",x,y,idx, 
-					((data[idx] >>0) &0x1)*255,
-					((data[idx] >>1) &0x1)*255,
-					((data[idx] >>2) &0x1)*255,
-					((data[idx] >>3) &0x1)*255,
-					((data[idx] >>4) &0x1)*255,
-					((data[idx] >>5) &0x1)*255,
-					((data[idx] >>6) &0x1)*255,
-					((data[idx] >>7) &0x1)*255);
-				}
-
-
-		}
-		return EXIT_SUCCESS;
-	}
-
-
 
     /* Ensures we have exclusive access to the pixels */
     SDL_LockSurface(scr);
