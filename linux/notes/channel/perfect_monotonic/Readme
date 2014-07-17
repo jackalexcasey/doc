@@ -3,3 +3,19 @@ VM test:
 ./perfect_monotonic -c0 -a -m0xfe000000
 
 /usr/local/bin/qemu-system-x86_64 -M q35 -device virtio-blk-pci,drive=disk1,bootindex=1 -drive file=/image,if=none,cache=off,id=disk1 -kernel /boot/vmlinuz-3.10.19 -initrd /boot/initrd.img-3.10.19 -nographic -append "console=ttyS0 115200,8n1 root=/dev/vda single bigphysarea=10M assign-busses" -enable-kvm -device hwid,debug=1  -m 2500  -readconfig /usr/share/qemu-153/q35-chipset.cfg -device ivshmem,shm=t
+
+PATCH to disable TSC offset
+diff --git a/arch/x86/kvm/vmx.c b/arch/x86/kvm/vmx.c
+index cd1a99b..32a2cab 100644
+--- a/arch/x86/kvm/vmx.c
++++ b/arch/x86/kvm/vmx.c
+@@ -2685,7 +2685,7 @@ static __init int setup_vmcs_config(struct vmcs_config *vmcs_conf)
+              CPU_BASED_CR3_STORE_EXITING |
+              CPU_BASED_USE_IO_BITMAPS |
+              CPU_BASED_MOV_DR_EXITING |
+-             CPU_BASED_USE_TSC_OFFSETING |
++//           CPU_BASED_USE_TSC_OFFSETING |
+              CPU_BASED_MWAIT_EXITING |
+              CPU_BASED_MONITOR_EXITING |
+              CPU_BASED_INVLPG_EXITING |
+

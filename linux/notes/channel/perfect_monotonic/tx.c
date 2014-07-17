@@ -59,8 +59,13 @@ extern int ascii;
  *
  * Cannot be greater than PAYLOAD_PULSE_NSEC
  */
-//#define JITTER_NSEC_PERIOD (cycles_t)			800000
 #define JITTER_NSEC_PERIOD (cycles_t)			12000000*4
+
+/*
+ * Phase compensation cannot be negative ( because there is no 
+ * negative delay ... ) so phase 0 is defined as PHASE_OFFSET
+ */
+#define PHASE_OFFSET 2000
 
 struct timespec carrier_ts = {
 	.tv_sec = 0,
@@ -85,11 +90,13 @@ struct timespec carrier_ts = {
  *
  */
 #define LPJ_MAX_RESOLUTION 100
-void calibrated_ldelay(unsigned long loops)
+void calibrated_ldelay(cycles_t loops)
 {
 	cycles_t t1, t2, error;
-//	loops = loops - LPJ_MAX_RESOLUTION;
+	t1 = get_cycles();
+	while(get_cycles() - t1 < loops );
 
+#if 0
 	/* 
 	 * Here we compensate for the loop itself.
 	 * In order to keep it simple we do the following:
@@ -108,6 +115,7 @@ void calibrated_ldelay(unsigned long loops)
 		t2 = get_cycles();
 		error += t2 - t1; /* Measure t1 -> t2 == LPJ delay loop */
 	}while(error < loops*2);
+#endif
 }
 
 extern int transmitter;
@@ -122,10 +130,16 @@ extern int screen_init(int w, int h);
  * BUT we have to crank the JITTER_NSEC_PERIOD to cope with a longer 
  * transmission time
  */
-//#define TSC_CYCLE_PER_DATA 		39
-#define TSC_CYCLE_PER_DATA 		50
+#define TSC_CYCLE_PER_DATA 		39
+
+#if 0
+#define PIXEL_WIDTH				200
+#define PIXEL_HEIGHT			200
+#else
 #define PIXEL_WIDTH				640
 #define PIXEL_HEIGHT			480
+#endif
+
 #define DATA_PACKET_SIZE 		(PIXEL_WIDTH*PIXEL_HEIGHT)/8
 #define TSC_MAX_DATA_CYCLE		DATA_PACKET_SIZE * TSC_CYCLE_PER_DATA
 unsigned char data[DATA_PACKET_SIZE];
@@ -139,6 +153,7 @@ void modulate_data(cycles_t init, unsigned char *buf)
 	int x;
 	int bucket=0;
 
+	init = init - PHASE_OFFSET;
 /*
  * With the bucked based implementation we see a lot of backward
  * ripple
@@ -231,12 +246,13 @@ restart:
 		 *
 		 * The LPJ compensation for the (workload + workload ( noise ) + loop)
 		 * is 't1 - t2'
+		 *   The work is directly related to TSC_CYCLE_PER_DATA
 		 *
 		 * The LPJ compensation for the (Jitter on the timer) is 'delta'
 		 *
 		 * Phase is also compensated to keep t2 inline with PAYLOAD_PULSE_CYCLE_LENGTH
 		 */
-		lpj = (PAYLOAD_PULSE_CYCLE_LENGTH - delta - phase -((t1-t2)/2) );
+		lpj = (PAYLOAD_PULSE_CYCLE_LENGTH - delta - phase -((t1-t2)/2) + PHASE_OFFSET/2 );
 
 		/*
 		 * With proper initial phase alignment this overshoot in phase compensation
@@ -252,7 +268,7 @@ restart:
 			lpj = 0;
 		}
 
-		calibrated_ldelay(lpj);
+		calibrated_ldelay(lpj*2);
 //		fprintf(stderr,"%Lu\n",(get_cycles() - t1));
 
 		t2 = get_cycles();
@@ -275,6 +291,12 @@ restart:
 		 *
 		 * The goal is to have a phase phase offset == 0 so that
 		 * data modulation could be directly indexed from that value.
+		 *
+		 * Inter-VM
+		 * There is an offset for the TSC when measure across VMs so
+		 * for that reason the phase adjustment can't work. TSC read is 
+		 * trapped by the hostOS. See README
+		 *
 		 */
 
 		modulate_data(t2, data);
