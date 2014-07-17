@@ -1,0 +1,10 @@
+in ascii mode is would be better to have a special patter for phase shift detection.
+
+Put the data into file on the RX side and have a mode to stream it out
+
+The lpj value that is printed out gives us the margin for the timer setup ( we can relax more )
+19579360002434 2434 53885611 0 100 200 44 144 244 88 188 32 132 232 76
+19588960002428 2428 53878347 0 100 200 44 144 244 88 188 32 132 232 76
+
+
+Migrate to instruction based collision model for SMT execution pipeline
