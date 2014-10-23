@@ -1,0 +1,33 @@
+diff --git a/arch/x86/kvm/x86.c b/arch/x86/kvm/x86.c
+index 34cda14..f1330d4 100644
+--- a/arch/x86/kvm/x86.c
++++ b/arch/x86/kvm/x86.c
+@@ -4441,7 +4441,7 @@ static int vcpu_enter_guest(struct kvm_vcpu *vcpu)
+ 	int r;
+ 	bool req_int_win = !irqchip_in_kernel(vcpu->kvm) &&
+ 		vcpu->run->request_interrupt_window;
+-	s64 msec;
++	s64 msec,usec;
+ 
+ 	if (vcpu->requests)
+ 		if (test_and_clear_bit(KVM_REQ_MMU_RELOAD, &vcpu->requests))
+@@ -4527,14 +4527,15 @@ static int vcpu_enter_guest(struct kvm_vcpu *vcpu)
+ 	 * Here we are about to get back into guest mode. We want to know how much
+ 	 * time was spent outside VM context from the last VM exit.
+ 	 */
+-	msec = ktime_to_us(ktime_sub(ktime_get(), vcpu->arch.last_ktime)) / USEC_PER_MSEC;
+-	if( (vcpu->arch.last_exit_reason != EXIT_REASON_HLT) && (msec >= 10) ){
++	usec = ktime_to_us(ktime_sub(ktime_get(), vcpu->arch.last_ktime));
++	msec = usec / USEC_PER_MSEC;
++	if( (vcpu->arch.last_exit_reason != EXIT_REASON_HLT) && (usec >= 500) ){
+ 		int i;
+ 		for (i = 0;  kvm_x86_ops->exit_reasons_str[i].name; i++) {
+ 			if (vcpu->arch.last_exit_reason != kvm_x86_ops->exit_reasons_str[i].mask)
+ 				continue;
+-			printk(KERN_INFO "kvm_long_exit: %lldmsec %s vCPU %u RIP 0x%lx " \
+-				"GPA 0x%lx \n", msec, kvm_x86_ops->exit_reasons_str[i].name, 
++			printk(KERN_INFO "kvm_long_exit: %8lldusec %s vCPU %u RIP 0x%lx " \
++				"GPA 0x%lx \n", usec, kvm_x86_ops->exit_reasons_str[i].name, 
+ 				vcpu->vcpu_id,(long unsigned int) vcpu->arch.rip,
+ 				(long unsigned int )vcpu->arch.gpa);
+ 			break;

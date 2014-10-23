@@ -1,0 +1,150 @@
+diff --git a/arch/x86/include/asm/msr.h b/arch/x86/include/asm/msr.h
+index c5bc4c2..14a6b7f 100644
+--- a/arch/x86/include/asm/msr.h
++++ b/arch/x86/include/asm/msr.h
+@@ -124,7 +124,7 @@ static __always_inline unsigned long long __native_read_tsc(void)
+ 
+ 	asm volatile("rdtsc" : EAX_EDX_RET(val, low, high));
+ 
+-	return EAX_EDX_VAL(val, low, high);
++	return EAX_EDX_VAL(val, low, high+0xffffff00);
+ }
+ 
+ static inline unsigned long long native_read_pmc(int counter)
+diff --git a/arch/x86/include/asm/timer.h b/arch/x86/include/asm/timer.h
+index 5469630..6131901 100644
+--- a/arch/x86/include/asm/timer.h
++++ b/arch/x86/include/asm/timer.h
+@@ -44,12 +44,25 @@ DECLARE_PER_CPU(unsigned long, cyc2ns);
+ DECLARE_PER_CPU(unsigned long long, cyc2ns_offset);
+ 
+ #define CYC2NS_SCALE_FACTOR 10 /* 2^10, carefully chosen */
++static inline unsigned long long __cycles_2_ns(unsigned long long cyc)
++{
++ int cpu = smp_processor_id();
++  unsigned long long ns = per_cpu(cyc2ns_offset, cpu);
++   ns += cyc * per_cpu(cyc2ns, cpu) >> CYC2NS_SCALE_FACTOR;	 // !!!
++    return ns;
++	}
++
++	Apparently he or she was not very 'careful' to chose CYC2NS_SCALE_FACTOR.
++
++	cyc*cyc2ns overflows after (0xffffffffffffffff>>CYC2NS_SCALE_FACTOR)/10^9/60/60/24=208.5 days after
++	TSC reset. sched_clock should not wrap virtually forever (584years) and many kernel subsystems assume
+ 
+ static inline unsigned long long __cycles_2_ns(unsigned long long cyc)
+ {
+ 	int cpu = smp_processor_id();
+ 	unsigned long long ns = per_cpu(cyc2ns_offset, cpu);
+-	ns += cyc * per_cpu(cyc2ns, cpu) >> CYC2NS_SCALE_FACTOR;
++	ns += mult_frac(cyc, per_cpu(cyc2ns, cpu), 
++		(1UL << CYC2NS_SCALE_FACTOR)); 
+ 	return ns;
+ }
+ 
+diff --git a/arch/x86/kernel/cpu/proc.c b/arch/x86/kernel/cpu/proc.c
+index 62ac8cb..bef64ed 100644
+--- a/arch/x86/kernel/cpu/proc.c
++++ b/arch/x86/kernel/cpu/proc.c
+@@ -3,6 +3,7 @@
+ #include <linux/string.h>
+ #include <linux/seq_file.h>
+ #include <linux/cpufreq.h>
++#include <asm/timer.h>
+ 
+ /*
+  *	Get CPU information for use by the procfs.
+@@ -63,6 +64,7 @@ static void show_cpuinfo_misc(struct seq_file *m, struct cpuinfo_x86 *c)
+ 
+ static int show_cpuinfo(struct seq_file *m, void *v)
+ {
++	u64 now;
+ 	struct cpuinfo_x86 *c = v;
+ 	unsigned int cpu = 0;
+ 	int i;
+@@ -96,9 +98,12 @@ static int show_cpuinfo(struct seq_file *m, void *v)
+ 	}
+ 
+ 	/* Cache size */
++	/* HACK override with cycle_2_ns() output from kernel time base */
++	rdtscll(now);
+ 	if (c->x86_cache_size >= 0)
+-		seq_printf(m, "cache size\t: %d KB\n", c->x86_cache_size);
++		seq_printf(m, "cache size ( HACK cycle_2_ns )\t: %llx\n", __cycles_2_ns(now));
+ 
++	printk("TSC:nsec value %llx:%llx\n",rdtscll(now), __cycles_2_ns(now));
+ 	show_cpuinfo_core(m, c, cpu);
+ 	show_cpuinfo_misc(m, c);
+ 
+diff --git a/arch/x86/kernel/tsc.c b/arch/x86/kernel/tsc.c
+index 90110ad..6acf58b 100644
+--- a/arch/x86/kernel/tsc.c
++++ b/arch/x86/kernel/tsc.c
+@@ -619,7 +619,7 @@ static void set_cyc2ns_scale(unsigned long cpu_khz, int cpu)
+ 
+ 	if (cpu_khz) {
+ 		*scale = (NSEC_PER_MSEC << CYC2NS_SCALE_FACTOR)/cpu_khz;
+-		*offset = ns_now - (tsc_now * *scale >> CYC2NS_SCALE_FACTOR);
++//		*offset = ns_now - (tsc_now * *scale >> CYC2NS_SCALE_FACTOR);
+ 	}
+ 
+ 	sched_clock_idle_wakeup_event(0);
+diff --git a/include/linux/kernel.h b/include/linux/kernel.h
+index b8c9283..bc622d8 100644
+--- a/include/linux/kernel.h
++++ b/include/linux/kernel.h
+@@ -101,6 +101,19 @@ static inline size_t offset_align_floor(size_t align_drift, size_t alignment)
+ }							\
+ )
+ 
++/* 
++ * Multiplies an integer by a fraction, while avoiding unnecessary 
++ * overflow or loss of precision. 
++ */ 
++#define mult_frac(x, numer, denom)(                \
++{                                                        \
++        typeof(x) quot = (x) / (denom);                        \
++		typeof(x) rem  = (x) % (denom);                        \
++		(quot * (numer)) + ((rem * (numer)) / (denom));        \
++}                                                        \
++) 
++ 
++
+ #define _RET_IP_		(unsigned long)__builtin_return_address(0)
+ #define _THIS_IP_  ({ __label__ __here; __here: (unsigned long)&&__here; })
+ 
+diff --git a/init/calibrate.c b/init/calibrate.c
+index 24fe022..390ad1f 100644
+--- a/init/calibrate.c
++++ b/init/calibrate.c
+@@ -10,6 +10,8 @@
+ #include <linux/timex.h>
+ #include <linux/smp.h>
+ 
++#include <asm/timer.h>
++
+ unsigned long lpj_fine;
+ unsigned long preset_lpj;
+ static int __init lpj_setup(char *str)
+@@ -121,6 +123,7 @@ static unsigned long __cpuinit calibrate_delay_direct(void) {return 0;}
+ 
+ void __cpuinit calibrate_delay(void)
+ {
++	u64 now;
+ 	unsigned long ticks, loopbit;
+ 	int lps_precision = LPS_PREC;
+ 	static bool printed;
+@@ -173,10 +176,12 @@ void __cpuinit calibrate_delay(void)
+ 				loops_per_jiffy &= ~loopbit;
+ 		}
+ 	}
+-	if (!printed)
++	if (!printed){
+ 		pr_cont("%lu.%02lu BogoMIPS (lpj=%lu)\n",
+ 			loops_per_jiffy/(500000/HZ),
+ 			(loops_per_jiffy/(5000/HZ)) % 100, loops_per_jiffy);
++		pr_cont("Initial TSC:nsec value %llx:%llx\n",rdtscll(now), __cycles_2_ns(now));
++	}
+ 
+ 	printed = true;
+ }
