@@ -48,17 +48,18 @@
  *  ==> 40000000 rounded _AND_ always divided by 2
  * ==> 40000000 * 1/CPU_FREQ == 16710427 ~=16msec
  */
-#define FRAME_PERIOD_IN_CYCLE (cycles_t)(40000000/2)
-#define FRAME_PERIOD_IN_NSEC (cycles_t)16710427
+#define STRETCH 4
+#define FRAME_PERIOD_IN_CYCLE (cycles_t)((40000000/2)*STRETCH)
+#define FRAME_PERIOD_IN_NSEC (cycles_t)(16710427*STRETCH)
 
 /*
  * This is the amount of scheduling jitter we expect on the timer
  * ( arbitrary choosen _AND_ define our immunity to noise )
  * Cannot be greater than FRAME_PERIOD !
- * 75%
+ * 50%
  */
-#define TIMER_JITTER_IN_CYCLE (cycles_t)((FRAME_PERIOD_IN_CYCLE*3)/4)
-#define TIMER_JITTER_IN_NSEC (cycles_t)((FRAME_PERIOD_IN_NSEC*3)/4)
+#define TIMER_JITTER_IN_CYCLE (cycles_t)(((FRAME_PERIOD_IN_CYCLE*3)/4))
+#define TIMER_JITTER_IN_NSEC (cycles_t) (((FRAME_PERIOD_IN_NSEC*3)/4))
 
 /*
  * This is the PAYLOAD available cycle
@@ -70,5 +71,10 @@
  * negative delay ... ) so phase 0 is defined as PHASE_OFFSET
  */
 #define PHASE_OFFSET 2000
+
+extern void pll( void(*fn)(cycles_t));
+extern void open_channel(unsigned long long pci_mem_addr);
+extern void modulate_data(cycles_t init);
+
 #endif
 

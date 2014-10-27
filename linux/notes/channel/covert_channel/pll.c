@@ -7,20 +7,20 @@
 
 #include "config.h"
 
-struct timespec carrier_ts = {
+static struct timespec carrier_ts = {
 	.tv_sec = 0,
 	/* Here we provision for the jitter on the timer */
 	.tv_nsec = FRAME_PERIOD_IN_NSEC - TIMER_JITTER_IN_NSEC,
 };
 
-void calibrated_ldelay(cycles_t loops)
+static void calibrated_ldelay(cycles_t loops)
 {
 	cycles_t t1;
 	t1 = get_cycles();
 	while(get_cycles() - t1 < loops );
 }
 
-void pll(void)
+void pll(void(*fn)(cycles_t))
 {
 	int x;
 	cycles_t t1, t2, t3, phase, delta, lpj;
@@ -78,7 +78,7 @@ restart:
 		 */
 		t2 = get_cycles();
 
-//		modulate_data(t2, data);
+		fn(t2);
 
 		phase = ((FRAME_PERIOD_IN_CYCLE/2) - 
 			abs( (t2 % FRAME_PERIOD_IN_CYCLE)/2 - FRAME_PERIOD_IN_CYCLE/2) );
@@ -93,7 +93,7 @@ restart:
 		}
 
 		if(x && !(x%60))
-			fprintf(stderr, "%Ld %Ld/%Ld\n", t2, t3,PAYLOAD_AVAILABLE_CYCLE);
+			fprintf(stderr, "%Ld %Ld/%Ld %Ld\n", t2, t3,PAYLOAD_AVAILABLE_CYCLE, TIMER_JITTER_IN_CYCLE);
 
 		x++;
 	}
