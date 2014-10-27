@@ -1,9 +1,3 @@
-/*
- * Copyright (C) 2010 Cisco Systems
- * Author: Etienne Martineau <etmartin@cisco.com>
- *
- * This work is licensed under the terms of the GNU GPL, version 2.
- */
 #define _GNU_SOURCE
 #include <errno.h>
 #include <pthread.h>
@@ -82,8 +76,8 @@ extern int screen_init(int w, int h);
  * BUT we have to crank the JITTER_NSEC_PERIOD to cope with a longer 
  * transmission time
  */
-//#define TSC_CYCLE_PER_DATA 		39
-#define TSC_CYCLE_PER_DATA 		500
+#define TSC_CYCLE_PER_DATA 		39
+//#define TSC_CYCLE_PER_DATA 		500
 #define PIXEL_WIDTH				640
 #define PIXEL_HEIGHT			480
 #define DATA_PACKET_SIZE 		(PIXEL_WIDTH*PIXEL_HEIGHT)/8
