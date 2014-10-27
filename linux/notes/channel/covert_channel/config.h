@@ -53,10 +53,17 @@
 
 /*
  * This is the amount of scheduling jitter we expect on the timer
- * The PLL compensation give us a monotonic pulse right after that period
- * Cannot be greater than FRAME_PERIOD_IN_NSEC !
+ * ( arbitrary choosen _AND_ define our immunity to noise )
+ * Cannot be greater than FRAME_PERIOD !
+ * 75%
  */
-#define TIMER_JITTER_IN_NSEC (cycles_t)12000000
+#define TIMER_JITTER_IN_CYCLE (cycles_t)((FRAME_PERIOD_IN_CYCLE*3)/4)
+#define TIMER_JITTER_IN_NSEC (cycles_t)((FRAME_PERIOD_IN_NSEC*3)/4)
+
+/*
+ * This is the PAYLOAD available cycle
+ */
+#define PAYLOAD_AVAILABLE_CYCLE (cycles_t) (FRAME_PERIOD_IN_CYCLE - TIMER_JITTER_IN_CYCLE)
 
 /*
  * Phase compensation cannot be negative ( because there is no 
