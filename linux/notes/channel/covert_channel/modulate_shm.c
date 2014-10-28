@@ -31,7 +31,7 @@ unsigned char data[DATA_PACKET_SIZE];
  * This is the bucket based implementation
  * TODO return PACKET drop
  */
-void modulate_data(cycles_t init)
+void modulate_shm(cycles_t init)
 {
 	int x;
 	int bucket=0;
