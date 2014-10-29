@@ -7,6 +7,8 @@
 
 #include "config.h"
 
+extern int transmitter;
+
 static struct timespec carrier_ts = {
 	.tv_sec = 0,
 	/* Here we provision for the jitter on the timer */
@@ -60,6 +62,10 @@ restart:
 			fprintf(stderr, ".");
 			lpj = 0;
 		}
+		//TODO clean up
+		if(!transmitter)
+			lpj += 2000;
+
 		calibrated_ldelay(lpj*2);
 
 		/*

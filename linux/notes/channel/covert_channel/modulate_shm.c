@@ -102,6 +102,7 @@ static void tx_init(void)
 	*spinlock = 0;
 }
 
+#if 0
 /*
  * This hides the detail about the method used for communication.
  * For modelization we used shared memory variable.
@@ -143,4 +144,5 @@ void open_channel(unsigned long long pci_mem_addr)
 		rx_init();
 	return;
 }
+#endif
 

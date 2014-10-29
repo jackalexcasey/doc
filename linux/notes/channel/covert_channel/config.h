@@ -75,6 +75,7 @@
 extern void pll( void(*fn)(cycles_t));
 extern void open_channel(unsigned long long pci_mem_addr);
 extern void modulate_shm(cycles_t init);
+extern void modulate_cache(cycles_t init);
 
 #endif
 

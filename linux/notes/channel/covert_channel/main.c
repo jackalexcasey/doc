@@ -23,7 +23,8 @@ void help(void)
 
 void * worker_thread(void *arg)
 {
-	pll(modulate_shm);
+//	pll(modulate_shm);
+	pll(modulate_cache);
 }
 
 int
