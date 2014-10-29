@@ -1,0 +1,74 @@
+diff --git a/linux/notes/channel/covert_channel/config.h b/linux/notes/channel/covert_channel/config.h
+index 9666421..609c447 100644
+--- a/linux/notes/channel/covert_channel/config.h
++++ b/linux/notes/channel/covert_channel/config.h
+@@ -48,7 +48,7 @@
+  *  ==> 40000000 rounded _AND_ always divided by 2
+  * ==> 40000000 * 1/CPU_FREQ == 16710427 ~=16msec
+  */
+-#define STRETCH 4
++#define STRETCH 40
+ #define FRAME_PERIOD_IN_CYCLE (cycles_t)((40000000/2)*STRETCH)
+ #define FRAME_PERIOD_IN_NSEC (cycles_t)(16710427*STRETCH)
+ 
+@@ -75,6 +75,7 @@
+ extern void pll( void(*fn)(cycles_t));
+ extern void open_channel(unsigned long long pci_mem_addr);
+ extern void modulate_shm(cycles_t init);
++extern void modulate_cache(cycles_t init);
+ 
+ #endif
+ 
+diff --git a/linux/notes/channel/covert_channel/main.c b/linux/notes/channel/covert_channel/main.c
+index 0ed212b..93a6168 100644
+--- a/linux/notes/channel/covert_channel/main.c
++++ b/linux/notes/channel/covert_channel/main.c
+@@ -23,7 +23,8 @@ void help(void)
+ 
+ void * worker_thread(void *arg)
+ {
+-	pll(modulate_shm);
++//	pll(modulate_shm);
++	pll(modulate_cache);
+ }
+ 
+ int
+diff --git a/linux/notes/channel/covert_channel/modulate_shm.c b/linux/notes/channel/covert_channel/modulate_shm.c
+index 2941144..38261c8 100644
+--- a/linux/notes/channel/covert_channel/modulate_shm.c
++++ b/linux/notes/channel/covert_channel/modulate_shm.c
+@@ -1,5 +1,5 @@
+ #include "config.h"
+-
++#if 0
+ extern int ascii;
+ extern int transmitter;
+ extern unsigned char Untitled_bits[];
+@@ -143,4 +143,5 @@ void open_channel(unsigned long long pci_mem_addr)
+ 		rx_init();
+ 	return;
+ }
++#endif
+ 
+diff --git a/linux/notes/channel/covert_channel/pll.c b/linux/notes/channel/covert_channel/pll.c
+index ebcbd54..90a43c4 100644
+--- a/linux/notes/channel/covert_channel/pll.c
++++ b/linux/notes/channel/covert_channel/pll.c
+@@ -6,6 +6,7 @@
+  */
+ 
+ #include "config.h"
++extern int transmitter;
+ 
+ static struct timespec carrier_ts = {
+ 	.tv_sec = 0,
+@@ -56,6 +57,9 @@ restart:
+ 		 * Then we do lpj compensation
+ 		 */
+ 		lpj = (FRAME_PERIOD_IN_CYCLE - delta - phase -((t1-t2)/2) + PHASE_OFFSET/2 );
++		if(!transmitter)
++			lpj += PHASE_OFFSET;
++
+ 		if(lpj < 0){
+ 			fprintf(stderr, ".");
+ 			lpj = 0;

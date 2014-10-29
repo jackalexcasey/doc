@@ -9,25 +9,26 @@
 
 extern int transmitter;
 
+#define mb() asm volatile("mfence":::"memory")
+
+# define __force __attribute__((force))
+static inline void clflush(volatile void *__p)
+{
+	asm volatile("clflush %0" : "+m" (*(volatile char __force *)__p));
+}
+
+unsigned char *rx_buf = NULL;
+volatile unsigned char dummy;
+
 /*
  * Suppose 32Kb L1 cache ,8way ,64byte per line
  * ==> 32kb / 64byte == 512 lines
  * ==> 512 lines / 8way == 64 sets
  * ==> 64 sets * 64 byte = 4096 wrap value
  */
-
-#define mb()    asm volatile("mfence":::"memory")
-volatile unsigned char dummy;
-unsigned char *rx_buf = NULL;
-
-/* 
- * this is flushing one cache line pointed by this addr
- */
-# define __force    __attribute__((force))
-static inline void clflush(volatile void *__p)
-{
-	asm volatile("clflush %0" : "+m" (*(volatile char __force *)__p));
-}
+#define CACHE_SIZE (128*1024)
+#define CACHE_LINE_SIZE 64
+#define CACHE_LINE_NR (CACHE_SIZE/CACHE_LINE_SIZE)
 
 void open_c(void)
 {
@@ -35,13 +36,18 @@ void open_c(void)
 
 	if ((fd = shm_open("channelrx", O_CREAT|O_RDWR,
 					S_IRWXU|S_IRWXG|S_IRWXO)) > 0) {
-		if (ftruncate(fd, 1024*32) != 0)
+		if (ftruncate(fd, CACHE_SIZE) != 0)
 			DIE("could not truncate shared file\n");
 	}
 	else
 		DIE("Open channel");
-	
-	rx_buf = mmap(0x7f0000030000,1024*32,PROT_READ|PROT_WRITE,MAP_SHARED,fd,0);
+
+	/*
+	 * Cache are taggeg by virtual addr + physical addr
+	 * SO here we are mmaping the same physical pages across different process
+	 * at the _SAME_ VMA
+	 */
+	rx_buf = mmap(0x7f0000030000,CACHE_SIZE,PROT_READ|PROT_WRITE,MAP_SHARED,fd,0);
 	if(rx_buf == MAP_FAILED)
 		DIE("mmap");
 	fprintf(stderr, "rx_buf mmap ptr %p\n",rx_buf);
@@ -50,15 +56,15 @@ void open_c(void)
 
 void zap_cache_line(int linenr)
 {
-	clflush(&rx_buf[64*linenr]);
+	clflush(&rx_buf[CACHE_LINE_SIZE*linenr]);
 //	rx_buf[set] = 0xff;
 	mb();
 }
 
 void load_cache_line(int linenr)
 {
-	__builtin_prefetch(&rx_buf[64*linenr]);
-//	dummy = rx_buf[64*linenr];
+//	__builtin_prefetch(&rx_buf[64*linenr]);
+	dummy = rx_buf[CACHE_LINE_SIZE*linenr];
 	mb();
 }
 
@@ -67,110 +73,191 @@ cycles_t measure_cache_line_access_time(int linenr)
 	cycles_t t1;
 
 	t1 = get_cycles();
-	dummy = rx_buf[64*linenr];
+	dummy = rx_buf[CACHE_LINE_SIZE*linenr];
 	mb();
 	return get_cycles() - t1;
 }
 
-void pll(void(*fn)(cycles_t))
+int measure_cache_line_bit(int linenr)
+{
+	cycles_t t1;
+
+	t1 = get_cycles();
+	dummy = rx_buf[CACHE_LINE_SIZE*linenr];
+	mb();
+	if((get_cycles() - t1) >100)
+		return 1;
+	return 0;
+}
+
+/*
+ * Logical 1 is a slow line i.e. zap_cache_line
+ * Logical 0 is a fast line i.e. load_cache_line
+ * HEre the load cache can bring other stuff hence we
+ * zap all the other line at then end only
+ */
+void encode_cache_lines(int linenr, unsigned char value)
 {
 	int x;
-	cycles_t array[512];
+	unsigned char tmp;
+
+	tmp = value;
+	for(x=0;x<8;x++){
+		if(!(tmp & 0x1))
+			load_cache_line(linenr+x);
+		tmp = tmp >>1;
+	}
+
+	tmp = value;
+	for(x=0;x<8;x++){
+		if(tmp & 0x1)
+			zap_cache_line(linenr+x);
+		tmp = tmp >>1;
+	}
+}
+
+unsigned char decode_cache_line(int linenr)
+{
+	int x,t;
+	unsigned char tmp=0;
+
+	if(measure_cache_line_access_time(linenr+3)>100)
+		tmp = tmp | 1 <<3;
+	if(measure_cache_line_access_time(linenr+7)>100)
+		tmp = tmp | 1 <<7;
+	if(measure_cache_line_access_time(linenr+2)>100)
+		tmp = tmp | 1 <<2;
+	if(measure_cache_line_access_time(linenr+6)>100)
+		tmp = tmp | 1 <<6;
+	if(measure_cache_line_access_time(linenr+4)>100)
+		tmp = tmp | 1 <<4;
+	if(measure_cache_line_access_time(linenr+1)>100)
+		tmp = tmp | 1 <<1;
+	if(measure_cache_line_access_time(linenr+5)>100)
+		tmp = tmp | 1 <<5;
+	if(measure_cache_line_access_time(linenr+0)>100)
+		tmp = tmp | 1 <<0;
+	
+	return tmp;
+}
+
+
+void pll(void(*fn)(cycles_t))
+{
+	int x,y;
+	int array[CACHE_LINE_NR];
+	unsigned char value;
 	
 	open_c();
 
-	for(x=0;x<512;x++){
-		//This is the encoding part
-		if(!(x%2))
-			zap_cache_line(x);
-		else
-			load_cache_line(x);
-		//This is the decoding part
-		array[x] = measure_cache_line_access_time(x);
+#if 0
+	for(y=0;y<0xf;y++){
+	for(x=0;x<0xf;x++){
+		encode_cache_lines(0,x);
+		value = decode_cache_line(0);
+		fprintf(stderr,"_%x:%x_\n",x,value);
+	sleep(1);
 	}
 
-	for(x=0;x<512;x++){
+	}
+	return;
+#endif
+
+#if 1
+//	for(x=0;x<8;x++){
+//		load_cache_line(x);
+//		zap_cache_line(x);
+//	}
+	
+#if 1
+	encode_cache_lines(0,0x2f);
+	value = decode_cache_line(0);
+	fprintf(stderr,"%x\n",value);
+	encode_cache_lines(0,0x30);
+	value = decode_cache_line(0);
+	fprintf(stderr,"%x\n",value);
+	return;
+
+#else
+
+	load_cache_line(0);
+	load_cache_line(1);
+	load_cache_line(2);
+	load_cache_line(3);
+	load_cache_line(4);
+	load_cache_line(5);
+	load_cache_line(6);
+	load_cache_line(7);
+
+	mb();
+	zap_cache_line(0);
+	zap_cache_line(1);
+	zap_cache_line(2);
+	zap_cache_line(3);
+	zap_cache_line(4);
+	zap_cache_line(5);
+	zap_cache_line(6);
+	zap_cache_line(7);
+
+
+#endif
+
+	array[3] = measure_cache_line_access_time(3);
+	array[7] = measure_cache_line_access_time(7);
+	array[2] = measure_cache_line_access_time(2);
+	array[6] = measure_cache_line_access_time(6);
+	array[4] = measure_cache_line_access_time(4);
+	array[1] = measure_cache_line_access_time(1);
+	array[5] = measure_cache_line_access_time(5);
+	array[0] = measure_cache_line_access_time(0);
+
+	for(x=0;x<8;x++){
+		fprintf(stderr,"_%d:%d_",x,array[x]);
+	}
+	return;
+#endif
+
+#if 1
+	for(x=0;x<CACHE_LINE_NR;x=x+4){
+		for(y=0;y<4;y++){
+	//		if(!((x+y)%2))
+				zap_cache_line(x+y);
+	//		else
+	//			load_cache_line(x+y);
+		}
+#if 0
+		for(y=0;y<8;y++){
+			/*The linear progression mixup the date because of auto prefetch */
+			array[x+y] = measure_cache_line_access_time(x+y);
+		}
+#else
+		array[x+3] = measure_cache_line_access_time(x+3);
+//		array[x+7] = measure_cache_line_access_time(x+7);
+		array[x+2] = measure_cache_line_access_time(x+2);
+//		array[x+6] = measure_cache_line_access_time(x+6);
+//		array[x+4] = measure_cache_line_access_time(x+4);
+		array[x+1] = measure_cache_line_access_time(x+1);
+//		array[x+5] = measure_cache_line_access_time(x+5);
+		array[x+0] = measure_cache_line_access_time(x+0);
+#endif
+
+	}
+
+	for(x=0;x<CACHE_LINE_NR;x++){
 		fprintf(stderr,"\t _%Ld_",array[x]);
 	}
-}
 
-#if 0
-void pll(void(*fn)(cycles_t))
-{
-	int x;
-	cycles_t t1, t2, t3, phase, delta, lpj;
-	
-restart:
-	/*
-	 * Here we adjust the phase on an integer multiple of a frame
-	 * TODO relax CPU here
-	 */
-	while(  ((t2 = get_cycles()) &~0xff) % ((FRAME_PERIOD_IN_CYCLE*FRAME_FREQ) &~0xff) );
-	fprintf(stderr, "%Ld %Ld %Ld\n",FRAME_PERIOD_IN_CYCLE, FRAME_PERIOD_IN_NSEC, t2);
-
-	phase = 0;
-	x=0;
-
-	while(1){
-		t1 = get_cycles();
-
-		if(clock_nanosleep(CLOCK_MONOTONIC, TIMER_RELTIME, &carrier_ts, NULL))
-			DIE("clock_nanosleep");
-		
-		/*
-		 * Here 'delta' correspond to the amount of cycle taken away by 
-		 * nanosleep(). It cannot exceed the FRAME_PERIOD
-		 */
-		delta = (get_cycles() - t1)/2;
-		if(delta > FRAME_PERIOD_IN_CYCLE){
-			fprintf(stderr, "CLOCK Synchronization lost! %Lu %Lu\n",FRAME_PERIOD_IN_CYCLE, delta);
-			goto restart;
-		}
-
-		/*
-		 * Then we do lpj compensation
-		 */
-		lpj = (FRAME_PERIOD_IN_CYCLE - delta - phase -((t1-t2)/2) + PHASE_OFFSET/2 );
-		if(lpj < 0){
-			fprintf(stderr, ".");
-			lpj = 0;
-		}
-		calibrated_ldelay(lpj*2);
-
-		/*
-		 * Phase compensation:
-		 *
-		 * At t2 we are monotonic but we can be out of phase.
-		 *
-		 * The (t1-t2) compensation take into account the overall loop 
-		 * execution time but even then phase lag can accumulate.
-		 *   Example is preemption right after calibrated_ldelay _but_ 
-		 *   before t2 = get_cycles();
-		 *
-		 * In general phase lag will accumulate over time ( i.e we integrate 
-		 * the noise ) but it is generally constant for each iteration since
-		 * we are dealing with white noise
-		 */
-		t2 = get_cycles();
-
-		fn(t2);
-
-		phase = ((FRAME_PERIOD_IN_CYCLE/2) - 
-			abs( (t2 % FRAME_PERIOD_IN_CYCLE)/2 - FRAME_PERIOD_IN_CYCLE/2) );
-
-		/*
-		 * t3 defines the amount of cycle taken by modulation
-		 */
-		t3 = (get_cycles() - t2)/2;
-		if(t3 > PAYLOAD_AVAILABLE_CYCLE){
-			fprintf(stderr, "PAYLOAD Synchronization lost! %Lu %Lu\n",PAYLOAD_AVAILABLE_CYCLE, t3);
-			goto restart;
-		}
-
-		if(x && !(x%60))
-			fprintf(stderr, "%Ld %Ld/%Ld %Ld\n", t2, t3,PAYLOAD_AVAILABLE_CYCLE, TIMER_JITTER_IN_CYCLE);
-
-		x++;
+#else
+	for(x=0;x<CACHE_LINE_NR;x=x+4){
+		//This is the encoding part
+		encode_cache_lines(x, x);
+		//This is the decoding part
+		array[x] = decode_cache_line(x);
 	}
-}
+
+	for(x=0;x<CACHE_LINE_NR;x=x+8){
+		fprintf(stderr,"\t _%Ld_",array[x]);
+	}
 #endif
+
+}
