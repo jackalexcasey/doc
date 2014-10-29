@@ -63,7 +63,7 @@ void zap_cache_line(int linenr)
 
 void load_cache_line(int linenr)
 {
-//	__builtin_prefetch(&rx_buf[64*linenr]);
+	//__builtin_prefetch(&rx_buf[64*linenr]);
 	dummy = rx_buf[CACHE_LINE_SIZE*linenr];
 	mb();
 }
@@ -78,22 +78,12 @@ cycles_t measure_cache_line_access_time(int linenr)
 	return get_cycles() - t1;
 }
 
-int measure_cache_line_bit(int linenr)
-{
-	cycles_t t1;
-
-	t1 = get_cycles();
-	dummy = rx_buf[CACHE_LINE_SIZE*linenr];
-	mb();
-	if((get_cycles() - t1) >100)
-		return 1;
-	return 0;
-}
 
 /*
  * Logical 1 is a slow line i.e. zap_cache_line
  * Logical 0 is a fast line i.e. load_cache_line
- * HEre the load cache can bring other stuff hence we
+ *
+ * Here the load cache can bring other stuff hence we
  * zap all the other line at then end only
  */
 void encode_cache_lines(int linenr, unsigned char value)
@@ -101,39 +91,43 @@ void encode_cache_lines(int linenr, unsigned char value)
 	int x;
 	unsigned char tmp;
 
+
 	tmp = value;
 	for(x=0;x<8;x++){
 		if(!(tmp & 0x1))
-			load_cache_line(linenr+x);
+			load_cache_line(linenr+x*100);
 		tmp = tmp >>1;
 	}
 
 	tmp = value;
 	for(x=0;x<8;x++){
 		if(tmp & 0x1)
-			zap_cache_line(linenr+x);
+			zap_cache_line(linenr+x*100);
 		tmp = tmp >>1;
 	}
 }
 
+/*
+ * Here we measure out of order
+ */
 unsigned char decode_cache_line(int linenr)
 {
 	int x,t;
 	unsigned char tmp=0;
 
-	if(measure_cache_line_access_time(linenr+3)>100)
+	if(measure_cache_line_access_time(linenr+300)>100)
 		tmp = tmp | 1 <<3;
-	if(measure_cache_line_access_time(linenr+7)>100)
+	if(measure_cache_line_access_time(linenr+700)>100)
 		tmp = tmp | 1 <<7;
-	if(measure_cache_line_access_time(linenr+2)>100)
+	if(measure_cache_line_access_time(linenr+200)>100)
 		tmp = tmp | 1 <<2;
-	if(measure_cache_line_access_time(linenr+6)>100)
+	if(measure_cache_line_access_time(linenr+600)>100)
 		tmp = tmp | 1 <<6;
-	if(measure_cache_line_access_time(linenr+4)>100)
+	if(measure_cache_line_access_time(linenr+400)>100)
 		tmp = tmp | 1 <<4;
-	if(measure_cache_line_access_time(linenr+1)>100)
+	if(measure_cache_line_access_time(linenr+100)>100)
 		tmp = tmp | 1 <<1;
-	if(measure_cache_line_access_time(linenr+5)>100)
+	if(measure_cache_line_access_time(linenr+500)>100)
 		tmp = tmp | 1 <<5;
 	if(measure_cache_line_access_time(linenr+0)>100)
 		tmp = tmp | 1 <<0;
@@ -150,16 +144,13 @@ void pll(void(*fn)(cycles_t))
 	
 	open_c();
 
-#if 0
-	for(y=0;y<0xf;y++){
-	for(x=0;x<0xf;x++){
+#if 1
+	for(x=0;x<0xff;x++){
 		encode_cache_lines(0,x);
 		value = decode_cache_line(0);
 		fprintf(stderr,"_%x:%x_\n",x,value);
-	sleep(1);
 	}
 
-	}
 	return;
 #endif
 
@@ -169,17 +160,16 @@ void pll(void(*fn)(cycles_t))
 //		zap_cache_line(x);
 //	}
 	
-#if 1
-	encode_cache_lines(0,0x2f);
+#if 0
+	encode_cache_lines(0,0x1f);
 	value = decode_cache_line(0);
 	fprintf(stderr,"%x\n",value);
-	encode_cache_lines(0,0x30);
-	value = decode_cache_line(0);
-	fprintf(stderr,"%x\n",value);
+
+
 	return;
 
 #else
-
+/*
 	load_cache_line(0);
 	load_cache_line(1);
 	load_cache_line(2);
@@ -198,8 +188,28 @@ void pll(void(*fn)(cycles_t))
 	zap_cache_line(5);
 	zap_cache_line(6);
 	zap_cache_line(7);
+*/
+#endif
+	encode_cache_lines(0,0xc0);
 
+#if 0
+//	load_cache_line(0);
+//	load_cache_line(1);
+//	load_cache_line(2);
+	load_cache_line(3);
+	load_cache_line(4);
+	load_cache_line(5);
+	load_cache_line(6);
+	load_cache_line(7);
 
+	zap_cache_line(0);
+	zap_cache_line(1);
+	zap_cache_line(2);
+	//zap_cache_line(3);
+	//zap_cache_line(4);
+	//zap_cache_line(5);
+	//zap_cache_line(6);
+	//zap_cache_line(7);
 #endif
 
 	array[3] = measure_cache_line_access_time(3);
