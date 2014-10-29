@@ -57,7 +57,8 @@ void zap_cache_line(int linenr)
 
 void load_cache_line(int linenr)
 {
-	dummy = rx_buf[64*linenr];
+	__builtin_prefetch(&rx_buf[64*linenr]);
+//	dummy = rx_buf[64*linenr];
 	mb();
 }
 
@@ -71,29 +72,20 @@ cycles_t measure_cache_line_access_time(int linenr)
 	return get_cycles() - t1;
 }
 
-void preload_cache(void)
-{
-	int linenr;
-
-	for(linenr=0;linenr<512;linenr++){
-		load_cache_line(linenr);
-	}
-}
-
 void pll(void(*fn)(cycles_t))
 {
 	int x;
 	cycles_t array[512];
+	
 	open_c();
 
-
-	preload_cache();
-
 	for(x=0;x<512;x++){
+		//This is the encoding part
 		if(!(x%2))
 			zap_cache_line(x);
 		else
 			load_cache_line(x);
+		//This is the decoding part
 		array[x] = measure_cache_line_access_time(x);
 	}
 
@@ -101,41 +93,6 @@ void pll(void(*fn)(cycles_t))
 		fprintf(stderr,"\t _%Ld_",array[x]);
 	}
 }
-
-#if 0
-void pll(void(*fn)(cycles_t))
-{
-	int x;
-	cycles_t array[256];
-
-	open_c();
-	//zap_line_in_cache_set(0);
-	//array[0] = measure_cache_set_access_time(0);
-
-	for(x=0;x<64;x++){
-//		zap_line_in_cache_set(25);
-		array[x] = measure_cache_set_access_time(x);
-	}
-	for(x=64;x<128;x++){
-//		zap_line_in_cache_set(25);
-		array[x] = measure_cache_set_access_time(x);
-	}
-	for(x=128;x<192;x++){
-	//	zap_line_in_cache_set(25);
-		array[x] = measure_cache_set_access_time(x);
-	}
-	for(x=192;x<256;x++){
-		zap_line_in_cache_set(200);
-		array[x] = measure_cache_set_access_time(x);
-	}
-
-	for(x=0;x<128*2;x++){
-		if(!(x%64))
-			fprintf(stderr,"\n\n");
-		fprintf(stderr,"_%Ld_",array[x]);
-	}
-}
-#endif
 
 #if 0
 void pll(void(*fn)(cycles_t))
