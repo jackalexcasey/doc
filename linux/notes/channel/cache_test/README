@@ -1,0 +1,19 @@
+With [Westmere-EP], Intel uses its 32 nm process to add cores and cache, rather than push integration. As a result, we have up to a six-core processor with 12 MB of shared L3 cache. Architecturally, [Westmere-EP] is otherwise the same as [Nehalem-EP]. Each core gets 32 KB of L1 instruction cache, 32 KB of L1 data cache, and a dedicated 256 KB L2 cache.
+
+
+es—each with a 32KB, four-way set associative instruction cache, a 32KB, eight-way set associative data cache, and a private, low-latency 256KB L2 cache—all attached to an inclusive L3 cache that will be sized to fit the number of cores and target market.
+
+
+
+
+ 0x5a: data TLB: 2M/4M pages, 4-way, 32 entries
+      0x03: data TLB: 4K pages, 4-way, 64 entries
+      0x55: instruction TLB: 2M/4M pages, fully, 7 entries
+      0xdd: L3 cache: 3M, 12-way, 64 byte lines
+      0xb2: instruction TLB: 4K, 4-way, 64 entries
+      0xf0: 64 byte prefetching
+      0x2c: L1 data cache: 32K, 8-way, 64 byte lines
+      0x21: L2 cache: 256K MLC, 8-way, 64 byte lines
+      0xca: L2 TLB: 4K, 4-way, 512 entries
+      0x09: L1 instruction cache: 32K, 4-way, 64-byte lines
+
