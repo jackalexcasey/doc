@@ -29,7 +29,7 @@ volatile unsigned char dummy;
 #define CACHE_SIZE (128*1024)
 #define CACHE_LINE_SIZE 64
 #define CACHE_LINE_NR (CACHE_SIZE/CACHE_LINE_SIZE)
-#if 0
+#if 1
 void open_c(void)
 {
 	int fd;
@@ -156,6 +156,58 @@ void pll(void(*fn)(cycles_t))
 	
 	open_c();
 
+	zap_cache_line(0);
+	zap_cache_line(1);
+	zap_cache_line(2);
+	zap_cache_line(3);
+	zap_cache_line(4);
+	zap_cache_line(5);
+	zap_cache_line(6);
+	zap_cache_line(7);
+
+	t1 = get_cycles();
+	load_cache_line(0);
+	t2 = get_cycles();
+	fprintf(stderr,"_%Ld_",t2-t1);
+
+	t1 = get_cycles();
+	load_cache_line(1);
+	t2 = get_cycles();
+	fprintf(stderr,"_%Ld_",t2-t1);
+
+	t1 = get_cycles();
+	load_cache_line(2);
+	t2 = get_cycles();
+	fprintf(stderr,"_%Ld_",t2-t1);
+
+	t1 = get_cycles();
+	load_cache_line(3);
+	t2 = get_cycles();
+	fprintf(stderr,"_%Ld_",t2-t1);
+
+	t1 = get_cycles();
+	load_cache_line(4);
+	t2 = get_cycles();
+	fprintf(stderr,"_%Ld_",t2-t1);
+	
+	return;
+	
+	array[3] = measure_cache_line_access_time(3);
+	array[7] = measure_cache_line_access_time(7);
+	array[2] = measure_cache_line_access_time(2);
+	array[6] = measure_cache_line_access_time(6);
+	array[4] = measure_cache_line_access_time(4);
+	array[1] = measure_cache_line_access_time(1);
+	array[5] = measure_cache_line_access_time(5);
+	array[0] = measure_cache_line_access_time(0);
+
+	for(x=0;x<8;x++){
+		fprintf(stderr,"_%d:%d_",x,array[x]);
+	}
+	return;
+
+
+
 
 	t1 = get_cycles();
 	for(x=0;x<0xff;x++){
@@ -167,7 +219,7 @@ void pll(void(*fn)(cycles_t))
 		encode_cache_lines(50,x);
 		encode_cache_lines(60,x);
 		encode_cache_lines(70,x);
-		usleep(100);
+		//usleep(100);
 		value[0] = decode_cache_line(0);
 		value[1] = decode_cache_line(10);
 		value[2] = decode_cache_line(20);
@@ -313,6 +365,20 @@ void pll(void(*fn)(cycles_t))
 }
 #endif
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+#if 0
 /*
  * Suppose 32Kb L1 cache ,8way ,64byte per line
  * ==> 32kb / 64byte == 512 lines
@@ -438,4 +504,5 @@ void pll(void(*fn)(cycles_t))
 		test();
 }
 
+#endif
 

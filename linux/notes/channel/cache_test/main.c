@@ -23,7 +23,8 @@ void help(void)
 
 void * worker_thread(void *arg)
 {
-	pll(NULL);
+//	pll(NULL);
+	prefetch(NULL);
 }
 
 int
