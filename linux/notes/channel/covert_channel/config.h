@@ -55,23 +55,20 @@
 #define FRAME_PERIOD_IN_NSEC (cycles_t)(16710427*STRETCH)
 
 /*
- * This is the amount of scheduling jitter we expect on the timer
- * ( arbitrary choosen _AND_ define our immunity to noise )
- * Cannot be greater than FRAME_PERIOD !
+ * lpj compensation is a PLL which track the FRAME_PERIOD
  *
- * The timer fire @ FRAME_PERIOD_IN_NSEC - TIMER_JITTER_IN_NSEC interval
- * ==> If TIMER_JITTER_IN_NSEC == FRAME_PERIOD_IN_NSEC  => NO TIMER
- * With NO TIMER the CPU goes 100%
+ * To relax the CPU some fraction of the lpj compensation can be taken
+ * out into sleep time using a timer based logic.
+ *
+ * Here we relax 25% of the time i.e. 75% busy
  */
-
-#define TIMER_JITTER_IN_CYCLE (cycles_t)(((FRAME_PERIOD_IN_CYCLE*1)/4))
-#define TIMER_JITTER_IN_NSEC (cycles_t) (((FRAME_PERIOD_IN_NSEC*1)/4))
-//#define TIMER_JITTER_IN_NSEC (cycles_t) (FRAME_PERIOD_IN_NSEC)
+#define RELAX_PERIOD_IN_CYCLE (cycles_t)(((FRAME_PERIOD_IN_CYCLE*1)/4))
+#define RELAX_PERIOD_IN_NSEC (cycles_t)(((FRAME_PERIOD_IN_NSEC*1)/4))
 
 /*
  * This is the PAYLOAD available cycle
  */
-#define PAYLOAD_AVAILABLE_CYCLE (cycles_t) (FRAME_PERIOD_IN_CYCLE - TIMER_JITTER_IN_CYCLE)
+#define PAYLOAD_AVAILABLE_CYCLE (cycles_t) (FRAME_PERIOD_IN_CYCLE - RELAX_PERIOD_IN_CYCLE)
 
 /*
  * Phase compensation cannot be negative ( because there is no 

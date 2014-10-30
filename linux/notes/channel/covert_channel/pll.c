@@ -11,8 +11,7 @@ extern int transmitter;
 
 static struct timespec carrier_ts = {
 	.tv_sec = 0,
-	/* Here we provision for the jitter on the timer */
-	.tv_nsec = FRAME_PERIOD_IN_NSEC - TIMER_JITTER_IN_NSEC,
+	.tv_nsec = RELAX_PERIOD_IN_NSEC,
 };
 
 void calibrated_ldelay(cycles_t loops)
@@ -91,23 +90,26 @@ restart:
 		 */
 		t3 = (get_cycles() - t2)/2;
 		if(t3 > PAYLOAD_AVAILABLE_CYCLE){
-			fprintf(stderr, "PAYLOAD Synchronization lost! %Ld %Ld/%Ld %Ld %Ld\n", 
-				t2, t3,PAYLOAD_AVAILABLE_CYCLE, TIMER_JITTER_IN_CYCLE, FRAME_PERIOD_IN_CYCLE);
+			fprintf(stderr, "PAYLOAD Synchronization lost! %Ld %Ld/%Ld %Ld/%Ld %Ld @ %d\n", 
+				t2, t3,PAYLOAD_AVAILABLE_CYCLE, 
+				RELAX_PERIOD_IN_CYCLE, FRAME_PERIOD_IN_CYCLE, lpj, FRAME_FREQ);
 			goto restart;
 		}
 
 		/*
-		 * TSC:            A      / B       C        D
-		 * 119553680002228 5665544/20000000 20000000 40000000
+		 * TSC:            A      / B       C        D        E          F
+		 * 119553680002228 6024634/30000000 10000000 40000000 23905300 @ 30
 		 *
 		 * A is time spent in modulation
 		 * B is total time available for modulation
-		 * C is total time reserved to cope with timer jitter
+		 * C is relax time period
 		 * D is total period
+		 * E is LPJ compensation ( NOTE E+A == B)
+		 * F is frame per second
 		 */
 		if(x && !(x%FRAME_FREQ))
-			fprintf(stderr, "%Ld %Ld/%Ld %Ld %Ld @ %d\n", t2, t3,PAYLOAD_AVAILABLE_CYCLE, 
-				TIMER_JITTER_IN_CYCLE, FRAME_PERIOD_IN_CYCLE, FRAME_FREQ);
+			fprintf(stderr, "%Ld %Ld/%Ld %Ld/%Ld %Ld @ %d\n", t2, t3,PAYLOAD_AVAILABLE_CYCLE, 
+				RELAX_PERIOD_IN_CYCLE, FRAME_PERIOD_IN_CYCLE, lpj, FRAME_FREQ);
 
 		x++;
 	}
