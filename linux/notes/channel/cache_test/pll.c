@@ -29,7 +29,7 @@ volatile unsigned char dummy;
 #define CACHE_SIZE (128*1024)
 #define CACHE_LINE_SIZE 64
 #define CACHE_LINE_NR (CACHE_SIZE/CACHE_LINE_SIZE)
-
+#if 0
 void open_c(void)
 {
 	int fd;
@@ -310,5 +310,132 @@ void pll(void(*fn)(cycles_t))
 		fprintf(stderr,"\t _%Ld_",array[x]);
 	}
 #endif
+}
+#endif
+
+/*
+ * Suppose 32Kb L1 cache ,8way ,64byte per line
+ * ==> 32kb / 64byte == 512 lines
+ * ==> 512 lines / 8way == 64 sets
+ * ==> 64 sets * 64 byte = 4096 wrap value
+ *
+ * Few things to consider;
+ * L1 cache is virtually index virtually tagged VIVT
+ * This means that only the virtual address matter for Tagging _not_ the physical addr
+ * In that scenario how can we evict a line ??? Just from L1??
+ * What is we have two buffer which has proper overlay?
+ */
+struct cache_line{
+	unsigned char byte[64];
+};
+
+struct cache_way{
+	struct cache_line set[64];
+};
+
+struct cache{
+	struct cache_way way[8];
+};
+	
+volatile struct cache *cache_ptrA = NULL;
+volatile struct cache *cache_ptrB = NULL;
+volatile unsigned char dummy;
+
+void open_c(void)
+{
+	int fd;
+	char name[64];
+
+	sprintf(name,"channel");
+
+	if ((fd = shm_open(name, O_CREAT|O_RDWR,
+					S_IRWXU|S_IRWXG|S_IRWXO)) > 0) {
+		if (ftruncate(fd, sizeof(struct cache)) != 0)
+			DIE("could not truncate shared file\n");
+	}
+	else
+		DIE("Open channel");
+
+	/*
+	 * Cache are taggeg by virtual addr + physical addr
+	 * SO here we are mmaping the same physical pages across different process
+	 * at the _SAME_ VMA
+	 */
+	cache_ptrA = mmap(0x7f0000030000,sizeof(struct cache),PROT_READ|PROT_WRITE,MAP_SHARED,fd,0);
+	if((void*)cache_ptrA == MAP_FAILED)
+		DIE("mmap");
+	fprintf(stderr, "cache_ptr %p\n",cache_ptrA);
+
+	cache_ptrB = mmap(0x7f1000030000,sizeof(struct cache),PROT_READ|PROT_WRITE,MAP_SHARED,fd,0);
+	if((void*)cache_ptrB == MAP_FAILED)
+		DIE("mmap");
+	fprintf(stderr, "cache_ptr %p\n",cache_ptrB);
+}
+
+#if 0
+void rx(void)
+{
+	cycles_t t1,t2;
+
+	while(1){
+		t1 = get_cycles();
+		//HERE we don't know where this is on real HW
+		//but we only know that we touches all the WAY in a set
+		dummy = cache_ptr->way[0].set[0].byte[0];
+		dummy = cache_ptr->way[1].set[0].byte[0];
+		dummy = cache_ptr->way[2].set[0].byte[0];
+		dummy = cache_ptr->way[3].set[0].byte[0];
+		dummy = cache_ptr->way[4].set[0].byte[0];
+		dummy = cache_ptr->way[5].set[0].byte[0];
+		dummy = cache_ptr->way[6].set[0].byte[0];
+		dummy = cache_ptr->way[7].set[0].byte[0];
+
+		mb();
+		t2 = get_cycles();
+		fprintf(stderr,"\t_%4Ld_",t2-t1);
+	}
+
 
 }
+
+void tx(void)
+{
+	while(1){}
+		dummy = cache_ptr->way[0].set[1].byte[0];
+}
+#endif
+
+void test(void)
+{
+	cycles_t t1,t2;
+
+	t1 = get_cycles();
+	dummy = cache_ptrA->way[0].set[0].byte[0];
+//	dummy = cache_ptrA->way[1].set[0].byte[0];
+	dummy = cache_ptrA->way[2].set[0].byte[0];
+	dummy = cache_ptrA->way[3].set[0].byte[0];
+	dummy = cache_ptrA->way[4].set[0].byte[0];
+	dummy = cache_ptrA->way[5].set[0].byte[0];
+	dummy = cache_ptrA->way[6].set[0].byte[0];
+	dummy = cache_ptrA->way[7].set[0].byte[0];
+
+	mb();
+	t2 = get_cycles();
+
+	clflush(&cache_ptrA->way[0].set[0].byte[0]);
+	mb();
+//	dummy = cache_ptrB->way[0].set[0].byte[0];
+	fprintf(stderr,"_%Ld_",t2-t1);
+}
+
+void pll(void(*fn)(cycles_t))
+{
+	int x;
+	open_c();
+	fprintf(stderr,"%d\n",sizeof(struct cache));
+	
+	for(x=0;x<255;x++)
+		test();
+}
+
+
