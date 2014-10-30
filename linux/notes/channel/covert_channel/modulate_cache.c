@@ -30,15 +30,9 @@ volatile unsigned char dummy;
 #define DATA_PACKET_SIZE 		(PIXEL_WIDTH*PIXEL_HEIGHT)/8
 unsigned char data[DATA_PACKET_SIZE];
 
-/*
- * Suppose 32Kb L1 cache ,8way ,64byte per line
- * ==> 32kb / 64byte == 512 lines
- * ==> 512 lines / 8way == 64 sets
- * ==> 64 sets * 64 byte = 4096 wrap value
- */
-#define CACHE_SIZE (128*1024)*100*64
+#define CACHE_LINE_NR 64*16
 #define CACHE_LINE_SIZE 64
-#define CACHE_LINE_NR (CACHE_SIZE/CACHE_LINE_SIZE)
+#define CACHE_SIZE CACHE_LINE_SIZE*CACHE_LINE_NR*64
 
 static void zap_cache_line(int linenr)
 {
@@ -59,26 +53,22 @@ static void load_cache_line(int linenr)
  * that at some points kicks in
  * _304__248__244__248__332__248__248__244__248__244__248__244__80__80__80__80__80__80__80__80__80__80
  */
-
-#define CACHE_LINE_PER_PAGE 64*16
-#define PAGE_NR 64
-
 static void encode_cache_lines(int linenr, uint64_t value)
 {
 	int x;
 	uint64_t tmp;
 
 	tmp = value;
-	for(x=0;x<PAGE_NR;x++){
+	for(x=0;x<64;x++){
 		if(!(tmp & 0x1))
-			load_cache_line((x*CACHE_LINE_PER_PAGE)+linenr);
+			load_cache_line((x*CACHE_LINE_NR)+linenr);
 		tmp = tmp >> 1;
 	}
 
 	tmp = value;
-	for(x=0;x<PAGE_NR;x++){
+	for(x=0;x<64;x++){
 		if((tmp & 0x1))
-			zap_cache_line((x*CACHE_LINE_PER_PAGE)+linenr);
+			zap_cache_line((x*CACHE_LINE_NR)+linenr);
 		tmp = tmp >> 1;
 	}
 }
@@ -92,9 +82,9 @@ static uint64_t decode_cache_line(int linenr)
 	uint64_t data;
 
 	data = 0;
-	for(x=0;x<PAGE_NR;x++){
+	for(x=0;x<64;x++){
 		t1 = get_cycles();
-		load_cache_line(((no_order[x])*CACHE_LINE_PER_PAGE)+linenr);
+		load_cache_line(((no_order[x])*CACHE_LINE_NR)+linenr);
 		if(get_cycles()-t1 > 200)
 			data = data | (uint64_t)1 << no_order[x];
 	}
@@ -116,7 +106,7 @@ void modulate_cache(cycles_t init)
 	//This is the encoding part
 	if(transmitter){
 		dat_ptr = (uint64_t*)data;
-		for(y=0;y<CACHE_LINE_PER_PAGE;y++){
+		for(y=0;y<CACHE_LINE_NR;y++){
 			encode_cache_lines(y, dat_ptr[y]);
 		}
 
@@ -128,7 +118,7 @@ void modulate_cache(cycles_t init)
 //		fprintf(stderr,"_%Ld_\n",get_cycles());a
 
 		dat_ptr = (uint64_t*)data;
-		for(y=0;y<CACHE_LINE_PER_PAGE;y++){
+		for(y=0;y<CACHE_LINE_NR;y++){
 			dat = decode_cache_line(y);
 			dat_ptr[y] = dat;
 
