@@ -169,24 +169,40 @@ void open_channel(unsigned long long pci_mem_addr)
 {
 	int fd;
 
-	if ((fd = shm_open("channelrx", O_CREAT|O_RDWR,
-					S_IRWXU|S_IRWXG|S_IRWXO)) > 0) {
-		if (ftruncate(fd, CACHE_SIZE) != 0)
-			DIE("could not truncate shared file\n");
+	if(pci_mem_addr){
+		/*
+		 * Instead of relying on KSM and find which page are shared
+		 * we could just use this SHM and mmap it on both side
+		 * -device ivshmem,shm=test,size=500m
+		 */
+		fprintf(stderr,"Using provide address cookie 0x%llx\n",pci_mem_addr);
+		fd = open ( "/dev/mem", O_RDWR);
+		if(fd<0)
+			DIE("cannot open /dev/mem");
+		rx_buf = mmap(0x7f0000030000, CACHE_SIZE, PROT_READ|PROT_WRITE, MAP_SHARED, fd, (off_t)pci_mem_addr);
+		if(rx_buf == MAP_FAILED)
+			DIE("mmap");
+		fprintf(stderr, "rx_buf mmap ptr %p\n",rx_buf);
 	}
-	else
-		DIE("Open channel");
+	else{
+		if ((fd = shm_open("channelrx", O_CREAT|O_RDWR,
+						S_IRWXU|S_IRWXG|S_IRWXO)) > 0) {
+			if (ftruncate(fd, CACHE_SIZE) != 0)
+				DIE("could not truncate shared file\n");
+		}
+		else
+			DIE("Open channel");
 
-	/*
-	 * Cache are taggeg by virtual addr + physical addr
-	 * SO here we are mmaping the same physical pages across different process
-	 * at the _SAME_ VMA
-	 */
-	rx_buf = mmap(0x7f0000030000,CACHE_SIZE,PROT_READ|PROT_WRITE,MAP_SHARED,fd,0);
-	if(rx_buf == MAP_FAILED)
-		DIE("mmap");
-	fprintf(stderr, "rx_buf mmap ptr %p\n",rx_buf);
-
+		/*
+		 * Cache are taggeg by virtual addr + physical addr
+		 * SO here we are mmaping the same physical pages across different process
+		 * at the _SAME_ VMA
+		 */
+		rx_buf = mmap(0x7f0000030000,CACHE_SIZE,PROT_READ|PROT_WRITE,MAP_SHARED,fd,0);
+		if(rx_buf == MAP_FAILED)
+			DIE("mmap");
+		fprintf(stderr, "rx_buf mmap ptr %p\n",rx_buf);
+	}
 	if(transmitter)
 		tx_init();
 	else
