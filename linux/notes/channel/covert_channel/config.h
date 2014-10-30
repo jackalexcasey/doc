@@ -58,8 +58,8 @@
  * Cannot be greater than FRAME_PERIOD !
  * 50%
  */
-#define TIMER_JITTER_IN_CYCLE (cycles_t)(((FRAME_PERIOD_IN_CYCLE*3)/4))
-#define TIMER_JITTER_IN_NSEC (cycles_t) (((FRAME_PERIOD_IN_NSEC*3)/4))
+#define TIMER_JITTER_IN_CYCLE (cycles_t)(((FRAME_PERIOD_IN_CYCLE*2)/4))
+#define TIMER_JITTER_IN_NSEC (cycles_t) (((FRAME_PERIOD_IN_NSEC*2)/4))
 
 /*
  * This is the PAYLOAD available cycle
