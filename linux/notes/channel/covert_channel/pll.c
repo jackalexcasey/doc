@@ -31,7 +31,7 @@ restart:
 	 * Here we adjust the phase on an integer multiple of a frame
 	 * TODO relax CPU here
 	 */
-	while(  ((t2 = get_cycles()) &~0xff) % ((FRAME_PERIOD_IN_CYCLE*FRAME_FREQ) &~0xff) );
+	while(  ((t2 = get_cycles()) &~0xff) % ((FRAME_PERIOD_IN_CYCLE*FRAME_FREQ*16) &~0xff) );// TODO fix me
 	fprintf(stderr, "%Ld %Ld %Ld\n",FRAME_PERIOD_IN_CYCLE, FRAME_PERIOD_IN_NSEC, t2);
 
 	phase = 0;
@@ -93,7 +93,8 @@ restart:
 			fprintf(stderr, "PAYLOAD Synchronization lost! %Ld %Ld/%Ld %Ld/%Ld %Ld @ %d\n", 
 				t2, t3,PAYLOAD_AVAILABLE_CYCLE, 
 				RELAX_PERIOD_IN_CYCLE, FRAME_PERIOD_IN_CYCLE, lpj, FRAME_FREQ);
-			goto restart;
+			//goto restart;
+			//This is not fatal; keep going
 		}
 
 		/*
