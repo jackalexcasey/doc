@@ -125,15 +125,43 @@ void prefetch(void(*fn)(cycles_t))
 
 	open_c();
 
+#if 1
+	t1 = get_cycles();
+	load_cache_line(10);
+	fprintf(stderr,"%Ld \n",get_cycles()-t1);
+
+	t1 = get_cycles();
+	load_cache_line(10);
+	fprintf(stderr,"%Ld \n",get_cycles()-t1);
+
+	t1 = get_cycles();
+	load_cache_line(10);
+	fprintf(stderr,"%Ld \n",get_cycles()-t1);
+
+	zap_cache_line(10);
+
+	t1 = get_cycles();
+	load_cache_line(10);
+	fprintf(stderr,"%Ld \n",get_cycles()-t1);
+
+	return ;
+#endif
+
 	//Encode
 	data0 = 0x5533555555558855;
 	data1 = 0xaaaaaaaaaaaaaaaa;
 
+	//data0 = 0xffffffffffffffff;
+	//data1 = 0xffffffffffffffff;
+
+//	data0 = 0;
+//	data1 = 0;
+
 	for(y=0;y<CACHE_LINE_PER_PAGE;y++){
 		if(!(y%2))
-			encode_cache_lines(y, data0+y);
+			encode_cache_lines(y, data0);
 		else
-			encode_cache_lines(y, data1+y);
+			encode_cache_lines(y, data1);
 	}
 
 	//Decode
