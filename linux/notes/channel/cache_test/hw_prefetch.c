@@ -78,6 +78,35 @@ static cycles_t measure_cache_line_access_time(int linenr)
 	return get_cycles() - t1;
 }
 
+
+/*
+ * Logical 1 is a slow line i.e. zap_cache_line
+ * Logical 0 is a fast line i.e. load_cache_line
+ *
+ * Here the load cache can bring other stuff hence we
+ * zap all the other line at then end only
+ */
+static void encode_cache_lines(int linenr, unsigned char value)
+{
+	int x;
+	unsigned char tmp;
+
+
+	tmp = value;
+	for(x=0;x<8;x++){
+		if(!(tmp & 0x1))
+			load_cache_line(linenr+x*100);
+		tmp = tmp >>1;
+	}
+
+	tmp = value;
+	for(x=0;x<8;x++){
+		if(tmp & 0x1)
+			zap_cache_line(linenr+x*100);
+		tmp = tmp >>1;
+	}
+}
+
 /*
  * This example illustrace the effect of the prefetcher
  * that at some points kicks in
@@ -93,24 +122,26 @@ void prefetch(void(*fn)(cycles_t))
 
 	open_c();
 
-	for(x=0;x<CACHE_LINE_PER_PAGE*PAGE_NR;x++){
-		zap_cache_line(x);
+	//Encode
+	for(y=0;y<CACHE_LINE_PER_PAGE;y++){
+		for(x=0;x<PAGE_NR;x++){
+			if(!(x%2))
+				zap_cache_line((x*CACHE_LINE_PER_PAGE)+y);
+			else
+				load_cache_line((x*CACHE_LINE_PER_PAGE)+y);
+		}
 	}
 
+	//Decode
 	for(y=0;y<CACHE_LINE_PER_PAGE;y++){
 		for(x=0;x<PAGE_NR;x++){
 			t1 = get_cycles();
 			load_cache_line((x*CACHE_LINE_PER_PAGE)+y);
 			t2 = get_cycles();
-			fprintf(stderr,"_%Ld_",t2-t1);
+			fprintf(stderr,"\t_%Ld_",t2-t1);
+			if(!(x%16))
+				fprintf(stderr,"\n");
 		}
-	}
-
-	for(x=0;x<CACHE_LINE_PER_PAGE*PAGE_NR;x++){
-		t1 = get_cycles();
-		load_cache_line(x);
-		t2 = get_cycles();
-		fprintf(stderr,"_%Ld_",t2-t1);
 	}
 	return;
 }
