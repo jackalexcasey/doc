@@ -26,7 +26,7 @@ static volatile unsigned char dummy;
  * ==> 512 lines / 8way == 64 sets
  * ==> 64 sets * 64 byte = 4096 wrap value
  */
-#define CACHE_SIZE (128*1024)*100
+#define CACHE_SIZE (128*1024)*1000
 #define CACHE_LINE_SIZE 64
 #define CACHE_LINE_NR (CACHE_SIZE/CACHE_LINE_SIZE)
 
@@ -74,7 +74,7 @@ static void load_cache_line(int linenr)
  * _304__248__244__248__332__248__248__244__248__244__248__244__80__80__80__80__80__80__80__80__80__80
  */
 
-#define CACHE_LINE_PER_PAGE 64
+#define CACHE_LINE_PER_PAGE 64*16
 #define PAGE_NR 64
 
 static void encode_cache_lines(int linenr, uint64_t value)
@@ -126,20 +126,21 @@ void prefetch(void(*fn)(cycles_t))
 	open_c();
 
 	//Encode
-	data0 = 0x5555555555555555;
+	data0 = 0x5533555555558855;
 	data1 = 0xaaaaaaaaaaaaaaaa;
 
 	for(y=0;y<CACHE_LINE_PER_PAGE;y++){
 		if(!(y%2))
-			encode_cache_lines(y, data0);
+			encode_cache_lines(y, data0+y);
 		else
-			encode_cache_lines(y, data1);
+			encode_cache_lines(y, data1+y);
 	}
 
 	//Decode
 	for(y=0;y<CACHE_LINE_PER_PAGE;y++){
+		t1 = get_cycles();
 		data = decode_cache_line(y);
-		fprintf(stderr,"%Lx\n",data);
+		fprintf(stderr,"%Ld: %Lx\n",get_cycles()-t1,data);
 	}
 	return;
 }
