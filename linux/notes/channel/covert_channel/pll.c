@@ -105,9 +105,9 @@ restart:
 		 * C is total time reserved to cope with timer jitter
 		 * D is total period
 		 */
-		if(x && !(x%60))
-			fprintf(stderr, "%Ld %Ld/%Ld %Ld %Ld\n", t2, t3,PAYLOAD_AVAILABLE_CYCLE, 
-				TIMER_JITTER_IN_CYCLE, FRAME_PERIOD_IN_CYCLE);
+		if(x && !(x%FRAME_FREQ))
+			fprintf(stderr, "%Ld %Ld/%Ld %Ld %Ld @ %d\n", t2, t3,PAYLOAD_AVAILABLE_CYCLE, 
+				TIMER_JITTER_IN_CYCLE, FRAME_PERIOD_IN_CYCLE, FRAME_FREQ);
 
 		x++;
 	}

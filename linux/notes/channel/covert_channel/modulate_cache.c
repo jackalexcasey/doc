@@ -36,7 +36,7 @@ unsigned char data[DATA_PACKET_SIZE];
  * ==> 512 lines / 8way == 64 sets
  * ==> 64 sets * 64 byte = 4096 wrap value
  */
-#define CACHE_SIZE (128*1024)*100
+#define CACHE_SIZE (128*1024)*100*64
 #define CACHE_LINE_SIZE 64
 #define CACHE_LINE_NR (CACHE_SIZE/CACHE_LINE_SIZE)
 
@@ -123,7 +123,7 @@ void modulate_cache(cycles_t init)
 	}
 	else{
  		/* Here the receiver need to run _after_ the transmitter */
-//		calibrated_ldelay(500000);
+		calibrated_ldelay(500000);
 
 //		fprintf(stderr,"_%Ld_\n",get_cycles());a
 

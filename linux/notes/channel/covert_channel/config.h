@@ -36,7 +36,9 @@
 #include "clock.h"
 
 #define CPU_FREQ 2393715000
-#define FRAME_FREQ (cycles_t)60
+
+#define STRETCH 2
+#define FRAME_FREQ ((cycles_t)60/STRETCH)
 
 /* 
  * This is the frame period in cycle and nsec:
@@ -48,7 +50,7 @@
  *  ==> 40000000 rounded _AND_ always divided by 2
  * ==> 40000000 * 1/CPU_FREQ == 16710427 ~=16msec
  */
-#define STRETCH 4
+
 #define FRAME_PERIOD_IN_CYCLE (cycles_t)((40000000/2)*STRETCH)
 #define FRAME_PERIOD_IN_NSEC (cycles_t)(16710427*STRETCH)
 
@@ -56,10 +58,15 @@
  * This is the amount of scheduling jitter we expect on the timer
  * ( arbitrary choosen _AND_ define our immunity to noise )
  * Cannot be greater than FRAME_PERIOD !
- * 50%
+ *
+ * The timer fire @ FRAME_PERIOD_IN_NSEC - TIMER_JITTER_IN_NSEC interval
+ * ==> If TIMER_JITTER_IN_NSEC == FRAME_PERIOD_IN_NSEC  => NO TIMER
+ * With NO TIMER the CPU goes 100%
  */
-#define TIMER_JITTER_IN_CYCLE (cycles_t)(((FRAME_PERIOD_IN_CYCLE*2)/4))
-#define TIMER_JITTER_IN_NSEC (cycles_t) (((FRAME_PERIOD_IN_NSEC*2)/4))
+
+#define TIMER_JITTER_IN_CYCLE (cycles_t)(((FRAME_PERIOD_IN_CYCLE*1)/4))
+#define TIMER_JITTER_IN_NSEC (cycles_t) (((FRAME_PERIOD_IN_NSEC*1)/4))
+//#define TIMER_JITTER_IN_NSEC (cycles_t) (FRAME_PERIOD_IN_NSEC)
 
 /*
  * This is the PAYLOAD available cycle
