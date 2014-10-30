@@ -153,8 +153,46 @@ void pll(void(*fn)(cycles_t))
 	int x,y;
 	int array[CACHE_LINE_NR];
 	unsigned char value[16];
+	unsigned char val;
 	
 	open_c();
+
+	t1 = get_cycles();
+	for(x=0;x<0xff;x++){
+		encode_cache_lines(0,x);
+		encode_cache_lines(10,x);
+		encode_cache_lines(20,x);
+		encode_cache_lines(30,x);
+		encode_cache_lines(40,x);
+		encode_cache_lines(50,x);
+		encode_cache_lines(60,x);
+		encode_cache_lines(70,x);
+		//usleep(100);
+		value[0] = decode_cache_line(0);
+		value[1] = decode_cache_line(10);
+		value[2] = decode_cache_line(20);
+		value[3] = decode_cache_line(30);
+		value[4] = decode_cache_line(40);
+		value[5] = decode_cache_line(50);
+		value[6] = decode_cache_line(60);
+		value[7] = decode_cache_line(70);
+		t2 = get_cycles();
+		fprintf(stderr,"_%x:%x:%x:%x:%x:%x:%x:%x_\n",value[0],value[1],value[2],value[3],
+			value[4],value[5],value[6],value[7]);
+	}
+	fprintf(stderr,"_%Ld_\n",t2-t1);
+	return;
+
+
+	for(x=0;x<0xff;x++){
+		t1 = get_cycles();
+		encode_cache_lines(0,x);
+		t2 = get_cycles();
+		val = decode_cache_line(0);
+		fprintf(stderr,"_%Ld_%Ld_%x:%x_\n",get_cycles()-t2,t2-t1,x,val);
+	}
+	return ;
+
 
 	zap_cache_line(0);
 	zap_cache_line(1);

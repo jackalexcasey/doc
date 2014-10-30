@@ -68,45 +68,6 @@ static void load_cache_line(int linenr)
 	mb();
 }
 
-static cycles_t measure_cache_line_access_time(int linenr)
-{
-	cycles_t t1;
-
-	t1 = get_cycles();
-	dummy = rx_buf[CACHE_LINE_SIZE*linenr];
-	mb();
-	return get_cycles() - t1;
-}
-
-
-/*
- * Logical 1 is a slow line i.e. zap_cache_line
- * Logical 0 is a fast line i.e. load_cache_line
- *
- * Here the load cache can bring other stuff hence we
- * zap all the other line at then end only
- */
-static void encode_cache_lines(int linenr, unsigned char value)
-{
-	int x;
-	unsigned char tmp;
-
-
-	tmp = value;
-	for(x=0;x<8;x++){
-		if(!(tmp & 0x1))
-			load_cache_line(linenr+x*100);
-		tmp = tmp >>1;
-	}
-
-	tmp = value;
-	for(x=0;x<8;x++){
-		if(tmp & 0x1)
-			zap_cache_line(linenr+x*100);
-		tmp = tmp >>1;
-	}
-}
-
 /*
  * This example illustrace the effect of the prefetcher
  * that at some points kicks in
@@ -115,33 +76,90 @@ static void encode_cache_lines(int linenr, unsigned char value)
 
 #define CACHE_LINE_PER_PAGE 64
 #define PAGE_NR 64
+
+static void encode_cache_lines(int linenr, u64 value)
+{
+	int x;
+	u64 tmp;
+
+	tmp = value;
+	for(x=0;x<PAGE_NR;x++){
+		if(!(tmp & 0x1))
+			load_cache_line((x*CACHE_LINE_PER_PAGE)+linenr);
+		tmp = tmp >> 1;
+	}
+
+	tmp = value;
+	for(x=0;x<PAGE_NR;x++){
+		if((tmp & 0x1))
+			zap_cache_line((x*CACHE_LINE_PER_PAGE)+linenr);
+		tmp = tmp >> 1;
+	}
+}
+
+static u64 decode_cache_line(int linenr)
+{
+	int x,t;
+	cycles_t t1,t2;
+	u64 data;
+
+	data = 0;
+	for(x=0;x<PAGE_NR;x++){
+		t1 = get_cycles();
+		load_cache_line((x*CACHE_LINE_PER_PAGE)+linenr);
+		mb();
+		if(get_cycles()-t1 > 200)
+			data = data|0x1;
+		data = data << 1;
+	}
+	return data;
+#if 0
+
+	if(measure_cache_line_bit(linenr+300))
+		tmp = tmp | 1 <<3;
+	if(measure_cache_line_bit(linenr+700))
+		tmp = tmp | 1 <<7;
+	if(measure_cache_line_bit(linenr+200))
+		tmp = tmp | 1 <<2;
+	if(measure_cache_line_bit(linenr+600))
+		tmp = tmp | 1 <<6;
+	if(measure_cache_line_bit(linenr+400))
+		tmp = tmp | 1 <<4;
+	if(measure_cache_line_bit(linenr+100))
+		tmp = tmp | 1 <<1;
+	if(measure_cache_line_bit(linenr+500))
+		tmp = tmp | 1 <<5;
+	if(measure_cache_line_bit(linenr+0))
+		tmp = tmp | 1 <<0;
+	
+	return tmp;
+#endif
+
+}
+
+
 void prefetch(void(*fn)(cycles_t))
 {
-	int x,y,z;
-	cycles_t t1,t2;
+	u64 data0,data1,data;
+	int x,y;
 
 	open_c();
 
 	//Encode
+	data0 = 0x5555555555555555;
+	data1 = 0xaaaaaaaaaaaaaaaa;
+
 	for(y=0;y<CACHE_LINE_PER_PAGE;y++){
-		for(x=0;x<PAGE_NR;x++){
-			if(!(x%2))
-				zap_cache_line((x*CACHE_LINE_PER_PAGE)+y);
-			else
-				load_cache_line((x*CACHE_LINE_PER_PAGE)+y);
-		}
+		if(!(y%2))
+			encode_cache_lines(y, data0);
+		else
+			encode_cache_lines(y, data1);
 	}
 
 	//Decode
 	for(y=0;y<CACHE_LINE_PER_PAGE;y++){
-		for(x=0;x<PAGE_NR;x++){
-			t1 = get_cycles();
-			load_cache_line((x*CACHE_LINE_PER_PAGE)+y);
-			t2 = get_cycles();
-			fprintf(stderr,"\t_%Ld_",t2-t1);
-			if(!(x%16))
-				fprintf(stderr,"\n");
-		}
+		data = decode_cache_line(y);
+		fprintf(stderr,"%Lx\n",data);
 	}
 	return;
 }
