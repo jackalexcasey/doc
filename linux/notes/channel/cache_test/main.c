@@ -24,7 +24,8 @@ void help(void)
 void * worker_thread(void *arg)
 {
 //	pll(NULL);
-	prefetch(NULL);
+//	prefetch(NULL);
+	cache_sizing(NULL);
 }
 
 int

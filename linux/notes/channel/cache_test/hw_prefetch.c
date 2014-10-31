@@ -74,7 +74,7 @@ static void load_cache_line(int linenr)
  * _304__248__244__248__332__248__248__244__248__244__248__244__80__80__80__80__80__80__80__80__80__80
  */
 
-#define CACHE_LINE_PER_PAGE 64*16
+#define CACHE_LINE_PER_PAGE 64*8
 #define PAGE_NR 64
 
 static void encode_cache_lines(int linenr, uint64_t value)
@@ -97,7 +97,7 @@ static void encode_cache_lines(int linenr, uint64_t value)
 	}
 }
 
-const uint64_t no_order[] = { 46, 10, 41, 61, 11, 13, 37, 12, 48, 59, 0, 54, 30, 7, 57, 58, 17, 16, 25, 35, 62, 15, 2, 26, 21, 39, 50, 32, 23, 36, 18, 43, 47, 45, 24, 20, 27, 29, 60, 55, 28, 3, 1, 8, 22, 53, 42, 56, 33, 19, 34, 5, 49, 31, 51, 40, 6, 38, 52, 63, 4, 14, 44, 9};
+static const uint64_t no_order[] = { 46, 10, 41, 61, 11, 13, 37, 12, 48, 59, 0, 54, 30, 7, 57, 58, 17, 16, 25, 35, 62, 15, 2, 26, 21, 39, 50, 32, 23, 36, 18, 43, 47, 45, 24, 20, 27, 29, 60, 55, 28, 3, 1, 8, 22, 53, 42, 56, 33, 19, 34, 5, 49, 31, 51, 40, 6, 38, 52, 63, 4, 14, 44, 9};
 
 static uint64_t decode_cache_line(int linenr)
 {
@@ -125,7 +125,7 @@ void prefetch(void(*fn)(cycles_t))
 
 	open_c();
 
-#if 1
+#if 0
 	t1 = get_cycles();
 	load_cache_line(10);
 	fprintf(stderr,"%Ld \n",get_cycles()-t1);
