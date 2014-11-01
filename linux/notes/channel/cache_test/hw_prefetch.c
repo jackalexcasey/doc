@@ -74,52 +74,97 @@ static void load_cache_line(int linenr)
  * _304__248__244__248__332__248__248__244__248__244__248__244__80__80__80__80__80__80__80__80__80__80
  */
 
-#define CACHE_LINE_PER_PAGE 64*8
-#define PAGE_NR 64
+#define CACHE_LINE_PER_PAGE 64
 
-static void encode_cache_lines(int linenr, uint64_t value)
+static const uint64_t no_order[] = { 46, 10, 41, 61, 11, 13, 37, 12, 48, 59, 0, 54, 30, 7, 57, 58, 17, 16, 25, 35, 62, 15, 2, 26, 21, 39, 50, 32, 23, 36, 18, 43, 47, 45, 24, 20, 27, 29, 60, 55, 28, 3, 1, 8, 22, 53, 42, 56, 33, 19, 34, 5, 49, 31, 51, 40, 6, 38, 52, 63, 4, 14, 44, 9};
+
+
+/*
+ * theory of operation:
+ * there is 64 cache line in a page  (64*64 = 4096)
+ *
+ * we could encode a 64bit word directly using 1 page ( 1 cache line per bit )
+ * 	for(x=0;x<64;x++){
+ * 		load_cache_line(x) / zap_cache_line(x)
+ *
+ * This kicks the prefetcher so we could add some fuzz within the page
+ * 	for(x=0;x<64;x++){
+ * 		load_cache_line(no_order[x] / zap_cache_line(no_order[x]
+ *
+ * this _also kick the prefetcher because there is a linear progression
+ * after each page
+ * So now instead of encoding 64bit directly using 1 page we
+ * encode 64 bit in 64 page choosen with fuzz
+ *
+ * SO with 64 pages we can encode 64 bit 64 times
+ *
+ * HERE we encode 1 u64 over 64 page
+ */
+static void encode_u64(int pagenr, int bulknr, uint64_t value)
 {
 	int x;
 	uint64_t tmp;
 
 	tmp = value;
-	for(x=0;x<PAGE_NR;x++){
+	for(x=0;x<64;x++){
 		if(!(tmp & 0x1))
-			load_cache_line((x*CACHE_LINE_PER_PAGE)+linenr);
+			load_cache_line(x*CACHE_LINE_PER_PAGE + pagenr +bulknr*64*CACHE_LINE_PER_PAGE);
 		tmp = tmp >> 1;
 	}
 
 	tmp = value;
-	for(x=0;x<PAGE_NR;x++){
+	for(x=0;x<64;x++){
 		if((tmp & 0x1))
-			zap_cache_line((x*CACHE_LINE_PER_PAGE)+linenr);
+			zap_cache_line(x*CACHE_LINE_PER_PAGE + pagenr +bulknr*64*CACHE_LINE_PER_PAGE);
 		tmp = tmp >> 1;
 	}
 }
 
-static const uint64_t no_order[] = { 46, 10, 41, 61, 11, 13, 37, 12, 48, 59, 0, 54, 30, 7, 57, 58, 17, 16, 25, 35, 62, 15, 2, 26, 21, 39, 50, 32, 23, 36, 18, 43, 47, 45, 24, 20, 27, 29, 60, 55, 28, 3, 1, 8, 22, 53, 42, 56, 33, 19, 34, 5, 49, 31, 51, 40, 6, 38, 52, 63, 4, 14, 44, 9};
+/*
+ * HERE we encode 64 u64 over 64 page which is the maximum we can do over 64 pages
+ *
+ * 64 pages is 256Kb
+ */
+static void encode_64_u64(int bulknr,uint64_t *value)
+{
+	int x;
+	for(x=0;x<64;x++){
+		encode_u64(x, bulknr, value[x]);
+	}
+}
 
-static uint64_t decode_cache_line(int linenr)
+static uint64_t decode_u64(int pagenr, int bulknr)
 {
 	int x,t;
 	cycles_t t1,t2;
 	uint64_t data;
 
 	data = 0;
-	for(x=0;x<PAGE_NR;x++){
+	for(x=0;x<64;x++){
 		t1 = get_cycles();
-		load_cache_line(((no_order[x])*CACHE_LINE_PER_PAGE)+linenr);
+		load_cache_line(no_order[x]*CACHE_LINE_PER_PAGE + pagenr + bulknr*64*CACHE_LINE_PER_PAGE);
 		if(get_cycles()-t1 > 200)
 			data = data | (uint64_t)1 << no_order[x];
 	}
 	return data;
 }
 
+/*
+ * HERE we decode 64 u64 over 64 page which is the maximum we can do over 64 pages
+ */
+static void decode_64_u64(int bulknr, uint64_t *value)
+{
+	int x;
+	for(x=0;x<64;x++){
+		value[x] = decode_u64(x, bulknr);
+	}
+}
+
 
 void prefetch(void(*fn)(cycles_t))
 {
-	uint64_t data0,data1,data;
-	int x,y;
+	uint64_t dat64[64],data;
+	int x,y,z;
 
 	cycles_t t1,t2;
 
@@ -147,28 +192,35 @@ void prefetch(void(*fn)(cycles_t))
 	return ;
 #endif
 
-	//Encode
-	data0 = 0x5533555555558855;
-	data1 = 0xaaaaaaaaaaaaaaaa;
-
-	//data0 = 0xffffffffffffffff;
-	//data1 = 0xffffffffffffffff;
-
-//	data0 = 0;
-//	data1 = 0;
-
-	for(y=0;y<CACHE_LINE_PER_PAGE;y++){
-		if(!(y%2))
-			encode_cache_lines(y, data0);
-		else
-			encode_cache_lines(y, data1);
+	/*
+	 * 12mb l3 cache is 48 time (64 pages)
+	 * i.e. 48 X uint64_t dat64[64]
+	 *
+	 * 48 is very noisy
+	 *
+	 * 640X480 requires 4800 uint64_t
+	 * ==> 75 X uint64_t dat64[64]
+	 */
+	for(y=0;y<75;y++){
+		//Pattern setup
+		for(x=0;x<64;x++){
+			if(!(x%2))
+				dat64[x] = 0x5555555500000000 | y;
+			else
+				dat64[x] = 0xaaaaaaaa00000000 | y;
+		}
+		encode_64_u64(y, dat64);
 	}
 
-	//Decode
-	for(y=0;y<CACHE_LINE_PER_PAGE;y++){
-		t1 = get_cycles();
-		data = decode_cache_line(y);
-		fprintf(stderr,"%Ld: %Lx\n",get_cycles()-t1,data);
+	for(y=0;y<75;y++){
+		decode_64_u64(y, dat64);
+		for(x=0;x<64;x++){
+			if(x==31)
+				fprintf(stderr,"%Lx ",dat64[x]);
+			if(x==32)
+				fprintf(stderr,"%Lx ",dat64[x]);
+		}
+		fprintf(stderr,"\n");
 	}
 	return;
 }
