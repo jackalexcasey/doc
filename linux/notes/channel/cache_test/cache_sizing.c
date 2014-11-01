@@ -198,59 +198,109 @@ void i386_cpuid_caches () {
     }
 }
 
-int tt() {
-    int steps = 64 * 1024 * 1024;
-    int arr[1024 * 1024];
-    int lengthMod = (1024 * 1024) - 1;
-    int i;
-	cycles_t t1,t2;
-
-    t1 = get_cycles();
-    for (i = 0; i < steps; i++) {
-        arr[(i * 16) & lengthMod]++;
-    }
-	fprintf(stderr,"Time for %d: %Ld \n",i, get_cycles()-t1);
-}
-
 #define CACHE_SIZE ((128*1024)*1000)
 #define CACHE_LINE_SIZE 64
 
 #define N_SIZE_1K 512
+#define LOOP_FACTOR2 16*128*3*5
 void cache_sizing(void(*fn)(cycles_t))
 {
 	uint64_t data0,data1,data;
-	int x,y,z;
+	int x,y,z,g,t, m,n;
 
 	cycles_t t1,t2;
 	open_c();
 
-//	tt();
-//	return ;
 //	i386_cpuid_caches();
 //	return;
-
-	for(z=1; z<=N_SIZE_1K; z++){
-
-		t1 = get_cycles();
-		for(x=1;x<=N_SIZE_1K;x++){
-			for(y=0;y<100;y++)
-				load_cache_line(no_order[x%z]);
-//			fprintf(stderr,"%d",x%z);
-		}
-//		fprintf(stderr,"\n");
-		fprintf(stderr,"%Ld \n",get_cycles()-t1);
-	}
-	return;
 #if 0
-		t1 = get_cycles();
-		for(x=0;x<y;x++)
-			touch_cache_line(x);
-		mb();
-		fprintf(stderr,"%Ld \n",get_cycles()-t1);
-			load_cache_line(x+(y*64));
+
+Since every number can be reduced to a product of primes, you could take the smallest prime and multiply it by itself until you get a number that goes over 1000. 
+
+For example: 
+2x2x2x2x2x2x2x2x2 = 512 
+
+The cache size should be adjusted to something close to the highest factor number
+To mazimize the factor #
+_16 1_
+0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 
+_8 2_
+0 1 0 1 0 1 0 1 0 1 0 1 0 1 0 1 
+_4 4_
+0 1 2 3 0 1 2 3 0 1 2 3 0 1 2 3 
+_2 8_
+0 1 2 3 4 5 6 7 0 1 2 3 4 5 6 7 
+_1 16_
+0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15
+
 #endif
 
+	/* first we find all the factor */
+	for(x=LOOP_FACTOR2;x>=1;x--){
+		if(LOOP_FACTOR2%x == 0){
+			y = LOOP_FACTOR2/x;
+			/* Trigger constans deepth loop */
+			t1 = get_cycles();
+			if(x>y){
+				for(m=0;m<x;m++){
+					for(n=0;n<y;n++){
+						load_cache_line(n);
+	//					fprintf(stderr,"%d ",n);
+					}
+				}
+			}
+			else{
+				for(m=0;m<x;m++){
+					for(n=0;n<y;n++){
+						load_cache_line(n);
+						//fprintf(stderr,"%d ",n);
+					}
+				}
+			}
+		}
+	}
 
+	/* first we find all the factor */
+	for(x=LOOP_FACTOR2;x>=1;x--){
+		if(LOOP_FACTOR2%x == 0){
+			y = LOOP_FACTOR2/x;
+	//		fprintf(stderr,"_%d %d_\n",x,y);
+			/* Trigger constans deepth loop */
+			t1 = get_cycles();
+			if(x>y){
+				for(m=0;m<x;m++){
+					for(n=0;n<y;n++){
+						load_cache_line(n);
+	//					fprintf(stderr,"%d ",n);
+					}
+				}
+			}
+			else{
+				for(m=0;m<x;m++){
+					for(n=0;n<y;n++){
+						load_cache_line(n);
+						//fprintf(stderr,"%d ",n);
+					}
+				}
+			}
+			fprintf(stderr,"%Ld \n",get_cycles()-t1);
+		}
+	}
+	return ;
+
+	//16z is 1Kb
+	for(z=4096,y=1;z>=1;z=z>>1,y=y<<1){
+		fprintf(stderr, "%d %d\n",z,y);
+		t1 = get_cycles();
+		// z time y pages
+		for(x=0;x<z;x++){
+			for(t=0;t<y;t++){
+				load_cache_line(t);
+			}
+		}
+//		fprintf(stderr,"%Ld \n",get_cycles()-t1);
+	}
+	return;
 
 
 	/*
