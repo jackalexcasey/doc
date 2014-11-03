@@ -91,6 +91,9 @@ static uint64_t decode_cache_line(int linenr)
  *
  * With cache modulation we canno pass the whole BW in one cycle
  * for that reason we interleave the frame
+ *
+ * BUT with interleave we LOOSE the PLL locking so there is an out of phase that is 
+ * created.........
  */
 void modulate_cache(cycles_t init)
 {
@@ -108,7 +111,10 @@ void modulate_cache(cycles_t init)
 	//This is the encoding part
 	if(transmitter){
 		for(y=0;y<CACHE_LINE_NR;y++){
-			encode_cache_lines(y, dat_ptr[y*4+frame_nr]);
+			if(pattern)
+				encode_cache_lines(y, 0x1);
+			else
+				encode_cache_lines(y, dat_ptr[y*4+frame_nr]);
 		}
 	}
 	else{
@@ -125,8 +131,6 @@ end:
 	if(frame_nr==4){
 		frame_nr = 0;
 		dump_frame((unsigned char*)dat_ptr);
-//		if(!transmitter)
-//			memset(dat_ptr,0,DATA_PACKET_SIZE);
 	}
 }
 

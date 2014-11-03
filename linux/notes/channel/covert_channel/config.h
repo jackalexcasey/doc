@@ -37,7 +37,7 @@
 
 #define CPU_FREQ 2393715000
 
-#define STRETCH 1
+#define STRETCH 2
 #define FRAME_FREQ ((cycles_t)60/STRETCH)
 
 /* 
@@ -62,8 +62,10 @@
  *
  * Here we relax 25% of the time i.e. 75% busy
  */
-#define RELAX_PERIOD_IN_CYCLE (cycles_t)(((FRAME_PERIOD_IN_CYCLE*1)/4))
-#define RELAX_PERIOD_IN_NSEC (cycles_t)(((FRAME_PERIOD_IN_NSEC*1)/4))
+//#define RELAX_PERIOD_IN_CYCLE (cycles_t)(((FRAME_PERIOD_IN_CYCLE*1)/4))
+//#define RELAX_PERIOD_IN_NSEC (cycles_t)(((FRAME_PERIOD_IN_NSEC*1)/4))
+#define RELAX_PERIOD_IN_CYCLE (cycles_t)(0)
+#define RELAX_PERIOD_IN_NSEC (cycles_t)(0)
 
 /*
  * This is the PAYLOAD available cycle
@@ -85,6 +87,7 @@
 #define DATA_PACKET_SIZE 		(PIXEL_WIDTH*PIXEL_HEIGHT)/8
 
 extern int ascii;
+extern int pattern;
 extern int playback;
 extern int transmitter;
 extern unsigned char Untitled_bits[];

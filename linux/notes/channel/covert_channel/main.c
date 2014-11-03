@@ -1,10 +1,11 @@
 #include "config.h"
 
 int ascii = 0;
+int pattern = 0;
 int playback = 0;
 int transmitter = 0;
 char *program	= "";
-const char optstring[] = "m:c:tap";
+const char optstring[] = "m:c:tapP";
 
 struct option options[] = {
 	{ "",	required_argument,	0, 	'j'	},
@@ -14,7 +15,7 @@ struct option options[] = {
 
 void usage(void)
 {
-	printf("usage: [-c cpu sets] [-t transmitter mode] [-m mmap addr] [-a ascii] [-p playback]\n");
+	printf("usage: [-c cpu sets] [-t transmitter mode] [-m mmap addr] [-a ascii] [-p playback] [-P pattern]\n");
 }
 
 void help(void)
@@ -63,6 +64,9 @@ main(int argc, char *argv[])
 
 	while ((c = getopt_long(argc, argv, optstring, options, NULL)) != EOF) {
 		switch (c) {
+			case 'P':
+				pattern = 1;
+				break;
 			case 'p':
 				playback = 1;
 				break;
