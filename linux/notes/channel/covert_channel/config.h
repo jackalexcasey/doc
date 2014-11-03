@@ -37,7 +37,7 @@
 
 #define CPU_FREQ 2393715000
 
-#define STRETCH 2
+#define STRETCH 1
 #define FRAME_FREQ ((cycles_t)60/STRETCH)
 
 /* 
@@ -62,8 +62,8 @@
  *
  * Here we relax 25% of the time i.e. 75% busy
  */
-#define RELAX_PERIOD_IN_CYCLE (cycles_t)(((FRAME_PERIOD_IN_CYCLE*1)/8))
-#define RELAX_PERIOD_IN_NSEC (cycles_t)(((FRAME_PERIOD_IN_NSEC*1)/8))
+#define RELAX_PERIOD_IN_CYCLE (cycles_t)(((FRAME_PERIOD_IN_CYCLE*1)/4))
+#define RELAX_PERIOD_IN_NSEC (cycles_t)(((FRAME_PERIOD_IN_NSEC*1)/4))
 
 /*
  * This is the PAYLOAD available cycle

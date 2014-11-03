@@ -88,13 +88,19 @@ static uint64_t decode_cache_line(int linenr)
  * Encoding all 0xffs involve zapping cache line only so this is fast
  * This is also function of going from state A to state B and this
  * is affecting the load_cache time
+ *
+ * With cache modulation we canno pass the whole BW in one cycle
+ * for that reason we interleave the frame
  */
 void modulate_cache(cycles_t init)
 {
 	int y;
-	uint64_t dat, *dat_ptr;
+	uint64_t dat;
+	static int frame_nr=0;
+	static uint64_t *dat_ptr;
 
-	dat_ptr = (uint64_t*)get_frame_ptr();
+	if(!frame_nr)
+		dat_ptr = (uint64_t*)get_frame_ptr();
 
 	if(playback)
 		goto end;
@@ -102,28 +108,26 @@ void modulate_cache(cycles_t init)
 	//This is the encoding part
 	if(transmitter){
 		for(y=0;y<CACHE_LINE_NR;y++){
-			encode_cache_lines(y, dat_ptr[y]);
+			encode_cache_lines(y, dat_ptr[y*4+frame_nr]);
 		}
-
 	}
 	else{
  		/* Here the receiver need to run _after_ the transmitter */
-//		calibrated_ldelay(500000);
-
-//		fprintf(stderr,"_%Ld_\n",get_cycles());a
-
+		calibrated_ldelay(500000);
 		for(y=0;y<CACHE_LINE_NR;y++){
 			dat = decode_cache_line(y);
-			dat_ptr[y] = dat;
-
-//			if(!(y%32))
-//				fprintf(stderr,"%llx\n",data);
+			dat_ptr[y*4+frame_nr] = dat;
 		}
-
 	}
 
 end:
-	dump_frame((unsigned char*)dat_ptr);
+	frame_nr++;
+	if(frame_nr==4){
+		frame_nr = 0;
+		dump_frame((unsigned char*)dat_ptr);
+//		if(!transmitter)
+//			memset(dat_ptr,0,DATA_PACKET_SIZE);
+	}
 }
 
 void cache_open_channel(unsigned long long pci_mem_addr)
