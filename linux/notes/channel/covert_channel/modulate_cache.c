@@ -7,13 +7,6 @@
 
 #include "config.h"
 
-extern int transmitter;
-extern int ascii;
-extern unsigned char Untitled_bits[];
-extern int screen_dump(unsigned char *data);
-extern int screen_init(int w, int h);
-extern void calibrated_ldelay(cycles_t loops);
-
 #define mb() asm volatile("mfence":::"memory")
 
 # define __force __attribute__((force))
@@ -25,9 +18,6 @@ static inline void clflush(volatile void *__p)
 unsigned char *rx_buf = NULL;
 volatile unsigned char dummy;
 
-#define PIXEL_WIDTH				640
-#define PIXEL_HEIGHT			480
-#define DATA_PACKET_SIZE 		(PIXEL_WIDTH*PIXEL_HEIGHT)/8
 unsigned char data[DATA_PACKET_SIZE];
 
 #define CACHE_LINE_NR 64*16
@@ -102,10 +92,11 @@ void modulate_cache(cycles_t init)
 {
 	int y;
 	uint64_t dat, *dat_ptr;
+
+	dat_ptr = (uint64_t*)get_frame_ptr();
 	
 	//This is the encoding part
 	if(transmitter){
-		dat_ptr = (uint64_t*)data;
 		for(y=0;y<CACHE_LINE_NR;y++){
 			encode_cache_lines(y, dat_ptr[y]);
 		}
@@ -117,7 +108,6 @@ void modulate_cache(cycles_t init)
 
 //		fprintf(stderr,"_%Ld_\n",get_cycles());a
 
-		dat_ptr = (uint64_t*)data;
 		for(y=0;y<CACHE_LINE_NR;y++){
 			dat = decode_cache_line(y);
 			dat_ptr[y] = dat;
@@ -128,34 +118,10 @@ void modulate_cache(cycles_t init)
 
 	}
 
-	if(!ascii)
-		screen_dump(data);
+	screen_dump((unsigned char*)dat_ptr);
 }
 
-static void rx_init(void)
-{
-	if(!ascii)
-		screen_init(PIXEL_WIDTH, PIXEL_HEIGHT);
-}
-
-static void tx_init(void)
-{	
-	int c;
-
-	if(ascii){
-		for(c=0; c<DATA_PACKET_SIZE; c++){
-			data[c] = c;
-		}
-	}
-	else{
-		screen_init(PIXEL_WIDTH, PIXEL_HEIGHT);
-		/* Data source is bitmap */
-		memcpy(data,Untitled_bits,DATA_PACKET_SIZE);
-		screen_dump(Untitled_bits);
-	}
-}
-
-void open_channel(unsigned long long pci_mem_addr)
+void cache_open_channel(unsigned long long pci_mem_addr)
 {
 	int fd;
 
@@ -193,9 +159,7 @@ void open_channel(unsigned long long pci_mem_addr)
 			DIE("mmap");
 		fprintf(stderr, "rx_buf mmap ptr %p\n",rx_buf);
 	}
-	if(transmitter)
-		tx_init();
-	else
-		rx_init();
+
+	display_init();
 
 }

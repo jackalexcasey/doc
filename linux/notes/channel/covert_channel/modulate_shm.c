@@ -1,12 +1,6 @@
 #include "config.h"
 
-extern int ascii;
-extern int transmitter;
-extern unsigned char Untitled_bits[];
-extern int screen_dump(unsigned char *data);
-extern int screen_init(int w, int h);
-
-volatile int *spinlock = NULL;
+static volatile int *spinlock = NULL;
 
 /* 
  * By increasing the TSC_CYCLE_PER_DATA we increase the immunity to noise
@@ -14,18 +8,7 @@ volatile int *spinlock = NULL;
  * transmission time
  */
 #define TSC_CYCLE_PER_DATA 		39
-
-#if 0
-#define PIXEL_WIDTH				200
-#define PIXEL_HEIGHT			200
-#else
-#define PIXEL_WIDTH				640
-#define PIXEL_HEIGHT			480
-#endif
-
-#define DATA_PACKET_SIZE 		(PIXEL_WIDTH*PIXEL_HEIGHT)/8
 #define TSC_MAX_DATA_CYCLE		DATA_PACKET_SIZE * TSC_CYCLE_PER_DATA
-unsigned char data[DATA_PACKET_SIZE];
 
 /*
  * This is the bucket based implementation
@@ -35,6 +18,9 @@ void modulate_shm(cycles_t init)
 {
 	int x;
 	int bucket=0;
+	unsigned char *data;
+
+	data = get_frame_ptr();
 
 	init = init - PHASE_OFFSET;
 /*
@@ -74,42 +60,16 @@ void modulate_shm(cycles_t init)
 
 	*spinlock = 0;
 
-	if(!ascii)
-		screen_dump(data);
+	screen_dump(data);
 }
 
-static void rx_init(void)
-{
-	if(!ascii)
-		screen_init(PIXEL_WIDTH, PIXEL_HEIGHT);
-}
-
-static void tx_init(void)
-{	
-	int c;
-
-	if(ascii){
-		for(c=0; c<DATA_PACKET_SIZE; c++){
-			data[c] = c;
-		}
-	}
-	else{
-		screen_init(PIXEL_WIDTH, PIXEL_HEIGHT);
-		/* Data source is bitmap */
-		memcpy(data,Untitled_bits,DATA_PACKET_SIZE);
-		screen_dump(Untitled_bits);
-	}
-	*spinlock = 0;
-}
-
-#if 0
 /*
  * This hides the detail about the method used for communication.
  * For modelization we used shared memory variable.
  * For real implementation we use SMT pipeline contention. In that
  * case this function takes care to set the affinity of the HT siblings...
  */
-void open_channel(unsigned long long pci_mem_addr)
+void shm_open_channel(unsigned long long pci_mem_addr)
 {
 	int fd;
 	void *ptr;
@@ -139,10 +99,10 @@ void open_channel(unsigned long long pci_mem_addr)
 	}
 	spinlock = ptr; /* spinlock is the first object in the mmap */
 	if(transmitter)
-		tx_init();
-	else
-		rx_init();
+		*spinlock = 0;
+	
+	display_init();
+
 	return;
 }
-#endif
 

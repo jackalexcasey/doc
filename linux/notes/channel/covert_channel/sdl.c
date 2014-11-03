@@ -1,16 +1,7 @@
 #include "SDL.h"
 #include <assert.h>
 #include <math.h>
-
-void setpixel(SDL_Surface *screen, int x, int y, Uint8 r, Uint8 g, Uint8 b)
-{
-	Uint32 *pixmem32;
-	Uint32 colour;  
-	colour = SDL_MapRGB( screen->format, r, g, b );
-			   
-	pixmem32 = (Uint32*) screen->pixels  + y + x;
-	*pixmem32 = colour;
-}
+#include "config.h"
 
 /* Event information is placed in here */
 SDL_Event event;
@@ -18,11 +9,20 @@ SDL_Event event;
 /* This will be used as our "handle" to the screen surface */
 SDL_Surface *scr;
 
-int screen_init(int w, int h)
+unsigned char data[DATA_PACKET_SIZE];
+
+unsigned char* get_frame_ptr(void)
+{
+	return data;
+}
+
+static int screen_init(int w, int h)
 {
 	static int init=0;
 
 	if(init)
+		return;
+	if(ascii)
 		return;
     SDL_Init(SDL_INIT_VIDEO);
 
@@ -30,6 +30,38 @@ int screen_init(int w, int h)
     scr = SDL_SetVideoMode(w, h, 32, SDL_SWSURFACE);
     assert(scr);
 	init = 1;
+}
+
+static void rx_init(void)
+{
+	screen_init(PIXEL_WIDTH, PIXEL_HEIGHT);
+}
+
+static void tx_init(void)
+{	
+	screen_init(PIXEL_WIDTH, PIXEL_HEIGHT);
+	/* Data source is bitmap */
+	memcpy(data,Untitled_bits,DATA_PACKET_SIZE);
+	screen_dump(Untitled_bits);
+}
+
+void display_init(void)
+{
+	if(transmitter)
+		tx_init();
+	else
+		rx_init();
+
+}
+
+static void setpixel(SDL_Surface *screen, int x, int y, Uint8 r, Uint8 g, Uint8 b)
+{
+	Uint32 *pixmem32;
+	Uint32 colour;  
+	colour = SDL_MapRGB( screen->format, r, g, b );
+			   
+	pixmem32 = (Uint32*) screen->pixels  + y + x;
+	*pixmem32 = colour;
 }
 
 int screen_dump(unsigned char *data)

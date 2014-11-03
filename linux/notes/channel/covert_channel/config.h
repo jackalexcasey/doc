@@ -76,10 +76,28 @@
  */
 #define PHASE_OFFSET 2000
 
+#define CACHE_CHANNEL
+//#define SHM_CHANNEL
+
+/* Display setting */
+#define PIXEL_WIDTH				640
+#define PIXEL_HEIGHT			480
+#define DATA_PACKET_SIZE 		(PIXEL_WIDTH*PIXEL_HEIGHT)/8
+
+extern int ascii;
+extern int transmitter;
+extern unsigned char Untitled_bits[];
+extern int screen_dump(unsigned char *data);
+extern unsigned char* get_frame_ptr(void);
+extern void calibrated_ldelay(cycles_t loops);
+
 extern void pll( void(*fn)(cycles_t));
-extern void open_channel(unsigned long long pci_mem_addr);
+
 extern void modulate_shm(cycles_t init);
+extern void shm_open_channel(unsigned long long pci_mem_addr);
+
 extern void modulate_cache(cycles_t init);
+extern void cache_open_channel(unsigned long long pci_mem_addr);
 
 #endif
 

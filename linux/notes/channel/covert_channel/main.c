@@ -23,8 +23,12 @@ void help(void)
 
 void * worker_thread(void *arg)
 {
-//	pll(modulate_shm);
+#ifdef CACHE_CHANNEL
 	pll(modulate_cache);
+#endif
+#ifdef SHM_CHANNEL
+	pll(modulate_shm);
+#endif
 }
 
 int
@@ -77,8 +81,12 @@ main(int argc, char *argv[])
 				break;
 		}
 	}
-
-	open_channel(pci_mem_addr);
+#ifdef CACHE_CHANNEL
+	cache_open_channel(pci_mem_addr);
+#endif
+#ifdef SHM_CHANNEL
+	shm_open_channel(pci_mem_addr);
+#endif
 
 	if (errs) {
 		usage();
