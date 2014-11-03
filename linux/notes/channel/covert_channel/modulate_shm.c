@@ -60,7 +60,7 @@ void modulate_shm(cycles_t init)
 
 	*spinlock = 0;
 
-	screen_dump(data);
+	dump_frame(data);
 }
 
 /*

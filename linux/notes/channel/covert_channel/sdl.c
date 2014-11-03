@@ -9,12 +9,8 @@ SDL_Event event;
 /* This will be used as our "handle" to the screen surface */
 SDL_Surface *scr;
 
-unsigned char data[DATA_PACKET_SIZE];
-
-unsigned char* get_frame_ptr(void)
-{
-	return data;
-}
+unsigned char *txdata;
+unsigned char *rxdata;
 
 static int screen_init(int w, int h)
 {
@@ -22,8 +18,7 @@ static int screen_init(int w, int h)
 
 	if(init)
 		return;
-	if(ascii)
-		return;
+	
     SDL_Init(SDL_INIT_VIDEO);
 
     /* Get a 640x480, 24-bit software screen surface */
@@ -32,26 +27,74 @@ static int screen_init(int w, int h)
 	init = 1;
 }
 
-static void rx_init(void)
+unsigned char* get_frame_ptr(void)
 {
-	screen_init(PIXEL_WIDTH, PIXEL_HEIGHT);
-}
+	unsigned char *ptr;
+	static int frame_nr=0;
 
-static void tx_init(void)
-{	
-	screen_init(PIXEL_WIDTH, PIXEL_HEIGHT);
-	/* Data source is bitmap */
-	memcpy(data,Untitled_bits,DATA_PACKET_SIZE);
-	screen_dump(Untitled_bits);
+	if(transmitter)
+		ptr = &txdata[frame_nr];
+	else
+		ptr = &rxdata[frame_nr*DATA_PACKET_SIZE];
+	frame_nr++;
+	if(frame_nr == 1024){
+		frame_nr=0;
+		exit(1);
+		fprintf(stderr,"!");
+	}
+	return ptr;
 }
 
 void display_init(void)
 {
-	if(transmitter)
-		tx_init();
-	else
-		rx_init();
+	int fd,x;
+	void *ptr;
+	char name[64];
 
+	if(!ascii)
+		screen_init(PIXEL_WIDTH, PIXEL_HEIGHT);
+
+	if(transmitter)
+		sprintf(name,"dattx");
+	else
+		sprintf(name,"datrx");
+
+	if(playback){
+		if ((fd = shm_open(name, O_RDWR,S_IRWXU|S_IRWXG|S_IRWXO)) < 0)
+			 DIE("could not open play back file");
+	}
+	else{
+
+		if ((fd = shm_open(name, O_CREAT|O_RDWR,
+					S_IRWXU|S_IRWXG|S_IRWXO)) > 0) {
+			//640x480 is 38Kb per frame
+			if (ftruncate(fd, DATA_PACKET_SIZE * 1024) != 0)
+				DIE("could not truncate shared file\n");
+		}
+		else
+			DIE("Open channel");
+	}
+
+	ptr = mmap(NULL,DATA_PACKET_SIZE * 1024,PROT_READ|PROT_WRITE,MAP_SHARED,fd,0);
+	if(ptr == MAP_FAILED)
+		DIE("mmap");
+
+
+	if(transmitter){
+		txdata = ptr;
+		if(!playback){
+			for(x=0;x<1024;x++){
+				/* Data source is bitmap */
+				memcpy(&txdata[x*DATA_PACKET_SIZE],Untitled_bits,DATA_PACKET_SIZE);
+			}
+		}
+	}
+	else{
+		rxdata = ptr;
+		if(!playback){
+			memset(rxdata,0,DATA_PACKET_SIZE * 1024);
+		}
+	}
 }
 
 static void setpixel(SDL_Surface *screen, int x, int y, Uint8 r, Uint8 g, Uint8 b)
@@ -64,9 +107,12 @@ static void setpixel(SDL_Surface *screen, int x, int y, Uint8 r, Uint8 g, Uint8 
 	*pixmem32 = colour;
 }
 
-int screen_dump(unsigned char *data)
+int dump_frame(unsigned char *data)
 {
     int x, y, t, idx, ytimesw;
+
+	if(ascii)
+		return;
 
     /* Ensures we have exclusive access to the pixels */
     SDL_LockSurface(scr);

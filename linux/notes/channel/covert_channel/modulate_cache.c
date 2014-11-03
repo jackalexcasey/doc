@@ -94,7 +94,10 @@ void modulate_cache(cycles_t init)
 	uint64_t dat, *dat_ptr;
 
 	dat_ptr = (uint64_t*)get_frame_ptr();
-	
+
+	if(playback)
+		goto end;
+
 	//This is the encoding part
 	if(transmitter){
 		for(y=0;y<CACHE_LINE_NR;y++){
@@ -118,7 +121,8 @@ void modulate_cache(cycles_t init)
 
 	}
 
-	screen_dump((unsigned char*)dat_ptr);
+end:
+	dump_frame((unsigned char*)dat_ptr);
 }
 
 void cache_open_channel(unsigned long long pci_mem_addr)

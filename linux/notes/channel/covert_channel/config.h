@@ -85,9 +85,10 @@
 #define DATA_PACKET_SIZE 		(PIXEL_WIDTH*PIXEL_HEIGHT)/8
 
 extern int ascii;
+extern int playback;
 extern int transmitter;
 extern unsigned char Untitled_bits[];
-extern int screen_dump(unsigned char *data);
+extern int dump_frame(unsigned char *data);
 extern unsigned char* get_frame_ptr(void);
 extern void calibrated_ldelay(cycles_t loops);
 
