@@ -39,7 +39,6 @@ unsigned char* get_frame_ptr(void)
 	frame_nr++;
 	if(frame_nr == 1024){
 		frame_nr=0;
-		exit(1);
 		fprintf(stderr,"!");
 	}
 	return ptr;

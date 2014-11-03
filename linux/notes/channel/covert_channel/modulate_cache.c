@@ -75,6 +75,7 @@ static uint64_t decode_cache_line(int linenr)
 	for(x=0;x<64;x++){
 		t1 = get_cycles();
 		load_cache_line(((no_order[x])*CACHE_LINE_NR)+linenr);
+		//load_cache_line((x*CACHE_LINE_NR)+linenr);
 		if(get_cycles()-t1 > 200)
 			data = data | (uint64_t)1 << no_order[x];
 	}
@@ -107,7 +108,7 @@ void modulate_cache(cycles_t init)
 	}
 	else{
  		/* Here the receiver need to run _after_ the transmitter */
-		calibrated_ldelay(500000);
+//		calibrated_ldelay(500000);
 
 //		fprintf(stderr,"_%Ld_\n",get_cycles());a
 

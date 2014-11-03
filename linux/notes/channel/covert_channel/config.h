@@ -62,8 +62,8 @@
  *
  * Here we relax 25% of the time i.e. 75% busy
  */
-#define RELAX_PERIOD_IN_CYCLE (cycles_t)(((FRAME_PERIOD_IN_CYCLE*1)/4))
-#define RELAX_PERIOD_IN_NSEC (cycles_t)(((FRAME_PERIOD_IN_NSEC*1)/4))
+#define RELAX_PERIOD_IN_CYCLE (cycles_t)(((FRAME_PERIOD_IN_CYCLE*1)/8))
+#define RELAX_PERIOD_IN_NSEC (cycles_t)(((FRAME_PERIOD_IN_NSEC*1)/8))
 
 /*
  * This is the PAYLOAD available cycle

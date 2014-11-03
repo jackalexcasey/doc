@@ -3,3 +3,5 @@ TX:
 RX:
 ./covert_channel -c0 -a -m 0xc0000000
 
+
+kill -9 `pidof covert_channel`

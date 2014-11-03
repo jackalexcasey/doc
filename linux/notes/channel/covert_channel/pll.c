@@ -31,8 +31,7 @@ restart:
 	 * Here we adjust the phase on an integer multiple of a frame
 	 * TODO relax CPU here
 	 */
-	while(  ((t2 = get_cycles()) &~0xff) % ((FRAME_PERIOD_IN_CYCLE*FRAME_FREQ*16) &~0xff) );// TODO fix me
-	fprintf(stderr, "%Ld %Ld %Ld\n",FRAME_PERIOD_IN_CYCLE, FRAME_PERIOD_IN_NSEC, t2);
+	while(  ((t2 = get_cycles()) &~0xffff) % ((FRAME_PERIOD_IN_CYCLE*FRAME_FREQ) &~0xffff) );
 
 	phase = 0;
 	x=0;
