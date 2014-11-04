@@ -182,11 +182,17 @@ void cache_open_channel(unsigned long long pci_mem_addr)
 		 * we could just use this SHM and mmap it on both side
 		 * -device ivshmem,shm=test,size=500m
 		 */
-		fprintf(stderr,"Using provide address cookie 0x%llx\n",pci_mem_addr);
-		fd = open ( "/dev/mem", O_RDWR);
-		if(fd<0)
-			DIE("cannot open /dev/mem");
-		rx_buf = mmap(0x7f0000030000, CACHE_SIZE, PROT_READ|PROT_WRITE, MAP_SHARED, fd, (off_t)pci_mem_addr);
+		if(pci_mem_addr == 0xdead){
+			fprintf(stderr,"ANON\n");
+			rx_buf = mmap(0x7f0000030000, CACHE_SIZE, PROT_READ|PROT_WRITE,  MAP_PRIVATE|MAP_ANONYMOUS, -1, 0);
+		}
+		else{
+			fprintf(stderr,"Using provide address cookie 0x%llx\n",pci_mem_addr);
+			fd = open ( "/dev/mem", O_RDWR);
+			if(fd<0)
+				DIE("cannot open /dev/mem");
+			rx_buf = mmap(0x7f0000030000, CACHE_SIZE, PROT_READ|PROT_WRITE, MAP_SHARED, fd, (off_t)pci_mem_addr);
+		}
 		if(rx_buf == MAP_FAILED)
 			DIE("mmap");
 		fprintf(stderr, "rx_buf mmap ptr %p\n",rx_buf);
