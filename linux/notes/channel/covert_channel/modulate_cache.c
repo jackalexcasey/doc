@@ -188,6 +188,7 @@ end:
 void cache_open_channel(unsigned long long pci_mem_addr)
 {
 	int fd;
+	char name[64];
 
 	if(pci_mem_addr){
 		/*
@@ -211,7 +212,13 @@ void cache_open_channel(unsigned long long pci_mem_addr)
 		fprintf(stderr, "rx_buf mmap ptr %p\n",rx_buf);
 	}
 	else{
-		if ((fd = shm_open("channelrx", O_CREAT|O_RDWR,
+		//When the name are different i.e. mmap to different physical Address
+		//the effect is very similar to the malloc case
+		if(transmitter)
+			sprintf(name,"channelrx");
+		else
+			sprintf(name,"channelrx");
+		if ((fd = shm_open(name, O_CREAT|O_RDWR,
 						S_IRWXU|S_IRWXG|S_IRWXO)) > 0) {
 			if (ftruncate(fd, CACHE_SIZE) != 0)
 				DIE("could not truncate shared file\n");
@@ -223,6 +230,8 @@ void cache_open_channel(unsigned long long pci_mem_addr)
 		 * Cache are taggeg by virtual addr + physical addr
 		 * SO here we are mmaping the same physical pages across different process
 		 * at the _SAME_ VMA
+		 * L3 is not tagged by Virtual addr since when we set the hint to NULL it
+		 * work still
 		 */
 		rx_buf = mmap(0x7f0000030000,CACHE_SIZE,PROT_READ|PROT_WRITE,MAP_SHARED,fd,0);
 		if(rx_buf == MAP_FAILED)
