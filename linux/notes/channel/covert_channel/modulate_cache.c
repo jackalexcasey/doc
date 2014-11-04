@@ -121,7 +121,7 @@ void modulate_cache(cycles_t init)
 	}
 	else{
  		/* Here the receiver need to run _after_ the transmitter */
-		calibrated_ldelay(500000);
+//		calibrated_ldelay(500000);
 		for(y=0;y<CACHE_LINE_NR;y++){
 			dat = decode_cache_line(y);
 			dat_ptr[y*4+frame_nr] = dat;

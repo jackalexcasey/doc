@@ -31,7 +31,7 @@ restart:
 	 * Here we adjust the phase on an integer multiple of a frame
 	 * TODO relax CPU here
 	 */
-	while(  ((t2 = get_cycles()) &~0xffff) % ((FRAME_PERIOD_IN_CYCLE*FRAME_FREQ*16) &~0xffff) );
+	while(  ((t2 = get_cycles()) &~0xffff) % ((FRAME_PERIOD_IN_CYCLE*FRAME_FREQ) &~0xffff) );
 
 	phase = 0;
 	x=0;
@@ -89,9 +89,9 @@ restart:
 		 */
 		t3 = (get_cycles() - t2)/2;
 		if(t3 > PAYLOAD_AVAILABLE_CYCLE){
-			fprintf(stderr, "PAYLOAD Synchronization lost! %Ld %Ld/%Ld %Ld/%Ld %Ld @ %d\n", 
+			fprintf(stderr, "PAYLOAD Synchronization lost! %Ld %Ld/%Ld %Ld/%Ld %Ld @ %d:%Ld\n", 
 				t2, t3,PAYLOAD_AVAILABLE_CYCLE, 
-				RELAX_PERIOD_IN_CYCLE, FRAME_PERIOD_IN_CYCLE, lpj, FRAME_FREQ);
+				RELAX_PERIOD_IN_CYCLE, FRAME_PERIOD_IN_CYCLE, lpj, FRAME_FREQ, offset);
 			//goto restart;
 			//This is not fatal; keep going
 		}
@@ -108,8 +108,8 @@ restart:
 		 * F is frame per second
 		 */
 		if(x && !(x%FRAME_FREQ))
-			fprintf(stderr, "%Ld %Ld/%Ld %Ld/%Ld %Ld @ %d\n", t2, t3,PAYLOAD_AVAILABLE_CYCLE, 
-				RELAX_PERIOD_IN_CYCLE, FRAME_PERIOD_IN_CYCLE, lpj, FRAME_FREQ);
+			fprintf(stderr, "%Ld %Ld/%Ld %Ld/%Ld %Ld @ %d:%Ld\n", t2, t3,PAYLOAD_AVAILABLE_CYCLE, 
+				RELAX_PERIOD_IN_CYCLE, FRAME_PERIOD_IN_CYCLE, lpj, FRAME_FREQ, offset);
 
 		x++;
 	}

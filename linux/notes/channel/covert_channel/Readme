@@ -1,3 +1,7 @@
+#
+# With VM there is a TSC offset between the two VM which may not be an integer multiple of
+# the frame cycle
+
 TX:
 ./covert_channel -c0 -t -a -m 0xc0000000
 RX:

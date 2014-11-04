@@ -1,4 +1,9 @@
+
 #include "config.h"
+
+#include<stdio.h>
+#include <termios.h>
+#include <unistd.h>
 
 cycles_t offset = 0;
 int ascii = 0;
@@ -22,6 +27,42 @@ void usage(void)
 void help(void)
 {
 	usage();
+}
+
+void * tuning_thread(void *arg)
+{
+	int c;
+	static struct termios oldt, newt;
+
+	/*tcgetattr gets the parameters of the current terminal
+	STDIN_FILENO will tell tcgetattr that it should write the settings
+	of stdin to oldt*/
+	tcgetattr( STDIN_FILENO, &oldt);
+	/*now the settings will be copied*/
+	newt = oldt;
+
+	/*ICANON normally takes care that one line at a time will be processed
+	that means it will return if it sees a "\n" or an EOF or an EOL*/
+	newt.c_lflag &= ~(ICANON);
+
+	/*Those new settings will be set to STDIN
+	TCSANOW tells tcsetattr to change attributes immediately. */
+	tcsetattr( STDIN_FILENO, TCSANOW, &newt);
+
+	/*This is your part:
+	I choose 'e' to end input. Notice that EOF is also turned off
+	in the non-canonical mode*/
+	while((c=getchar())!= 'e'){
+		if(c == 'p')
+			offset+=FRAME_PERIOD_IN_CYCLE*FRAME_FREQ;
+		if(c == 'o')
+			offset-=FRAME_PERIOD_IN_CYCLE*FRAME_FREQ;
+	}
+
+	/*restore the old settings*/
+	tcsetattr( STDIN_FILENO, TCSANOW, &oldt);
+
+	return 0;
 }
 
 void * worker_thread(void *arg)
@@ -130,6 +171,14 @@ main(int argc, char *argv[])
 		}
 		return 1;
 	}
+
+	/*
+	 * Create the tuning thread
+	 */
+	memset(&cpus, 0, sizeof(cpu_set_t));
+	CPU_SET(1, &cpus);
+	create_per_cpu_threads(&cpus, tuning_thread, NULL);
+
 	join_threads();
 	return 0;
 }
