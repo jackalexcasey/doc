@@ -100,9 +100,13 @@ static void setpixel(SDL_Surface *screen, int x, int y, Uint8 r, Uint8 g, Uint8 
 {
 	Uint32 *pixmem32;
 	Uint32 colour;  
-	colour = SDL_MapRGB( screen->format, r, g, b );
+//	colour = SDL_MapRGB( screen->format, r, g, b );
 			   
 	pixmem32 = (Uint32*) screen->pixels  + y + x;
+	if(r)
+		colour = 0xff0000;
+	else
+		colour = 0;
 	*pixmem32 = colour;
 }
 
@@ -115,34 +119,20 @@ int dump_frame(unsigned char *data)
 
     /* Ensures we have exclusive access to the pixels */
     SDL_LockSurface(scr);
-	/* Clear the raster */
-	for(y = 0; y < scr->h; y++){
-		for(x = 0; x < scr->w; x++){
-			ytimesw = y*scr->pitch/4;
-			setpixel(scr, x, ytimesw, 0,0,0);
-		}
-	}
 
-	for(y = 0; y < scr->h; y++)
+	for(y = 0; y < scr->h; y++){
+		ytimesw = y*scr->pitch/4;
 		for(x = 0; x < scr->w; x=x+8){
 			idx = (x+(y*(scr->w)))/8;
-			ytimesw = y*scr->pitch/4;
-			if ((data[idx] >>0) &0x1)
-				setpixel(scr, x+0, ytimesw, 0xff,0,0);
-			if ((data[idx] >>1) &0x1)
-				setpixel(scr, x+1, ytimesw, 0xff,0,0);
-			if ((data[idx] >>2) &0x1)
-				setpixel(scr, x+2, ytimesw, 0xff,0,0);
-			if ((data[idx] >>3) &0x1)
-				setpixel(scr, x+3, ytimesw, 0xff,0,0);
-			if ((data[idx] >>4) &0x1)
-				setpixel(scr, x+4, ytimesw, 0xff,0,0);
-			if ((data[idx] >>5) &0x1)
-				setpixel(scr, x+5, ytimesw, 0xff,0,0);
-			if ((data[idx] >>6) &0x1)
-				setpixel(scr, x+6, ytimesw, 0xff,0,0);
-			if ((data[idx] >>7) &0x1)
-				setpixel(scr, x+7, ytimesw, 0xff,0,0);
+
+			setpixel(scr, x+0, ytimesw, (data[idx] >>0) &0x1,0,0);
+			setpixel(scr, x+1, ytimesw, (data[idx] >>1) &0x1,0,0);
+			setpixel(scr, x+2, ytimesw, (data[idx] >>2) &0x1,0,0);
+			setpixel(scr, x+3, ytimesw, (data[idx] >>3) &0x1,0,0);
+			setpixel(scr, x+4, ytimesw, (data[idx] >>4) &0x1,0,0);
+			setpixel(scr, x+5, ytimesw, (data[idx] >>5) &0x1,0,0);
+			setpixel(scr, x+6, ytimesw, (data[idx] >>6) &0x1,0,0);
+			setpixel(scr, x+7, ytimesw, (data[idx] >>7) &0x1,0,0);
 /*
 			fprintf(stderr,"%d %d %d %d %d %d %d %d %d %d %d\n",x,y,idx, 
 				((data[idx] >>0) &0x1)*255,
@@ -155,6 +145,7 @@ int dump_frame(unsigned char *data)
 				((data[idx] >>7) &0x1)*255);
 */
 
+		}
 	}
     SDL_UnlockSurface(scr);
 
