@@ -75,7 +75,7 @@ static uint64_t decode_cache_line(int linenr)
 	for(x=0;x<64;x++){
 		t1 = get_cycles();
 		load_cache_line(((no_order[x])*CACHE_LINE_NR)+linenr);
-		//load_cache_line((x*CACHE_LINE_NR)+linenr);
+	//	load_cache_line((x*CACHE_LINE_NR)+linenr);
 		if(get_cycles()-t1 > 200)
 			data = data | (uint64_t)1 << no_order[x];
 	}
@@ -111,8 +111,10 @@ void modulate_cache(cycles_t init)
 	//This is the encoding part
 	if(transmitter){
 		for(y=0;y<CACHE_LINE_NR;y++){
-			if(pattern)
-				encode_cache_lines(y, 0x1);
+			if(pattern){
+//				encode_cache_lines(y, 0xffffffffffffffff);
+				encode_cache_lines(y, 0xff00ff00ff00ff00);
+			}
 			else
 				encode_cache_lines(y, dat_ptr[y*4+frame_nr]);
 		}
@@ -125,6 +127,7 @@ void modulate_cache(cycles_t init)
 			dat_ptr[y*4+frame_nr] = dat;
 		}
 	}
+//	fprintf(stderr,"Frame #%d, %Ld\n",frame_nr, get_cycles()-init);
 
 end:
 	frame_nr++;
