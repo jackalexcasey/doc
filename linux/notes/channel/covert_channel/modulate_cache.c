@@ -101,6 +101,9 @@ void modulate_cache(cycles_t init)
 	uint64_t dat;
 	static int frame_nr=0;
 	static uint64_t *dat_ptr;
+	static int sync=0;
+	static int signal_period = 0;
+	static int signal_strength=0;
 
 	if(!frame_nr)
 		dat_ptr = (uint64_t*)get_frame_ptr();
@@ -118,13 +121,45 @@ void modulate_cache(cycles_t init)
 			else
 				encode_cache_lines(y, dat_ptr[y*4+frame_nr]);
 		}
+		if(!frame_nr) // At the end of frame 0 we issue the magic marker
+			encode_cache_lines(CACHE_LINE_NR-1,0xdeadbeefaa55aa55);
 	}
 	else{
  		/* Here the receiver need to run _after_ the transmitter */
-//		calibrated_ldelay(500000);
+syncup:
+		if(sync)
+			calibrated_ldelay(500000);
+
 		for(y=0;y<CACHE_LINE_NR;y++){
 			dat = decode_cache_line(y);
+			if(dat == 0xdeadbeefaa55aa55){
+				if(frame_nr !=0){ // Wrong frame
+					fprintf(stderr,"Out of sync\n");
+					frame_nr = 0;
+					sync = 0;
+					goto syncup;
+				}
+				else{ // This is the right frame
+					signal_strength++;
+					if(!sync){
+						fprintf(stderr,"Frame synchronized!\n");
+						sync = 1;
+					}
+				}
+			}
 			dat_ptr[y*4+frame_nr] = dat;
+		}
+		if(!frame_nr){
+			signal_period++;
+			if(signal_period == 30){
+				if(!signal_strength){
+					sync = 0;
+					fprintf(stderr,"NO carrier\n");
+				}
+				signal_period = 0;
+				signal_strength = 0;
+
+			}
 		}
 	}
 //	fprintf(stderr,"Frame #%d, %Ld\n",frame_nr, get_cycles()-init);
