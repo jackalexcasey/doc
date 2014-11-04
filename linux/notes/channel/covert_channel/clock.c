@@ -28,7 +28,7 @@ inline cycles_t get_cycles(void)
 {
 	unsigned long long ret = 0;
 	rdtscll(ret);
-	return ret;
+	return ret + offset;
 }
 
 /* simple loop based delay: Two bus cycle per-loop */

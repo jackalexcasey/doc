@@ -1,11 +1,12 @@
 #include "config.h"
 
+cycles_t offset = 0;
 int ascii = 0;
 int pattern = 0;
 int playback = 0;
 int transmitter = 0;
 char *program	= "";
-const char optstring[] = "m:c:tapP";
+const char optstring[] = "m:c:tapPo:";
 
 struct option options[] = {
 	{ "",	required_argument,	0, 	'j'	},
@@ -15,7 +16,7 @@ struct option options[] = {
 
 void usage(void)
 {
-	printf("usage: [-c cpu sets] [-t transmitter mode] [-m mmap addr] [-a ascii] [-p playback] [-P pattern]\n");
+	printf("usage: [-c cpu sets] [-t transmitter mode] [-m mmap addr] [-a ascii] [-p playback] [-P pattern] [-o TSC offset]\n");
 }
 
 void help(void)
@@ -82,6 +83,9 @@ main(int argc, char *argv[])
 				break;
 			case 'm':
 				pci_mem_addr = strtoul(optarg, NULL, 16);
+				break;
+			case 'o':
+				offset = strtoul(optarg, NULL, 0);
 				break;
 			default:
 				ERROR(0, "unknown option '%c'", c);
