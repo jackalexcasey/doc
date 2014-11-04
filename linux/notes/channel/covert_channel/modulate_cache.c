@@ -48,6 +48,13 @@ static void encode_cache_lines(int linenr, uint64_t value)
 	int x;
 	uint64_t tmp;
 
+	if(page_on){
+		if(linenr == page_on)
+			value = 0xffffffffffffffff;
+		else
+			value = 0;
+	}
+
 	tmp = value;
 	for(x=0;x<64;x++){
 		if(!(tmp & 0x1))
@@ -79,6 +86,12 @@ static uint64_t decode_cache_line(int linenr)
 		if(get_cycles()-t1 > 200)
 			data = data | (uint64_t)1 << no_order[x];
 	}
+
+	if(page_on){
+		if(data >0xf000000000000000)
+			fprintf(stderr,"$$$ %d\n",linenr);
+	}
+
 	return data;
 }
 
