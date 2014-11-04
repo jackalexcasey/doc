@@ -20,7 +20,7 @@ volatile unsigned char dummy;
 
 unsigned char data[DATA_PACKET_SIZE];
 
-#define CACHE_LINE_NR 64*16
+#define CACHE_LINE_NR (64*16+256)
 #define CACHE_LINE_SIZE 64
 #define CACHE_SIZE CACHE_LINE_SIZE*CACHE_LINE_NR*64
 
