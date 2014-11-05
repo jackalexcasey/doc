@@ -7,6 +7,13 @@
 
 #include "config.h"
 
+#define U64_BITS_NR 64 /* number of bits in a u64 */
+#define CACHE_LINE_SIZE 64 /* One cache line is 64 bytes */
+#define CACHE_LINE_PER_PAGE (4096/CACHE_LINE_SIZE) /* There is 64 cache line per page */
+#define CACHE_SIZE (1024*1024*12) /* 12 Mb L3 cache */
+#define CACHE_BITS_NR (CACHE_SIZE / CACHE_LINE_SIZE) /* amount of bits available in the cache 1line per bits */
+#define CACHE_U64_NR (CACHE_BITS_NR/64)
+#define CACHE_NR_OF_64_U64 (CACHE_U64_NR/64)
 
 #define DIV_ROUND_UP(n,d) (((n) + (d) - 1) / (d))
 
@@ -65,14 +72,6 @@ static inline void clflush(volatile void *__p)
 	asm volatile("clflush %0" : "+m" (*(volatile char __force *)__p));
 }
 
-#define U64_BITS_NR 64 /* number of bits in a u64 */
-#define CACHE_LINE_SIZE 64 /* One cache line is 64 bytes */
-#define CACHE_LINE_PER_PAGE (4096/CACHE_LINE_SIZE) /* There is 64 cache line per page */
-#define CACHE_SIZE (1024*1024*12) /* 12 Mb L3 cache */
-#define CACHE_BITS_NR (CACHE_SIZE / CACHE_LINE_SIZE) /* amount of bits available in the cache 1line per bits */
-#define CACHE_U64_NR (CACHE_BITS_NR/64)
-#define CACHE_NR_OF_64_U64 (CACHE_U64_NR/64)
-
 unsigned char *rx_buf = NULL;
 volatile unsigned char dummy;
 const uint64_t no_order[] = { 46, 10, 41, 61, 11, 13, 37, 12, 48, 59, 0, 54, 30, 7, 57, 58, 17, 16, 25, 35, 62, 15, 2, 26, 21, 39, 50, 32, 23, 36, 18, 43, 47, 45, 24, 20, 27, 29, 60, 55, 28, 3, 1, 8, 22, 53, 42, 56, 33, 19, 34, 5, 49, 31, 51, 40, 6, 38, 52, 63, 4, 14, 44, 9};
@@ -91,34 +90,40 @@ static void load_cache_line(int linenr)
 	mb();
 }
 
+/*
+ * Data size is 640X480 bits in 4 frames
+ * ==> 307200 / 4 = 76800 cache lines
+ * ==> 1200 u64
+ */
 void encode_data(uint64_t *dat_ptr, int frame_nr)
 {
 	int x,y,z;
 	int b;
 	uint64_t tmp;
 
-	for(z=0;z<20;z++){
-		for(y=0;y<64;y++){
-			b = y+64*z;
+	for(z=0;z<1200;z++){
 
-			//64 bits
-			tmp = dat_ptr[b*4+frame_nr];
-			for(x=0;x<64;x++){
-				if(!(tmp & 0x1))
-					load_cache_line((x*20*64)+b);
-				tmp = tmp >> 1;
-			}
+		//64 bits
+		if(!frame_nr && z==1200-1)
+			tmp = 0xdeadbeefaa55aa55;
+		else
+			tmp = dat_ptr[z*4+frame_nr];
+		for(x=0;x<64;x++){
+			if(!(tmp & 0x1))
+				load_cache_line((x*1200)+z);
+			tmp = tmp >> 1;
+		}
 
-			tmp = dat_ptr[b*4+frame_nr];
-			for(x=0;x<64;x++){
-				if((tmp & 0x1))
-					zap_cache_line((x*20*64)+b);
-				tmp = tmp >> 1;
-			}
+		if(!frame_nr && z==1200-1)
+			tmp = 0xdeadbeefaa55aa55;
+		else
+			tmp = dat_ptr[z*4+frame_nr];
+		for(x=0;x<64;x++){
+			if((tmp & 0x1))
+				zap_cache_line((x*1200)+z);
+			tmp = tmp >> 1;
 		}
 	}
-//	if(!frame_nr) // At the end of frame 0 we issue the magic marker
-//		encode_cache_lines(CACHE_LINE_NR-1,0xdeadbeefaa55aa55);
 }
 
 int decode_data(uint64_t *dat_ptr, int frame_nr)
@@ -129,26 +134,21 @@ int decode_data(uint64_t *dat_ptr, int frame_nr)
 	uint64_t tmp;
 	cycles_t t1;
 
-	for(z=0;z<20;z++){
-		for(y=0;y<64;y++){
-			b = y+64*z;
-
-			//64 bits
-			tmp = 0;
-			for(x=0;x<64;x++){
-				t1 = get_cycles();
-				load_cache_line(((no_order[x])*20*64)+b);
-				if(get_cycles()-t1 > 200)
-					tmp = tmp | (uint64_t)1 << no_order[x];
-			}
-			if(tmp == 0xdeadbeefaa55aa55){
-				if(frame_nr !=0)
-					return -1;
-				err++;
-			}
-
-			dat_ptr[b*4+frame_nr] = tmp;
+	for(z=0;z<1200;z++){
+		//64 bits
+		tmp = 0;
+		for(x=0;x<64;x++){
+			t1 = get_cycles();
+			load_cache_line(((no_order[x])*1200)+z);
+			if(get_cycles()-t1 > 200)
+				tmp = tmp | (uint64_t)1 << no_order[x];
 		}
+		if(tmp == 0xdeadbeefaa55aa55){
+			if(frame_nr !=0)
+				return -1;
+			err++;
+		}
+		dat_ptr[z*4+frame_nr] = tmp;
 	}
 	return err;
 }
@@ -184,8 +184,9 @@ void modulate_cache(cycles_t init)
 	if(playback)
 		goto end;
 
-	if(transmitter) //This is the encoding part
+	if(transmitter){ //This is the encoding part
 		encode_data(dat_ptr, frame_nr);
+	}
 	else{ // This is the decoding part
 syncup:
 		if(sync)
@@ -215,7 +216,6 @@ syncup:
 				}
 				signal_period = 0;
 				signal_strength = 0;
-
 			}
 		}
 	}
