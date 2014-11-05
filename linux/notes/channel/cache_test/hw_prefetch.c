@@ -176,16 +176,26 @@ void prefetch(void(*fn)(cycles_t))
 	open_c();
 
 #if 1
+
+//	memset(rx_buf,0,CACHE_SIZE);
+//	mb();
+
+	for(y=0;y<64;y++){
+		for(x=0;x<64;x++){
+			load_cache_line(no_order[x]*CACHE_LINE_PER_PAGE + y);
+		}
+	}
+/*
 	for(x=0;x<64;x++){
 		load_cache_line(no_order[x]*CACHE_LINE_PER_PAGE);
 	}
-
+*/
 	for(x=0;x<64;x++){
 		if(!(x%2))
 			zap_cache_line(no_order[x]*CACHE_LINE_PER_PAGE);
 		t1 = get_cycles();
 		load_cache_line(no_order[x]*CACHE_LINE_PER_PAGE);
-		fprintf(stderr,"%Ld ",get_cycles()-t1);
+		fprintf(stderr,"%Ld \n",get_cycles()-t1);
 	}
 	return;
 
