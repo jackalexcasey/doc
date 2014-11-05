@@ -1,0 +1,276 @@
+diff --git a/linux/notes/channel/covert_channel/modulate_cache.c b/linux/notes/channel/covert_channel/modulate_cache.c
+index 732172c..439126f 100644
+--- a/linux/notes/channel/covert_channel/modulate_cache.c
++++ b/linux/notes/channel/covert_channel/modulate_cache.c
+@@ -7,22 +7,55 @@
+ 
+ #include "config.h"
+ 
++/*
++ * Suppose 32Kb L1 cache ,8way ,64byte per line
++ * ==> 32kb / 64byte == 512 lines
++ * ==> 512 lines / 8way == 64 sets
++ * ==> 64 sets * 64 byte = 4096 wrap value
++ *
++ * theory of operation:
++ * there is 64 cache line in a page  (64*64 = 4096)
++ *
++ * we could encode a 64bit word directly using 1 page ( 1 cache line per bit )
++ * 	for(x=0;x<64;x++){
++ * 		load_cache_line(x) / zap_cache_line(x)
++ *
++ * This kicks the prefetcher so we could add some fuzz within the page
++ * 	for(x=0;x<64;x++){
++ * 		load_cache_line(no_order[x] / zap_cache_line(no_order[x]
++ *
++ * this _also_ kick the prefetcher because there is a linear progression
++ * after each page
++ *
++ * So now instead of encoding 64bit directly using 1 page we
++ * encode 64 bit in 64 page choosen with fuzz
++ * ==> SO with 64 pages we can encode 64 bit 64 times
++ *
++ * BUT even then we endup with some fuzz so we just
++ * go directly over the entire cache size
++ */
++#define U64_BITS_NR 64 /* number of bits in a u64 */
++#define CACHE_LINE_SIZE 64 /* One cache line is 64 bytes */
++#define CACHE_LINE_PER_PAGE (4096/CACHE_LINE_SIZE) /* There is 64 cache line per page */
++
++#define CACHE_SIZE (1024*1024*12) /* 12 Mb L3 cache */
++#define CACHE_BITS_NR (CACHE_SIZE / CACHE_LINE_SIZE) /* amount of bits available in the cache 1line per bits */
++#define CACHE_U64_NR (CACHE_BITS_NR/64)
++#define CACHE_NR_OF_64_U64 (CACHE_U64_NR/64)
++
+ #define mb() asm volatile("mfence":::"memory")
+ 
+-# define __force __attribute__((force))
+ static inline void clflush(volatile void *__p)
+ {
+-	asm volatile("clflush %0" : "+m" (*(volatile char __force *)__p));
++	asm volatile("clflush %0" : "+m" (*(volatile char *)__p));
+ }
+ 
+ unsigned char *rx_buf = NULL;
+ volatile unsigned char dummy;
+ 
+-unsigned char data[DATA_PACKET_SIZE];
++const uint64_t no_order[] = { 46, 10, 41, 61, 11, 13, 37, 12, 48, 59, 0, 54, 30, 7, 57, 58, 17, 16, 25, 35, 62, 15, 2, 26, 21, 39, 50, 32, 23, 36, 18, 43, 47, 45, 24, 20, 27, 29, 60, 55, 28, 3, 1, 8, 22, 53, 42, 56, 33, 19, 34, 5, 49, 31, 51, 40, 6, 38, 52, 63, 4, 14, 44, 9};
+ 
+-#define CACHE_LINE_NR (64*16+256)
+-#define CACHE_LINE_SIZE 64
+-#define CACHE_SIZE CACHE_LINE_SIZE*CACHE_LINE_NR*64
++//unsigned char data[DATA_PACKET_SIZE];
+ 
+ static void zap_cache_line(int linenr)
+ {
+@@ -38,44 +71,87 @@ static void load_cache_line(int linenr)
+ 	mb();
+ }
+ 
++/* 
++ * size of u64 
++ * each bit goes on a separate pages
++ * for this to work we assume that CACHE_NR_OF_64_U64 < 64
++ */
++static void encode_data(int size, uint64_t *dat)
++{
++	int x,y,z;
++	int a,b,c;
++	uint64_t tmp;
++
++	fprintf(stderr,"SIZE = %d\n",size);
++	if(size/8 > CACHE_U64_NR)
++		DIE("Invalid size");
++	
++	for(z=0;z<(size/8)/64;z++){
++		c = no_order[z];
++		for(y=0;y<64;y++){
++			b = no_order[y];
++
++			tmp = dat[y + 64*z];
++			for(x=0;x<64;x++){
++				a = no_order[x];
++				if(!(tmp & 0x1))
++					fprintf(stderr,"%d_",x +64*y + 64*64*z);
++//					load_cache_line(a +64*b + 64*64*c);
++				tmp = tmp >> 1;
++			}
++
++			tmp = dat[y + 64*z];
++			for(x=0;x<64;x++){
++				a = no_order[x];
++//				if((tmp & 0x1))
++//					zap_cache_line(a*b*c);
++				tmp = tmp >> 1;
++			}
++
++		}
++	}
++}
++
+ /*
+- * This example illustrace the effect of the prefetcher
+- * that at some points kicks in
+- * _304__248__244__248__332__248__248__244__248__244__248__244__80__80__80__80__80__80__80__80__80__80
++ * HERE we encode 1 u64 over 64 page
+  */
+-static void encode_cache_lines(int linenr, uint64_t value)
++static void encode_u64(int pagenr, int bulknr, uint64_t value)
+ {
+ 	int x;
+ 	uint64_t tmp;
+ 
+ 	tmp = value;
+-	for(x=0;x<64;x++){
++	for(x=0;x<U64_BITS_NR;x++){
+ 		if(!(tmp & 0x1))
+-			load_cache_line((x*CACHE_LINE_NR)+linenr);
++			load_cache_line(x*CACHE_LINE_PER_PAGE + pagenr +bulknr*64*CACHE_LINE_PER_PAGE);
+ 		tmp = tmp >> 1;
+ 	}
+ 
+ 	tmp = value;
+-	for(x=0;x<64;x++){
++	for(x=0;x<U64_BITS_NR;x++){
+ 		if((tmp & 0x1))
+-			zap_cache_line((x*CACHE_LINE_NR)+linenr);
++			zap_cache_line(x*CACHE_LINE_PER_PAGE + pagenr +bulknr*64*CACHE_LINE_PER_PAGE);
+ 		tmp = tmp >> 1;
+ 	}
+ }
+ 
+-const uint64_t no_order[] = { 46, 10, 41, 61, 11, 13, 37, 12, 48, 59, 0, 54, 30, 7, 57, 58, 17, 16, 25, 35, 62, 15, 2, 26, 21, 39, 50, 32, 23, 36, 18, 43, 47, 45, 24, 20, 27, 29, 60, 55, 28, 3, 1, 8, 22, 53, 42, 56, 33, 19, 34, 5, 49, 31, 51, 40, 6, 38, 52, 63, 4, 14, 44, 9};
+ 
+-static uint64_t decode_cache_line(int linenr)
++/*
++ * no_order[] is required here to avoid the prefetcher to kick in 
++ * ( which detect an incremental pattern )
++ * Below is the cacheline access time; At some point the lines are in memory
++ * _304__248__244__248__332__248__248__244__248__244__248__244__80__80__80__80__80__80__80__80__80__80
++ */
++static uint64_t decode_u64(int pagenr, int bulknr)
+ {
+-	int x,t;
+-	cycles_t t1,t2;
++	int x;
++	cycles_t t1;
+ 	uint64_t data;
+ 
+ 	data = 0;
+-	for(x=0;x<64;x++){
++	for(x=0;x<U64_BITS_NR;x++){
+ 		t1 = get_cycles();
+-		load_cache_line(((no_order[x])*CACHE_LINE_NR)+linenr);
+-	//	load_cache_line((x*CACHE_LINE_NR)+linenr);
++		load_cache_line(no_order[x]*CACHE_LINE_PER_PAGE + pagenr + bulknr*64*CACHE_LINE_PER_PAGE);
+ 		if(get_cycles()-t1 > 200)
+ 			data = data | (uint64_t)1 << no_order[x];
+ 	}
+@@ -83,6 +159,29 @@ static uint64_t decode_cache_line(int linenr)
+ }
+ 
+ /*
++ * HERE we decode 64 u64 over 64 page which is the maximum we can do over 64 pages
++ */
++static void decode_64_u64(int bulknr, uint64_t *value)
++{
++	int x;
++	for(x=0;x<64;x++){
++		value[x] = decode_u64(x, bulknr);
++	}
++}
++
++/*
++ * HERE we encode 64 u64 over 64 page which is the maximum we can do over 64 pages
++ * 64 pages is 256Kb
++ */
++static void encode_64_u64(int bulknr,uint64_t *value)
++{
++	int x;
++	for(x=0;x<64;x++){
++		encode_u64(x, bulknr, value[x]);
++	}
++}
++
++/*
+  * The time spent in the RX vs TX vary function of the data that we
+  * modulate.
+  * Encoding all 0xffs involve zapping cache line only so this is fast
+@@ -97,7 +196,7 @@ static uint64_t decode_cache_line(int linenr)
+  */
+ void modulate_cache(cycles_t init)
+ {
+-	int y;
++	int x,y;
+ 	uint64_t dat;
+ 	static int frame_nr=0;
+ 	static uint64_t *dat_ptr;
+@@ -113,23 +212,32 @@ void modulate_cache(cycles_t init)
+ 
+ 	//This is the encoding part
+ 	if(transmitter){
+-		for(y=0;y<CACHE_LINE_NR;y++){
++		//HERE we are encoding a uint64_t CACHE_LINE_NR times  ==> 20 times uint64_t
++		encode_data(DATA_PACKET_SIZE/4, dat_ptr);
++
++		//for(y=0;y<20*64;y++){
++		//	encode_u64(y, 0, dat_ptr[y*4 +frame_nr]);
++			//encode_cache_lines(y, dat_ptr[y*4+frame_nr]);
++#if 0
+ 			if(pattern){
+ //				encode_cache_lines(y, 0xffffffffffffffff);
+ 				encode_cache_lines(y, 0xff00ff00ff00ff00);
+ 			}
+-			else
+-				encode_cache_lines(y, dat_ptr[y*4+frame_nr]);
+-		}
+-		if(!frame_nr) // At the end of frame 0 we issue the magic marker
+-			encode_cache_lines(CACHE_LINE_NR-1,0xdeadbeefaa55aa55);
++#endif
++//		}
++
++//		if(!frame_nr) // At the end of frame 0 we issue the magic marker
++//			encode_cache_lines(CACHE_LINE_NR-1,0xdeadbeefaa55aa55);
+ 	}
+ 	else{
+  		/* Here the receiver need to run _after_ the transmitter */
+ syncup:
+ 		if(sync)
+ 			calibrated_ldelay(500000);
+-
++	
++		for(y=0;y<20*64;y++){
++			dat_ptr[y*4 +frame_nr] = decode_u64(y, 0);
++#if 0
+ 		for(y=0;y<CACHE_LINE_NR;y++){
+ 			dat = decode_cache_line(y);
+ 			if(dat == 0xdeadbeefaa55aa55){
+@@ -148,7 +256,9 @@ syncup:
+ 				}
+ 			}
+ 			dat_ptr[y*4+frame_nr] = dat;
++#endif
+ 		}
++
+ 		if(!frame_nr){
+ 			signal_period++;
+ 			if(signal_period == 30){
+@@ -177,6 +287,8 @@ void cache_open_channel(unsigned long long pci_mem_addr)
+ 	int fd;
+ 	char name[64];
+ 
++	fprintf(stderr," %Ld %Ld %Ld %Ld\n",CACHE_SIZE, CACHE_BITS_NR, CACHE_U64_NR, CACHE_NR_OF_64_U64);
++
+ 	if(pci_mem_addr){
+ 		/*
+ 		 * Instead of relying on KSM and find which page are shared
+@@ -186,6 +298,8 @@ void cache_open_channel(unsigned long long pci_mem_addr)
+ 		if(pci_mem_addr == 0xdead){
+ 			fprintf(stderr,"ANON\n");
+ 			rx_buf = mmap(0x7f0000030000, CACHE_SIZE, PROT_READ|PROT_WRITE,  MAP_PRIVATE|MAP_ANONYMOUS, -1, 0);
++			//rx_buf = malloc(CACHE_SIZE);
++			//memset(rx_buf,0,CACHE_SIZE); 
+ 		}
+ 		else{
+ 			fprintf(stderr,"Using provide address cookie 0x%llx\n",pci_mem_addr);
