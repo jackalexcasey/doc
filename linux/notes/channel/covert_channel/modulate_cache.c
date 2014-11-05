@@ -7,6 +7,56 @@
 
 #include "config.h"
 
+
+#define DIV_ROUND_UP(n,d) (((n) + (d) - 1) / (d))
+
+#define BITS_PER_BYTE       8
+#define BITS_PER_LONG 64
+#define BITS_TO_LONGS(nr)   DIV_ROUND_UP(nr, BITS_PER_BYTE * sizeof(long))
+#define small_const_nbits(nbits) \
+	(__builtin_constant_p(nbits) && (nbits) <= BITS_PER_LONG)
+
+#define DECLARE_BITMAP(name,bits) \
+	unsigned long name[BITS_TO_LONGS(bits)]
+
+typedef unsigned int u32;
+
+#define BITOP_ADDR(x) "+m" (*(volatile long *) (x))
+#define ADDR                BITOP_ADDR(addr)
+static inline void __set_bit(int nr, volatile unsigned long *addr)
+{
+	asm volatile("bts %1,%0" : ADDR : "Ir" (nr) : "memory");
+}
+
+static inline int constant_test_bit(unsigned int nr, const volatile unsigned long *addr)
+{
+    return ((1UL << (nr % BITS_PER_LONG)) &
+        (addr[nr / BITS_PER_LONG])) != 0;
+}
+
+static inline int variable_test_bit(int nr, volatile const unsigned long *addr)
+{
+    int oldbit;
+
+    asm volatile("bt %2,%1\n\t"
+             "sbb %0,%0"
+             : "=r" (oldbit)
+             : "m" (*(unsigned long *)addr), "Ir" (nr));
+
+    return oldbit;
+}
+
+/**
+ * test_bit - Determine whether a bit is set
+ * @nr: bit number to test
+ * @addr: Address to start counting from
+ */
+static int test_bit(int nr, const volatile unsigned long *addr);
+#define test_bit(nr, addr)          \
+    (__builtin_constant_p((nr))     \
+     ? constant_test_bit((nr), (addr))  \
+     : variable_test_bit((nr), (addr)))
+
 #define mb() asm volatile("mfence":::"memory")
 
 # define __force __attribute__((force))
@@ -15,14 +65,17 @@ static inline void clflush(volatile void *__p)
 	asm volatile("clflush %0" : "+m" (*(volatile char __force *)__p));
 }
 
+#define U64_BITS_NR 64 /* number of bits in a u64 */
+#define CACHE_LINE_SIZE 64 /* One cache line is 64 bytes */
+#define CACHE_LINE_PER_PAGE (4096/CACHE_LINE_SIZE) /* There is 64 cache line per page */
+#define CACHE_SIZE (1024*1024*12) /* 12 Mb L3 cache */
+#define CACHE_BITS_NR (CACHE_SIZE / CACHE_LINE_SIZE) /* amount of bits available in the cache 1line per bits */
+#define CACHE_U64_NR (CACHE_BITS_NR/64)
+#define CACHE_NR_OF_64_U64 (CACHE_U64_NR/64)
+
 unsigned char *rx_buf = NULL;
 volatile unsigned char dummy;
-
-unsigned char data[DATA_PACKET_SIZE];
-
-#define CACHE_LINE_NR (64*16+256)
-#define CACHE_LINE_SIZE 64
-#define CACHE_SIZE CACHE_LINE_SIZE*CACHE_LINE_NR*64
+const uint64_t no_order[] = { 46, 10, 41, 61, 11, 13, 37, 12, 48, 59, 0, 54, 30, 7, 57, 58, 17, 16, 25, 35, 62, 15, 2, 26, 21, 39, 50, 32, 23, 36, 18, 43, 47, 45, 24, 20, 27, 29, 60, 55, 28, 3, 1, 8, 22, 53, 42, 56, 33, 19, 34, 5, 49, 31, 51, 40, 6, 38, 52, 63, 4, 14, 44, 9};
 
 static void zap_cache_line(int linenr)
 {
@@ -38,48 +91,66 @@ static void load_cache_line(int linenr)
 	mb();
 }
 
-/*
- * This example illustrace the effect of the prefetcher
- * that at some points kicks in
- * _304__248__244__248__332__248__248__244__248__244__248__244__80__80__80__80__80__80__80__80__80__80
- */
-static void encode_cache_lines(int linenr, uint64_t value)
+void encode_data(uint64_t *dat_ptr, int frame_nr)
 {
-	int x;
+	int x,y,z;
+	int b;
 	uint64_t tmp;
 
-	tmp = value;
-	for(x=0;x<64;x++){
-		if(!(tmp & 0x1))
-			load_cache_line((x*CACHE_LINE_NR)+linenr);
-		tmp = tmp >> 1;
-	}
+	for(z=0;z<20;z++){
+		for(y=0;y<64;y++){
+			b = y+64*z;
 
-	tmp = value;
-	for(x=0;x<64;x++){
-		if((tmp & 0x1))
-			zap_cache_line((x*CACHE_LINE_NR)+linenr);
-		tmp = tmp >> 1;
+			//64 bits
+			tmp = dat_ptr[b*4+frame_nr];
+			for(x=0;x<64;x++){
+				if(!(tmp & 0x1))
+					load_cache_line((x*20*64)+b);
+				tmp = tmp >> 1;
+			}
+
+			tmp = dat_ptr[b*4+frame_nr];
+			for(x=0;x<64;x++){
+				if((tmp & 0x1))
+					zap_cache_line((x*20*64)+b);
+				tmp = tmp >> 1;
+			}
+		}
 	}
+//	if(!frame_nr) // At the end of frame 0 we issue the magic marker
+//		encode_cache_lines(CACHE_LINE_NR-1,0xdeadbeefaa55aa55);
 }
 
-const uint64_t no_order[] = { 46, 10, 41, 61, 11, 13, 37, 12, 48, 59, 0, 54, 30, 7, 57, 58, 17, 16, 25, 35, 62, 15, 2, 26, 21, 39, 50, 32, 23, 36, 18, 43, 47, 45, 24, 20, 27, 29, 60, 55, 28, 3, 1, 8, 22, 53, 42, 56, 33, 19, 34, 5, 49, 31, 51, 40, 6, 38, 52, 63, 4, 14, 44, 9};
-
-static uint64_t decode_cache_line(int linenr)
+int decode_data(uint64_t *dat_ptr, int frame_nr)
 {
-	int x,t;
-	cycles_t t1,t2;
-	uint64_t data;
+	int err=0;
+	int x,y,z;
+	int b;
+	uint64_t tmp;
+	cycles_t t1;
 
-	data = 0;
-	for(x=0;x<64;x++){
-		t1 = get_cycles();
-		load_cache_line(((no_order[x])*CACHE_LINE_NR)+linenr);
-	//	load_cache_line((x*CACHE_LINE_NR)+linenr);
-		if(get_cycles()-t1 > 200)
-			data = data | (uint64_t)1 << no_order[x];
+	for(z=0;z<20;z++){
+		for(y=0;y<64;y++){
+			b = y+64*z;
+
+			//64 bits
+			tmp = 0;
+			for(x=0;x<64;x++){
+				t1 = get_cycles();
+				load_cache_line(((no_order[x])*20*64)+b);
+				if(get_cycles()-t1 > 200)
+					tmp = tmp | (uint64_t)1 << no_order[x];
+			}
+			if(tmp == 0xdeadbeefaa55aa55){
+				if(frame_nr !=0)
+					return -1;
+				err++;
+			}
+
+			dat_ptr[b*4+frame_nr] = tmp;
+		}
 	}
-	return data;
+	return err;
 }
 
 /*
@@ -88,6 +159,9 @@ static uint64_t decode_cache_line(int linenr)
  * Encoding all 0xffs involve zapping cache line only so this is fast
  * This is also function of going from state A to state B and this
  * is affecting the load_cache time
+ * This example illustrace the effect of the prefetcher
+ * that at some points kicks in
+ * _304__248__244__248__332__248__248__244__248__244__248__244__80__80__80__80__80__80__80__80__80__80
  *
  * With cache modulation we canno pass the whole BW in one cycle
  * for that reason we interleave the frame
@@ -97,8 +171,7 @@ static uint64_t decode_cache_line(int linenr)
  */
 void modulate_cache(cycles_t init)
 {
-	int y;
-	uint64_t dat;
+	int err;
 	static int frame_nr=0;
 	static uint64_t *dat_ptr;
 	static int sync=0;
@@ -111,44 +184,28 @@ void modulate_cache(cycles_t init)
 	if(playback)
 		goto end;
 
-	//This is the encoding part
-	if(transmitter){
-		for(y=0;y<CACHE_LINE_NR;y++){
-			if(pattern){
-//				encode_cache_lines(y, 0xffffffffffffffff);
-				encode_cache_lines(y, 0xff00ff00ff00ff00);
-			}
-			else
-				encode_cache_lines(y, dat_ptr[y*4+frame_nr]);
-		}
-		if(!frame_nr) // At the end of frame 0 we issue the magic marker
-			encode_cache_lines(CACHE_LINE_NR-1,0xdeadbeefaa55aa55);
-	}
-	else{
- 		/* Here the receiver need to run _after_ the transmitter */
+	if(transmitter) //This is the encoding part
+		encode_data(dat_ptr, frame_nr);
+	else{ // This is the decoding part
 syncup:
 		if(sync)
 			calibrated_ldelay(500000);
-
-		for(y=0;y<CACHE_LINE_NR;y++){
-			dat = decode_cache_line(y);
-			if(dat == 0xdeadbeefaa55aa55){
-				if(frame_nr !=0){ // Wrong frame
-					fprintf(stderr,"Out of sync\n");
-					frame_nr = 0;
-					sync = 0;
-					goto syncup;
-				}
-				else{ // This is the right frame
-					signal_strength++;
-					if(!sync){
-						fprintf(stderr,"Frame synchronized!\n");
-						sync = 1;
-					}
-				}
-			}
-			dat_ptr[y*4+frame_nr] = dat;
+	
+		err = decode_data(dat_ptr, frame_nr);
+		if(err < 0){
+			fprintf(stderr,"Out of sync\n");
+			frame_nr = 0;
+			sync = 0;
+			goto syncup;
 		}
+		else{ // This is the right frame
+			signal_strength = err;
+			if((!sync) && (signal_strength>0)){
+				fprintf(stderr,"Frame synchronized!\n");
+				sync = 1;
+			}
+		}
+
 		if(!frame_nr){
 			signal_period++;
 			if(signal_period == 30){
@@ -177,6 +234,8 @@ void cache_open_channel(unsigned long long pci_mem_addr)
 	int fd;
 	char name[64];
 
+//	fprintf(stderr,"%d\n",sizeof(u32));
+//	return;
 	if(pci_mem_addr){
 		/*
 		 * Instead of relying on KSM and find which page are shared
