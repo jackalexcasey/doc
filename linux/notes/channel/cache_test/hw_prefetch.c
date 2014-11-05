@@ -71,9 +71,14 @@ static void open_c(void)
 	 * SO here we are mmaping the same physical pages across different process
 	 * at the _SAME_ VMA
 	 */
+#if 1
+	rx_buf = malloc(CACHE_SIZE);
+//	memset(rx_buf,0,CACHE_SIZE);
+#else
 	rx_buf = mmap((void*)0x7f0000030000,CACHE_SIZE,PROT_READ|PROT_WRITE,MAP_SHARED,fd,0);
 	if(rx_buf == MAP_FAILED)
 		DIE("mmap");
+#endif
 	fprintf(stderr, "rx_buf mmap ptr %p\n",rx_buf);
 
 }
@@ -170,7 +175,42 @@ void prefetch(void(*fn)(cycles_t))
 
 	open_c();
 
-#if 0
+#if 1
+	for(x=0;x<64;x++){
+		load_cache_line(no_order[x]*CACHE_LINE_PER_PAGE);
+	}
+
+	for(x=0;x<64;x++){
+		if(!(x%2))
+			zap_cache_line(no_order[x]*CACHE_LINE_PER_PAGE);
+		t1 = get_cycles();
+		load_cache_line(no_order[x]*CACHE_LINE_PER_PAGE);
+		fprintf(stderr,"%Ld ",get_cycles()-t1);
+	}
+	return;
+
+
+	t1 = get_cycles();
+	load_cache_line(10);
+	fprintf(stderr,"%Ld \n",get_cycles()-t1);
+
+	t1 = get_cycles();
+	load_cache_line(10);
+	fprintf(stderr,"%Ld \n",get_cycles()-t1);
+	
+	zap_cache_line(10);
+
+	t1 = get_cycles();
+	load_cache_line(10);
+	fprintf(stderr,"%Ld \n",get_cycles()-t1);
+
+	t1 = get_cycles();
+	load_cache_line(10);
+	fprintf(stderr,"%Ld \n",get_cycles()-t1);
+
+	t1 = get_cycles();
+	load_cache_line(10);
+	fprintf(stderr,"%Ld \n",get_cycles()-t1);
 	t1 = get_cycles();
 	load_cache_line(10);
 	fprintf(stderr,"%Ld \n",get_cycles()-t1);
@@ -189,6 +229,12 @@ void prefetch(void(*fn)(cycles_t))
 	load_cache_line(10);
 	fprintf(stderr,"%Ld \n",get_cycles()-t1);
 
+	return ;
+#endif
+#if 0
+	encode_u64(0, 0, 0xffffffffaaaaaaaaa);
+	data =  decode_u64(0, 0);
+	fprintf(stderr,"%Lx\n",data);
 	return ;
 #endif
 

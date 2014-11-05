@@ -211,8 +211,8 @@ void cache_sizing(void(*fn)(cycles_t))
 	cycles_t t1,t2;
 	open_c();
 
-//	i386_cpuid_caches();
-//	return;
+	i386_cpuid_caches();
+	return;
 #if 0
 
 Since every number can be reduced to a product of primes, you could take the smallest prime and multiply it by itself until you get a number that goes over 1000. 
