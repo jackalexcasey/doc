@@ -86,7 +86,6 @@
 #define PIXEL_HEIGHT			480
 #define DATA_PACKET_SIZE 		(PIXEL_WIDTH*PIXEL_HEIGHT)/8
 
-extern volatile int page_on;
 extern cycles_t offset;
 extern int ascii;
 extern int pattern;

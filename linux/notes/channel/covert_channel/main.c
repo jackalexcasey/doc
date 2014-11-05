@@ -6,13 +6,12 @@
 #include <unistd.h>
 
 cycles_t offset = 0;
-volatile int page_on = 0;
 int ascii = 0;
 int pattern = 0;
 int playback = 0;
 int transmitter = 0;
 char *program	= "";
-const char optstring[] = "m:c:tapPo:W:";
+const char optstring[] = "m:c:tapPo:";
 
 struct option options[] = {
 	{ "",	required_argument,	0, 	'j'	},
@@ -22,8 +21,7 @@ struct option options[] = {
 
 void usage(void)
 {
-	printf("usage: [-c cpu sets] [-t transmitter mode] [-m mmap addr (0xdead for ANON)] "
-		"[-a ascii] [-p playback] [-P pattern] [-o TSC offset] [-W one page]\n");
+	printf("usage: [-c cpu sets] [-t transmitter mode] [-m mmap addr] [-a ascii] [-p playback] [-P pattern] [-o TSC offset]\n");
 }
 
 void help(void)
@@ -55,11 +53,9 @@ void * tuning_thread(void *arg)
 	I choose 'e' to end input. Notice that EOF is also turned off
 	in the non-canonical mode*/
 	while((c=getchar())!= 'e'){
-		if(c == 'w')
-			page_on++;
-		else if(c == 'p')
+		if(c == 'p')
 			offset+=FRAME_PERIOD_IN_CYCLE*FRAME_FREQ;
-		else if(c == 'o')
+		if(c == 'o')
 			offset-=FRAME_PERIOD_IN_CYCLE*FRAME_FREQ;
 	}
 
@@ -132,27 +128,23 @@ main(int argc, char *argv[])
 			case 'o':
 				offset = strtoul(optarg, NULL, 0);
 				break;
-			case 'W':
-				page_on = strtoul(optarg, NULL, 0);
-				break;
 			default:
 				ERROR(0, "unknown option '%c'", c);
 				++errs;
 				break;
 		}
 	}
-
-	if (errs) {
-		usage();
-		exit(1);
-	}
-
 #ifdef CACHE_CHANNEL
 	cache_open_channel(pci_mem_addr);
 #endif
 #ifdef SHM_CHANNEL
 	shm_open_channel(pci_mem_addr);
 #endif
+
+	if (errs) {
+		usage();
+		exit(1);
+	}
 
 	/*
 	 * limit the set of CPUs to the ones that are currently available
