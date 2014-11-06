@@ -303,6 +303,11 @@ PFN: 0x191e
 
 			//For some reason when we memset ( pagefault the behavior is totally different????? )
 			//Without memset we see some noise consistent with the stream??????
+			//
+			//Maybe we are ending up modulating just over one page and bcos
+			//the TX and RX are running one after the other we endup picking some signal?
+			//SO we need a modulate_page to try this out.
+			//
 			memset(rx_buf,0,CACHE_SIZE);
 		}
 		else{
