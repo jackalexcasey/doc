@@ -10,6 +10,7 @@
 #define U64_BITS_NR 64 /* number of bits in a u64 */
 #define CACHE_LINE_SIZE 64 /* One cache line is 64 bytes */
 #define CACHE_LINE_PER_PAGE (4096/CACHE_LINE_SIZE) /* There is 64 cache line per page */
+
 #define CACHE_SIZE (1024*1024*12) /* 12 Mb L3 cache */
 #define CACHE_BITS_NR (CACHE_SIZE / CACHE_LINE_SIZE) /* amount of bits available in the cache 1line per bits */
 #define CACHE_U64_NR (CACHE_BITS_NR/64)
@@ -91,11 +92,21 @@ static void load_cache_line(int linenr)
 }
 
 /*
- * Data size is 640X480 bits in 4 frames
- * ==> 307200 / 4 = 76800 cache lines
- * ==> 1200 u64
- * round to 1280
+ * DATA_PACKET_SIZE is (640X480 bits /8) ==> byte nr
  *
+ * The display is divided in 4 frame because there is not enough space
+ * in the cache for all of it.
+ *
+ * Below 1 cache line per bit
+ *
+ * Data size is 640X480 bits in 4 frames
+ * ==> 307200 / 4 = 76800 cache lines per frame
+ *
+ * 76800 / 64 = 1200
+ * 1200 / 64 = 18.75
+ *
+ * ==>For loop factor
+ *    20 / 64 / 64
  *
  * // HERE in the encoding we don't use border
  * because we want the zap to take out everything else the load could have taken
@@ -104,37 +115,41 @@ static void load_cache_line(int linenr)
  * Also the no_order cannot be done over Z since there is 0-64 array...
  * NOTE that with malloc memory no_order help A LOT
  */
+#define TOP_FACTOR 20
+#define MIDDLE_FACTOR 64
+#define BOTTOM_FACTOR 64
+
 void encode_data(uint64_t *dat_ptr, int frame_nr)
 {
 	int x,y,z;
 	int b,b_norder;
 	uint64_t tmp;
 
-	for(z=0;z<20;z++){
-	for(y=0;y<64;y++){
-		b=(z*64)+y;
-		b_norder = z*64+no_order[y];
+	for(z=0;z<TOP_FACTOR;z++){
+	for(y=0;y<MIDDLE_FACTOR;y++){
+		b=(z*MIDDLE_FACTOR)+y;
+		b_norder = z*MIDDLE_FACTOR+no_order[y];
 
 		//64 bits
-		if(!frame_nr && b_norder==1280-1)
+		if(!frame_nr && b_norder==(TOP_FACTOR*MIDDLE_FACTOR)-1)
 			tmp = 0xdeadbeefaa55aa55;
 		else
 			tmp = dat_ptr[b*4+frame_nr];
-		for(x=0;x<64;x++){
+		for(x=0;x<BOTTOM_FACTOR;x++){
 			if(!(tmp & 0x1))
 				//load_cache_line(((no_order[x])*1280)+b_norder);
-				load_cache_line((x*1280)+b_norder);
+				load_cache_line((x*TOP_FACTOR*MIDDLE_FACTOR)+b_norder);
 			tmp = tmp >> 1;
 		}
 
-		if(!frame_nr && b==1280-1)
+		if(!frame_nr && b_norder==(TOP_FACTOR*MIDDLE_FACTOR)-1)
 			tmp = 0xdeadbeefaa55aa55;
 		else
 			tmp = dat_ptr[b*4+frame_nr];
-		for(x=0;x<64;x++){
+		for(x=0;x<BOTTOM_FACTOR;x++){
 			if((tmp & 0x1))
 				//zap_cache_line(((no_order[x])*1280)+b_norder);
-				zap_cache_line((x*1280)+b_norder);
+				zap_cache_line((x*TOP_FACTOR*MIDDLE_FACTOR)+b_norder);
 			tmp = tmp >> 1;
 		}
 	}
@@ -149,15 +164,15 @@ int decode_data(uint64_t *dat_ptr, int frame_nr)
 	uint64_t tmp;
 	cycles_t t1;
 
-	for(z=0;z<20;z++){
-	for(y=0;y<64;y++){
-		b=(z*64)+y;
-		b_norder = z*64+no_order[y];
+	for(z=0;z<TOP_FACTOR;z++){
+	for(y=0;y<MIDDLE_FACTOR;y++){
+		b=(z*MIDDLE_FACTOR)+y;
+		b_norder = z*MIDDLE_FACTOR+no_order[y];
 		//64 bits
 		tmp = 0;
-		for(x=0;x<64;x++){
+		for(x=0;x<BOTTOM_FACTOR;x++){
 			t1 = get_cycles();
-			load_cache_line(((no_order[x])*1280)+b_norder);
+			load_cache_line(((no_order[x])*TOP_FACTOR*MIDDLE_FACTOR)+b_norder);
 			if(get_cycles()-t1 > 200)
 				tmp = tmp | (uint64_t)1 << no_order[x];
 		}
