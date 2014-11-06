@@ -94,35 +94,50 @@ static void load_cache_line(int linenr)
  * Data size is 640X480 bits in 4 frames
  * ==> 307200 / 4 = 76800 cache lines
  * ==> 1200 u64
+ * round to 1280
+ *
+ *
+ * // HERE in the encoding we don't use border
+ * because we want the zap to take out everything else the load could have taken
+ *
+ *
+ * Also the no_order cannot be done over Z since there is 0-64 array...
+ * NOTE that with malloc memory no_order help A LOT
  */
 void encode_data(uint64_t *dat_ptr, int frame_nr)
 {
 	int x,y,z;
-	int b;
+	int b,b_norder;
 	uint64_t tmp;
 
-	for(z=0;z<1200;z++){
+	for(z=0;z<20;z++){
+	for(y=0;y<64;y++){
+		b=(z*64)+y;
+		b_norder = z*64+no_order[y];
 
 		//64 bits
-		if(!frame_nr && z==1200-1)
+		if(!frame_nr && b_norder==1280-1)
 			tmp = 0xdeadbeefaa55aa55;
 		else
-			tmp = dat_ptr[z*4+frame_nr];
+			tmp = dat_ptr[b*4+frame_nr];
 		for(x=0;x<64;x++){
 			if(!(tmp & 0x1))
-				load_cache_line((x*1200)+z);
+				//load_cache_line(((no_order[x])*1280)+b_norder);
+				load_cache_line((x*1280)+b_norder);
 			tmp = tmp >> 1;
 		}
 
-		if(!frame_nr && z==1200-1)
+		if(!frame_nr && b==1280-1)
 			tmp = 0xdeadbeefaa55aa55;
 		else
-			tmp = dat_ptr[z*4+frame_nr];
+			tmp = dat_ptr[b*4+frame_nr];
 		for(x=0;x<64;x++){
 			if((tmp & 0x1))
-				zap_cache_line((x*1200)+z);
+				//zap_cache_line(((no_order[x])*1280)+b_norder);
+				zap_cache_line((x*1280)+b_norder);
 			tmp = tmp >> 1;
 		}
+	}
 	}
 }
 
@@ -130,16 +145,19 @@ int decode_data(uint64_t *dat_ptr, int frame_nr)
 {
 	int err=0;
 	int x,y,z;
-	int b;
+	int b,b_norder;
 	uint64_t tmp;
 	cycles_t t1;
 
-	for(z=0;z<1200;z++){
+	for(z=0;z<20;z++){
+	for(y=0;y<64;y++){
+		b=(z*64)+y;
+		b_norder = z*64+no_order[y];
 		//64 bits
 		tmp = 0;
 		for(x=0;x<64;x++){
 			t1 = get_cycles();
-			load_cache_line(((no_order[x])*1200)+z);
+			load_cache_line(((no_order[x])*1280)+b_norder);
 			if(get_cycles()-t1 > 200)
 				tmp = tmp | (uint64_t)1 << no_order[x];
 		}
@@ -148,7 +166,8 @@ int decode_data(uint64_t *dat_ptr, int frame_nr)
 				return -1;
 			err++;
 		}
-		dat_ptr[z*4+frame_nr] = tmp;
+		dat_ptr[b*4+frame_nr] = tmp;
+	}
 	}
 	return err;
 }
@@ -185,6 +204,8 @@ void modulate_cache(cycles_t init)
 		goto end;
 
 	if(transmitter){ //This is the encoding part
+//		memset(dat_ptr,0xffffffffffffffff,DATA_PACKET_SIZE);
+//		memset(dat_ptr,0x5555555555555555,DATA_PACKET_SIZE);
 		encode_data(dat_ptr, frame_nr);
 	}
 	else{ // This is the decoding part
@@ -245,6 +266,29 @@ void cache_open_channel(unsigned long long pci_mem_addr)
 		if(pci_mem_addr == 0xdead){
 			fprintf(stderr,"ANON\n");
 			rx_buf = mmap(0x7f0000030000, CACHE_SIZE, PROT_READ|PROT_WRITE,  MAP_PRIVATE|MAP_ANONYMOUS, -1, 0);
+#if 0
+When the memory is not faulted in it point to the same PFN EVEN across process????
+
+etmartin@etmartin-desktop:/nobackup/meta/doc/linux/notes/channel/pagemap$ ./pagemap 7341 0x7f0000030000
+Big endian? 0
+Vaddr: 0x7f0000030000, Page_size: 4096, Entry_size: 8
+Reading /proc/7341/pagemap at 0x3f80000180
+[0]0x1e [1]0x19 [2]0x0 [3]0x0 [4]0x0 [5]0x0 [6]0x0 [7]0x86 
+Result: 0x860000000000191e
+PFN: 0x191e
+etmartin@etmartin-desktop:/nobackup/meta/doc/linux/notes/channel/pagemap$ ./pagemap 7341 0x7f0000040000
+Big endian? 0
+Vaddr: 0x7f0000040000, Page_size: 4096, Entry_size: 8
+Reading /proc/7341/pagemap at 0x3f80000200
+[0]0x1e [1]0x19 [2]0x0 [3]0x0 [4]0x0 [5]0x0 [6]0x0 [7]0x86 
+Result: 0x860000000000191e
+PFN: 0x191e
+#endif
+
+
+			//For some reason when we memset ( pagefault the behavior is totally different????? )
+			//Without memset we see some noise consistent with the stream??????
+			memset(rx_buf,0,CACHE_SIZE);
 		}
 		else{
 			fprintf(stderr,"Using provide address cookie 0x%llx\n",pci_mem_addr);
