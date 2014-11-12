@@ -1,0 +1,88 @@
+diff --git a/linux/notes/channel/covert_channel/modulate_cache.c b/linux/notes/channel/covert_channel/modulate_cache.c
+index 78e7b98..9969ca5 100644
+--- a/linux/notes/channel/covert_channel/modulate_cache.c
++++ b/linux/notes/channel/covert_channel/modulate_cache.c
+@@ -94,52 +94,62 @@ static void load_cache_line(int linenr)
+  * Data size is 640X480 bits in 4 frames
+  * ==> 307200 / 4 = 76800 cache lines
+  * ==> 1200 u64
++ * round to 1280
++ *
++ * Also the no_order cannot be done over Z since there is 0-64 array...
+  */
+ void encode_data(uint64_t *dat_ptr, int frame_nr)
+ {
+ 	int x,y,z;
+-	int b;
++	int b,b_norder;
+ 	uint64_t tmp;
+ 
+-	for(z=0;z<1200;z++){
++	for(z=0;z<20;z++){
++	for(y=0;y<64;y++){
++		b=(z*64)+y;
++		b_norder = z*64+no_order[y];
+ 
+ 		//64 bits
+-		if(!frame_nr && z==1200-1)
++		if(!frame_nr && b_norder==1280-1)
+ 			tmp = 0xdeadbeefaa55aa55;
+ 		else
+-			tmp = dat_ptr[z*4+frame_nr];
++			tmp = dat_ptr[b*4+frame_nr];
+ 		for(x=0;x<64;x++){
+ 			if(!(tmp & 0x1))
+-				load_cache_line((x*1200)+z);
++				load_cache_line((x*1280)+b_norder);
+ 			tmp = tmp >> 1;
+ 		}
+ 
+-		if(!frame_nr && z==1200-1)
++		if(!frame_nr && b==1280-1)
+ 			tmp = 0xdeadbeefaa55aa55;
+ 		else
+-			tmp = dat_ptr[z*4+frame_nr];
++			tmp = dat_ptr[b*4+frame_nr];
+ 		for(x=0;x<64;x++){
+ 			if((tmp & 0x1))
+-				zap_cache_line((x*1200)+z);
++				zap_cache_line((x*1280)+b_norder);
+ 			tmp = tmp >> 1;
+ 		}
+ 	}
++	}
+ }
+ 
+ int decode_data(uint64_t *dat_ptr, int frame_nr)
+ {
+ 	int err=0;
+ 	int x,y,z;
+-	int b;
++	int b,b_norder;
+ 	uint64_t tmp;
+ 	cycles_t t1;
+ 
+-	for(z=0;z<1200;z++){
++	for(z=0;z<20;z++){
++	for(y=0;y<64;y++){
++		b=(z*64)+y;
++		b_norder = z*64+no_order[y];
+ 		//64 bits
+ 		tmp = 0;
+ 		for(x=0;x<64;x++){
+ 			t1 = get_cycles();
+-			load_cache_line(((no_order[x])*1200)+z);
++			load_cache_line(((no_order[x])*1280)+b_norder);
+ 			if(get_cycles()-t1 > 200)
+ 				tmp = tmp | (uint64_t)1 << no_order[x];
+ 		}
+@@ -148,7 +158,8 @@ int decode_data(uint64_t *dat_ptr, int frame_nr)
+ 				return -1;
+ 			err++;
+ 		}
+-		dat_ptr[z*4+frame_nr] = tmp;
++		dat_ptr[b*4+frame_nr] = tmp;
++	}
+ 	}
+ 	return err;
+ }
