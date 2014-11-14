@@ -18,5 +18,7 @@ TX:
 RX:
 ./covert_channel -c0 -a -m 0xc0000000
 
+ffmpeg -f x11grab -s 1280x550 -r 15 -i :0.0 -sameq output.mp4
+
 
 kill -9 `pidof covert_channel`

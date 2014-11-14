@@ -1,3 +1,93 @@
+//#define _NO_SDL_
+
+#ifdef _NO_SDL_
+#include "config.h"
+unsigned char *txdata;
+unsigned char *rxdata;
+
+
+static int screen_init(int w, int h)
+{
+	static int init=0;
+
+	if(init)
+		return;
+	
+	init = 1;
+}
+
+unsigned char* get_frame_ptr(void)
+{
+	unsigned char *ptr;
+	static int frame_nr=0;
+
+	if(transmitter)
+		ptr = &txdata[frame_nr];
+	else
+		ptr = &rxdata[frame_nr*DATA_PACKET_SIZE];
+	frame_nr++;
+	if(frame_nr == 1024){
+		frame_nr=0;
+		fprintf(stderr,"!");
+	}
+	return ptr;
+}
+
+void display_init(void)
+{
+	int fd,x;
+	void *ptr;
+	char name[64];
+
+	if(transmitter)
+		sprintf(name,"dattx");
+	else
+		sprintf(name,"datrx");
+
+	if(playback){
+		if ((fd = shm_open(name, O_RDWR,S_IRWXU|S_IRWXG|S_IRWXO)) < 0)
+			 DIE("could not open play back file");
+	}
+	else{
+
+		if ((fd = shm_open(name, O_CREAT|O_RDWR,
+					S_IRWXU|S_IRWXG|S_IRWXO)) > 0) {
+			//640x480 is 38Kb per frame
+			if (ftruncate(fd, DATA_PACKET_SIZE * 1024) != 0)
+				DIE("could not truncate shared file\n");
+		}
+		else
+			DIE("Open channel");
+	}
+
+	ptr = mmap(NULL,DATA_PACKET_SIZE * 1024,PROT_READ|PROT_WRITE,MAP_SHARED,fd,0);
+	if(ptr == MAP_FAILED)
+		DIE("mmap");
+
+
+	if(transmitter){
+		txdata = ptr;
+		if(!playback){
+			for(x=0;x<1024;x++){
+				/* Data source is bitmap */
+				memcpy(&txdata[x*DATA_PACKET_SIZE],Untitled_bits,DATA_PACKET_SIZE);
+			}
+		}
+	}
+	else{
+		rxdata = ptr;
+		if(!playback){
+			memset(rxdata,0,DATA_PACKET_SIZE * 1024);
+		}
+	}
+}
+int dump_frame(unsigned char *data)
+{
+	return;
+}
+
+#else /*_NO_SDL_*/
+
 #include "SDL.h"
 #include <assert.h>
 #include <math.h>
@@ -167,3 +257,5 @@ int dump_frame(unsigned char *data)
 
     return EXIT_SUCCESS;
 }
+#endif
+
