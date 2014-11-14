@@ -1,0 +1,114 @@
+diff --git a/linux/notes/channel/covert_channel/config.h b/linux/notes/channel/covert_channel/config.h
+index 93f13fa..661bdbb 100644
+--- a/linux/notes/channel/covert_channel/config.h
++++ b/linux/notes/channel/covert_channel/config.h
+@@ -37,7 +37,7 @@
+ 
+ #define CPU_FREQ 2393715000
+ 
+-#define STRETCH 1
++#define STRETCH 2
+ #define FRAME_FREQ ((cycles_t)60/STRETCH)
+ 
+ /* 
+diff --git a/linux/notes/channel/covert_channel/modulate_cache.c b/linux/notes/channel/covert_channel/modulate_cache.c
+index 28522dc..3e491de 100644
+--- a/linux/notes/channel/covert_channel/modulate_cache.c
++++ b/linux/notes/channel/covert_channel/modulate_cache.c
+@@ -230,7 +230,8 @@ syncup:
+ 	
+ 		err = decode_data(dat_ptr, frame_nr);
+ 		if(err < 0){
+-			fprintf(stderr,"Out of sync\n");
++			fprintf(stderr,"@\n");
++	//		fprintf(stderr,"Out of sync\n");
+ 			frame_nr = 0;
+ 			sync = 0;
+ 			goto syncup;
+@@ -238,7 +239,8 @@ syncup:
+ 		else{ // This is the right frame
+ 			signal_strength = err;
+ 			if((!sync) && (signal_strength>0)){
+-				fprintf(stderr,"Frame synchronized!\n");
++				fprintf(stderr,"!\n");
++	//			fprintf(stderr,"Frame synchronized!\n");
+ 				sync = 1;
+ 			}
+ 		}
+@@ -247,8 +249,8 @@ syncup:
+ 			signal_period++;
+ 			if(signal_period == 30){
+ 				if(!signal_strength){
+-					sync = 0;
+-					fprintf(stderr,"NO carrier\n");
++//					sync = 0;
++			//		fprintf(stderr,"NO carrier\n");
+ 				}
+ 				signal_period = 0;
+ 				signal_strength = 0;
+@@ -311,7 +313,7 @@ PFN: 0x191e
+ 			memset(rx_buf,0,CACHE_SIZE);
+ 		}
+ 		else{
+-			fprintf(stderr,"Using provide address cookie 0x%llx\n",pci_mem_addr);
++//			fprintf(stderr,"Using provide address cookie 0x%llx\n",pci_mem_addr);
+ 			fd = open ( "/dev/mem", O_RDWR);
+ 			if(fd<0)
+ 				DIE("cannot open /dev/mem");
+@@ -319,7 +321,7 @@ PFN: 0x191e
+ 		}
+ 		if(rx_buf == MAP_FAILED)
+ 			DIE("mmap");
+-		fprintf(stderr, "rx_buf mmap ptr %p\n",rx_buf);
++//		fprintf(stderr, "rx_buf mmap ptr %p\n",rx_buf);
+ 	}
+ 	else{
+ 		//When the name are different i.e. mmap to different physical Address
+@@ -346,7 +348,7 @@ PFN: 0x191e
+ 		rx_buf = mmap(0x7f0000030000,CACHE_SIZE,PROT_READ|PROT_WRITE,MAP_SHARED,fd,0);
+ 		if(rx_buf == MAP_FAILED)
+ 			DIE("mmap");
+-		fprintf(stderr, "rx_buf mmap ptr %p\n",rx_buf);
++		//fprintf(stderr, "rx_buf mmap ptr %p\n",rx_buf);
+ 	}
+ 
+ 	display_init();
+diff --git a/linux/notes/channel/covert_channel/pll.c b/linux/notes/channel/covert_channel/pll.c
+index 9d5512e..a150312 100644
+--- a/linux/notes/channel/covert_channel/pll.c
++++ b/linux/notes/channel/covert_channel/pll.c
+@@ -31,7 +31,7 @@ restart:
+ 	 * Here we adjust the phase on an integer multiple of a frame
+ 	 * TODO relax CPU here
+ 	 */
+-	while(  ((t2 = get_cycles()) &~0xffff) % ((FRAME_PERIOD_IN_CYCLE*FRAME_FREQ) &~0xffff) );
++	while(  ((t2 = get_cycles()) &~0xffff) % ((FRAME_PERIOD_IN_CYCLE*FRAME_FREQ*16) &~0xffff) );
+ 
+ 	phase = 0;
+ 	x=0;
+@@ -108,8 +108,9 @@ restart:
+ 		 * F is frame per second
+ 		 */
+ 		if(x && !(x%FRAME_FREQ))
+-			fprintf(stderr, "%Ld %Ld/%Ld %Ld/%Ld %Ld @ %d:%Ld\n", t2, t3,PAYLOAD_AVAILABLE_CYCLE, 
+-				RELAX_PERIOD_IN_CYCLE, FRAME_PERIOD_IN_CYCLE, lpj, FRAME_FREQ, offset);
++			fprintf(stderr, "%Ld\n", t2);
++			//fprintf(stderr, "%Ld %Ld/%Ld %Ld/%Ld %Ld @ %d:%Ld\n", t2, t3,PAYLOAD_AVAILABLE_CYCLE, 
++			//	RELAX_PERIOD_IN_CYCLE, FRAME_PERIOD_IN_CYCLE, lpj, FRAME_FREQ, offset);
+ 
+ 		x++;
+ 	}
+diff --git a/linux/notes/channel/covert_channel/threads.c b/linux/notes/channel/covert_channel/threads.c
+index 774491c..0adabb4 100644
+--- a/linux/notes/channel/covert_channel/threads.c
++++ b/linux/notes/channel/covert_channel/threads.c
+@@ -34,7 +34,8 @@ static void *run_thread(void *arg)
+ 	void		*result;
+ 
+ 	if (sched_setaffinity(0, sizeof thread->cpus, &thread->cpus) < 0)
+-		WARN(errno, "sched_setaffinity() failed");
++		fprintf(stderr,"");
++//		WARN(errno, "sched_setaffinity() failed");
+ 
+ 	result = thread->func(thread->arg);
+ 

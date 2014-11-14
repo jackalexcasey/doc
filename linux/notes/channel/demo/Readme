@@ -1,0 +1,29 @@
+#
+# With VM there is a TSC offset between the two VM which may not be an integer multiple of
+# the frame cycle; that is OK since the frame is automatically compensated to find the magic pattern.
+#
+#
+# Cache are normally physically tagged i.e. tagged with physical PFN
+#  When using the shared memory we have full control i.e. we can load a cache line 
+#  and evict one. Since both process mmap the same SHM then there is a full control.
+#
+#  What is we are not using SHM? what is the memory is totally aside??
+#  Well one thing we could do is that we can reverse map the cache line flush from 
+#  one process to another. If processA flush cache line 1 then what does this correspond to in processB
+#  Cache flush operates directly on the cache line NR.
+#  ==> SO process A can cause a 0 to processB The only gotcha is that processA CANNOT load cacheline for processB
+
+TX:
+./covert_channel -c0 -t -a -m 0xc0000000
+RX:
+./covert_channel -c0 -a -m 0xc0000000
+
+ffmpeg -f x11grab -s 1280x550 -r 15 -i :0.0 -sameq output.mp4
+
+[device "tt"]
+driver = "ivshmem"
+shm = "test"
+size = "512m"
+
+
+kill -9 `pidof covert_channel`
